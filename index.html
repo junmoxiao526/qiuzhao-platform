@@ -1661,7 +1661,7 @@ async function syncStarJob() {
   btn.textContent = '⏳ 同步中...'; btn.disabled = true;
 
   try {
-    const url = `${SUPABASE_URL}/rest/v1/jobs?select=*&is_active=eq.true&order=created_at.desc&limit=500`;
+    const url = `${SUPABASE_URL}/rest/v1/jobs?select=*&is_active=eq.true&order=created_at.desc&limit=1000`;
     const resp = await fetch(url, { headers: { apikey: SUPABASE_KEY } });
     if (!resp.ok) throw new Error(`API 返回 ${resp.status}`);
     const raw = await resp.json();
