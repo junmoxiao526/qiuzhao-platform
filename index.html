@@ -1,0 +1,2306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>秋招管理平台</title>
+<style>
+:root {
+  --bg: #E9EBEF; --surface: #F6F7F9; --surface-2: #FAFAFB; --surface-3: #EEF0F3;
+  --text: #1D1D1F; --text-secondary: #515154; --text-muted: #6E6E73;
+  --border: #D2D2D7; --border-strong: #B7B7BC;
+  --accent: #12294E; --accent-2: #1A3A6B; --accent-glow: rgba(18,41,78,0.12);
+  --green: #356447; --green-glow: rgba(53,100,71,0.12);
+  --amber: #8A4B16; --amber-glow: rgba(138,75,22,0.12);
+  --rose: #9F2D3F; --rose-glow: rgba(159,45,63,0.12);
+  --cyan: #0891B2; --blue: #2563EB; --danger: #9F2D3F; --danger-glow: rgba(159,45,63,0.12);
+  --radius: 18px; --radius-sm: 10px; --radius-xs: 6px;
+  --transition: 0.2s ease;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.05);
+  --shadow-glow: 0 0 12px rgba(18,41,78,0.10), 0 0 0 1px rgba(18,41,78,0.15);
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; -webkit-font-smoothing:antialiased; }
+body {
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--text); min-height:100vh; line-height:1.6;
+  display:flex; flex-direction:column;
+  background-image:radial-gradient(ellipse 80% 80% at 50% -20%, rgba(18,41,78,0.05),transparent);
+}
+::selection { background:rgba(18,41,78,0.18); color:var(--text); }
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:#C7C7CC; border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:#A1A1A6; }
+
+/* ═══════ Header ═══════ */
+.header {
+  background:rgba(246,247,249,0.80); backdrop-filter:blur(20px) saturate(180%);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);
+  border-bottom:1px solid var(--border); padding:10px 28px;
+  display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100;
+}
+.header-left { display:flex; align-items:center; gap:14px; }
+.logo {
+  width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  color:#fff; font-weight:800; font-size:19px; letter-spacing:-0.5px;
+  background:linear-gradient(135deg,var(--accent-2),var(--accent));
+  box-shadow:0 4px 12px var(--accent-glow);
+}
+.header h1 { font-size:18px; font-weight:700; letter-spacing:-0.3px; }
+.header-right { display:flex; align-items:center; gap:10px; }
+
+/* ═══════ Tabs ═══════ */
+.tab-nav { display:flex; gap:4px; margin-left:24px; background:var(--surface-3); border-radius:10px; padding:3px; }
+.tab-btn {
+  padding:7px 18px; border:none; background:transparent; font-size:13px; font-weight:500;
+  color:var(--text-muted); cursor:pointer; border-radius:8px; transition:all var(--transition);
+  position:relative;
+}
+.tab-btn.active { color:var(--accent); background:var(--surface); box-shadow:var(--shadow-sm); }
+.tab-btn:hover:not(.active) { color:var(--text-secondary); }
+
+/* ═══════ Buttons ═══════ */
+.btn {
+  padding:8px 16px; border:1px solid var(--border); border-radius:var(--radius-xs);
+  font-size:12.5px; font-weight:500; cursor:pointer; transition:all var(--transition);
+  background:var(--surface); color:var(--text-secondary); display:inline-flex;
+  align-items:center; gap:5px; letter-spacing:0.1px;
+}
+.btn:hover { background:var(--surface-2); color:var(--text); border-color:var(--border-strong); }
+.btn-primary {
+  background:var(--accent); color:#fff; border:none;
+  box-shadow:var(--shadow-sm);
+}
+.btn-primary:hover { background:var(--accent-2); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.btn-danger { color:var(--rose); border-color:rgba(251,113,133,0.25); background:rgba(251,113,133,0.06); }
+.btn-danger:hover { background:rgba(251,113,133,0.12); border-color:rgba(251,113,133,0.4); }
+.btn-outline { border-color:var(--border); background:transparent; }
+.btn-outline:hover { border-color:var(--border-strong); background:var(--surface); }
+.btn-sm { padding:5px 12px; font-size:11.5px; }
+.btn-xs { padding:3px 10px; font-size:11px; border-radius:5px; }
+.btn-success { background:var(--green); color:#fff; border:none; }
+.btn-success:hover { background:#2A523A; }
+.btn:disabled { opacity:0.35; cursor:not-allowed; pointer-events:none; }
+
+/* ═══════ Stats Bar ═══════ */
+.stats-bar { display:flex; gap:10px; padding:16px 28px; flex-wrap:wrap; }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:12px 18px; cursor:pointer; transition:all var(--transition);
+  min-width:90px; text-align:center; position:relative; overflow:hidden;
+  box-shadow:var(--shadow-sm);
+}
+.stat-card:hover { transform:translateY(-2px); border-color:var(--border-strong); box-shadow:var(--shadow-md); }
+.stat-dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px; box-shadow:0 0 6px currentColor; }
+.stat-label { font-size:11px; color:var(--text-muted); font-weight:500; text-transform:uppercase; letter-spacing:0.8px; }
+.stat-value { font-size:24px; font-weight:700; letter-spacing:-1px; margin-top:2px; }
+
+/* ═══════ Toolbar ═══════ */
+.toolbar { display:flex; align-items:center; gap:10px; padding:0 28px 14px; flex-wrap:wrap; }
+.search-box { position:relative; flex:1; min-width:220px; max-width:420px; }
+.search-box input {
+  width:100%; padding:9px 14px 9px 38px; border:1px solid var(--border); border-radius:20px;
+  font-size:13px; outline:none; background:var(--surface-2); color:var(--text);
+  transition:all var(--transition);
+}
+.search-box input::placeholder { color:var(--text-muted); }
+.search-box input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.search-icon { position:absolute; left:13px; top:50%; transform:translateY(-50%); font-size:14px; opacity:0.5; }
+.filter-select {
+  padding:7px 12px; border:1px solid var(--border); border-radius:var(--radius-xs);
+  font-size:12px; background:var(--surface); color:var(--text); cursor:pointer; min-width:100px;
+  transition:border-color var(--transition);
+}
+.filter-select:focus { border-color:var(--accent); outline:none; }
+.filter-tag {
+  padding:4px 10px; border-radius:14px; font-size:11.5px; cursor:pointer;
+  border:1px solid var(--border); background:var(--surface); color:var(--text-secondary);
+  transition:all var(--transition); font-weight:500;
+}
+.filter-tag:hover { border-color:var(--accent); color:var(--accent); }
+.filter-tag.active { background:#E8EDF4; color:var(--accent); border-color:rgba(18,41,78,0.25); }
+
+/* Filter Panel */
+.filter-panel {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  margin:0 28px 14px; padding:18px; display:none;
+}
+.filter-panel.show { display:block; animation:fadeDown .25s ease; }
+@keyframes fadeDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+.filter-section { margin-bottom:14px; }
+.filter-section:last-child { margin-bottom:0; }
+.filter-section-title {
+  font-size:10.5px; font-weight:700; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;
+}
+.filter-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.province-grid { display:flex; flex-wrap:wrap; gap:4px; max-height:130px; overflow-y:auto; }
+.province-tag {
+  padding:3px 9px; border-radius:6px; font-size:11px; cursor:pointer;
+  background:var(--surface-2); color:var(--text-secondary); border:1px solid var(--border);
+  transition:all var(--transition); white-space:nowrap; font-weight:500;
+}
+.province-tag:hover { border-color:var(--accent); color:var(--text); }
+.province-tag.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.sort-row { display:flex; align-items:center; gap:4px; }
+.sort-btn {
+  padding:5px 12px; border-radius:14px; font-size:12px; border:1px solid var(--border);
+  background:var(--surface); color:var(--text-secondary); cursor:pointer; transition:all var(--transition); font-weight:500;
+}
+.sort-btn:hover { border-color:var(--accent); color:var(--text); }
+.sort-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.filter-toggle {
+  display:flex; align-items:center; gap:5px; font-size:12px; cursor:pointer;
+  color:var(--text-secondary); user-select:none; font-weight:500;
+}
+.filter-toggle:hover { color:var(--text); }
+.filter-count {
+  font-size:10px; background:var(--accent); color:#fff; padding:1px 6px; border-radius:8px; margin-left:3px;
+  font-weight:600;
+}
+
+/* ═══════ Job Cards Grid ═══════ */
+.job-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:14px; padding:0 28px 28px; }
+.job-card {
+  background:var(--surface); border-radius:var(--radius); padding:18px;
+  border:1px solid var(--border); transition:all var(--transition); cursor:pointer;
+  position:relative; overflow:hidden;
+}
+.job-card::after {
+  content:''; position:absolute; inset:0; border-radius:var(--radius);
+  opacity:0; transition:opacity var(--transition);
+  background:radial-gradient(600px circle at var(--mx,50%) var(--my,50%), rgba(18,41,78,0.06),transparent 40%);
+  pointer-events:none;
+}
+.job-card:hover { transform:translateY(-3px); border-color:var(--border-strong); box-shadow:var(--shadow-lg); }
+.job-card:hover::after { opacity:1; }
+.job-card.tracked { border-color:rgba(53,100,71,0.25); }
+.job-card.tracked:hover { border-color:rgba(53,100,71,0.4); box-shadow:0 4px 16px rgba(0,0,0,0.10),0 0 0 1px rgba(53,100,71,0.15),0 0 12px var(--green-glow); }
+.job-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+.job-card-company { font-size:17px; font-weight:700; letter-spacing:-0.3px; }
+.job-card-badge { padding:3px 8px; border-radius:5px; font-size:10.5px; font-weight:700; letter-spacing:0.3px; }
+.job-card-badge.tracked { background:rgba(53,100,71,0.10); color:var(--green); }
+.job-card-date-tag {
+  padding:3px 8px; border-radius:5px; font-size:11px; font-weight:600; white-space:nowrap;
+  background:var(--surface-2); color:var(--text-muted); border:1px solid var(--border);
+}
+.job-card-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
+.job-card-tag { padding:3px 8px; border-radius:5px; font-size:11px; font-weight:500; }
+.job-card-tag { background:var(--surface-2); color:var(--text-muted); }
+.job-card-tag.type { background:#E8EDF4; color:var(--accent); }
+.job-card-tag.industry { background:rgba(53,100,71,0.10); color:var(--green); }
+.job-card-meta { font-size:12px; color:var(--text-muted); display:flex; gap:14px; flex-wrap:wrap; }
+.job-card-actions { margin-top:12px; display:flex; gap:8px; }
+
+/* ═══════ Board ═══════ */
+.board { display:flex; gap:10px; padding:0 28px 28px; overflow-x:auto; min-height:320px; }
+.column {
+  min-width:260px; max-width:300px; flex-shrink:0; background:var(--surface);
+  border:1px solid var(--border); border-radius:var(--radius); display:flex; flex-direction:column;
+}
+.column-header {
+  padding:14px 16px; display:flex; justify-content:space-between; align-items:center;
+  border-bottom:1px solid var(--border);
+}
+.col-title { font-size:13px; font-weight:600; display:flex; align-items:center; gap:7px; letter-spacing:-0.1px; }
+.col-dot { width:9px; height:9px; border-radius:50%; box-shadow:0 0 6px currentColor; }
+.col-count {
+  font-size:11.5px; color:var(--text-muted); background:var(--surface-2);
+  padding:2px 10px; border-radius:10px; font-weight:600;
+}
+.column-body { padding:10px; display:flex; flex-direction:column; gap:8px; flex:1; overflow-y:auto; max-height:calc(100vh-340px); }
+
+/* Board Card */
+.card {
+  background:var(--surface-2); border-radius:var(--radius-sm); padding:13px; cursor:pointer;
+  transition:all var(--transition); border:1px solid var(--border); position:relative;
+}
+.card:hover { border-color:var(--border-strong); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.card-company { font-weight:700; font-size:14px; letter-spacing:-0.2px; }
+.card-position { font-size:12px; color:var(--text-muted); margin:3px 0; }
+.card-meta { font-size:11px; color:var(--text-muted); display:flex; flex-wrap:wrap; gap:8px; margin-top:5px; }
+.card-actions { float:right; display:flex; gap:3px; }
+.card-deadline { color:var(--danger); font-weight:600; }
+.card-deadline-soon { color:var(--amber); font-weight:600; }
+
+/* ═══════ List View ═══════ */
+.list-view { padding:0 28px 28px; }
+.list-table {
+  width:100%; border-collapse:collapse; background:var(--surface);
+  border-radius:var(--radius); overflow:hidden; border:1px solid var(--border);
+}
+.list-table th {
+  background:var(--surface-2); padding:11px 14px; text-align:left;
+  font-size:11.5px; font-weight:700; color:var(--text-muted); border-bottom:1px solid var(--border);
+  text-transform:uppercase; letter-spacing:0.6px;
+}
+.list-table td { padding:11px 14px; font-size:13px; border-bottom:1px solid var(--border); color:var(--text-secondary); }
+.list-table tr:hover td { background:var(--surface-2); }
+.status-badge {
+  padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; color:#fff;
+  letter-spacing:0.3px;
+}
+.empty-state { text-align:center; padding:80px 20px; color:var(--text-muted); }
+.empty-icon { font-size:52px; margin-bottom:16px; opacity:0.3; }
+
+/* ═══════ Modal ═══════ */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.30); backdrop-filter:blur(4px);
+  display:flex; align-items:center; justify-content:center; z-index:200;
+  animation:fadeIn .2s ease;
+}
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+.modal {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:0 8px 32px rgba(0,0,0,0.15),0 0 0 1px rgba(0,0,0,0.06);
+  width:92%; max-width:580px; max-height:90vh; display:flex; flex-direction:column;
+  animation:slideUp .25s ease;
+}
+@keyframes slideUp { from{opacity:0;transform:translateY(16px) scale(0.98)} to{opacity:1;transform:translateY(0) scale(1)} }
+.modal-header {
+  padding:18px 24px; border-bottom:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center;
+}
+.modal-header h3 { font-size:17px; font-weight:700; letter-spacing:-0.2px; }
+.modal-close {
+  border:none; background:none; font-size:22px; cursor:pointer;
+  color:var(--text-muted); width:32px; height:32px; border-radius:8px;
+  display:flex; align-items:center; justify-content:center; transition:all var(--transition);
+}
+.modal-close:hover { background:var(--surface-2); color:var(--text); }
+.modal-body { padding:24px; overflow-y:auto; flex:1; }
+.modal-footer {
+  padding:14px 24px; border-top:1px solid var(--border);
+  display:flex; justify-content:flex-end; gap:10px;
+}
+.form-group { margin-bottom:16px; }
+.form-group label {
+  display:block; font-size:12px; font-weight:600; margin-bottom:5px;
+  color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:var(--radius-xs);
+  font-size:13px; outline:none; background:var(--surface-2); color:var(--text);
+  transition:border-color var(--transition);
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow);
+}
+.form-group input::placeholder { color:var(--text-muted); }
+.form-row { display:flex; gap:14px; }
+.form-row .form-group { flex:1; }
+
+/* ═══════ Toast ═══════ */
+.toast {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(120px);
+  background:var(--accent); color:#fff; padding:11px 28px; border-radius:24px;
+  font-size:13px; font-weight:500; z-index:300; transition:transform .35s cubic-bezier(0.4,0,0.2,1);
+  border:none; box-shadow:var(--shadow-lg);
+}
+.toast.show { transform:translateX(-50%) translateY(0); }
+
+/* ═══════ Summary ═══════ */
+.summary-panel {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:20px; margin:0 28px 14px; display:none;
+}
+.summary-panel textarea {
+  width:100%; min-height:130px; border:1px solid var(--border); border-radius:var(--radius-xs);
+  padding:14px; font-size:13px; resize:vertical; background:var(--surface-2); color:var(--text);
+  line-height:1.7;
+}
+.summary-panel textarea:focus { border-color:var(--accent); outline:none; }
+.summary-panel .btn-row { display:flex; justify-content:flex-end; gap:8px; margin-top:10px; }
+
+/* View toggle */
+.view-section { display:none; }
+.view-section.active { display:block; }
+
+/* Count badge on tab */
+.tab-count {
+  font-size:10px; background:var(--surface-3); color:var(--text-muted);
+  padding:1px 7px; border-radius:8px; margin-left:5px; font-weight:600;
+}
+.tab-btn.active .tab-count { background:#E8EDF4; color:var(--accent); }
+
+/* ═══════ Star View ═══════ */
+.star-view { width:100%; height:calc(100vh - 140px); min-height:600px;
+  display:none; overflow:hidden; user-select:none; border-top:1px solid var(--border); }
+.star-view.active { display:flex; }
+.star-back-btn { display:none; }
+.star-canvas-wrap { flex:1; position:relative; min-width:0;
+  background:radial-gradient(ellipse at center, #0D1D39 0%, #060E24 60%, #000001 100%); }
+.star-canvas-wrap canvas { display:block; }
+
+.star-tooltip { position:absolute; pointer-events:none; z-index:25;
+  background:rgba(13,27,52,0.94); backdrop-filter:blur(12px);
+  border:1px solid rgba(231,226,255,0.20); border-radius:10px;
+  padding:8px 14px; font-size:12px; color:#C9C5E4; display:none;
+  white-space:nowrap; transform:translateY(calc(-100% - 12px)); box-shadow:0 8px 24px rgba(0,0,0,0.5); }
+.star-tooltip b { display:block; font-size:13px; margin-bottom:3px; color:#fff; }
+.star-tooltip small { color:#64748b; }
+
+.star-panel { width:360px; flex-shrink:0; background:var(--surface);
+  border-left:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto; }
+.sp-placeholder { flex:1; display:flex; align-items:center; justify-content:center;
+  text-align:center; color:var(--text-muted); font-size:15px; line-height:1.8; padding:24px; }
+.sp-header { padding:28px 28px 18px; border-bottom:1px solid var(--border); }
+.sp-header .sp-company { font-size:22px; font-weight:700; letter-spacing:-0.3px; }
+.sp-header .sp-position { font-size:14px; color:var(--text-muted); margin-top:6px; }
+.sp-header .sp-status { display:inline-block; margin-top:12px; padding:4px 14px;
+  border-radius:14px; font-size:12px; font-weight:700; letter-spacing:0.3px; }
+.sp-body { padding:22px 28px; flex:1; }
+.sp-row { display:flex; justify-content:space-between; align-items:center;
+  padding:11px 0; border-bottom:1px solid var(--border); font-size:14px; }
+.sp-row .sp-label { color:var(--text-muted); font-weight:500; }
+.sp-row .sp-val { color:var(--text); font-weight:500; }
+.sp-row .sp-val a { color:var(--accent); text-decoration:none; }
+.sp-row .sp-val a:hover { text-decoration:underline; }
+.sp-actions { padding:22px 28px 28px; display:flex; gap:14px; border-top:1px solid var(--border); }
+.sp-actions .sp-btn { flex:1; padding:13px; border-radius:10px; border:none; cursor:pointer;
+  font-size:14px; font-weight:600; transition:all var(--transition); text-align:center; letter-spacing:0.2px; }
+.sp-btn.primary { background:var(--accent); color:#fff; box-shadow:var(--shadow-sm); }
+.sp-btn.primary:hover { background:var(--accent-2); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.sp-btn.secondary { background:var(--surface-2); color:var(--text-secondary); border:1px solid var(--border); }
+.sp-btn.secondary:hover { background:var(--surface-3); color:var(--text); }
+
+.explore-belt { display:none; }
+
+/* Responsive */
+@media (max-width:768px) {
+  .job-grid { grid-template-columns:1fr; }
+  .header { flex-wrap:wrap; gap:8px; padding:10px 16px; }
+  .tab-nav { margin-left:0; }
+  .column { min-width:220px; }
+  .stats-bar { padding:12px 16px; }
+  .toolbar { padding:0 16px 12px; }
+  .job-grid { padding:0 16px 20px; }
+  .board { padding:0 16px 20px; }
+  .star-detail { right:8px; width:260px; }
+  .explore-belt { right:8px; bottom:8px; }
+  .filter-panel { margin:0 16px 12px; }
+  .star-panel { width:280px; }
+}
+
+
+
+/* ==================== 板块3: 简历管理 CSS ==================== */
+#sectionResume { display:none; flex-direction:row; flex:1; overflow:hidden; }
+#sectionResume.active { display:flex; }
+
+.resume-container { display:flex; flex:1; overflow:hidden; gap:16px; padding:16px; }
+
+/* 左侧预览 */
+.resume-preview-panel {
+  width:40%; min-width:320px; overflow-y:auto;
+  display:flex; flex-direction:column; gap:12px;
+}
+.resume-preview-card {
+  background:#fff; border-radius:var(--radius,18px);
+  box-shadow:0 2px 12px rgba(0,0,0,0.06);
+  padding:28px 24px; color:#2c2c2c; font-size:13px; line-height:1.7;
+  min-height:600px;
+}
+.resume-preview-card .rp-header { text-align:center; margin-bottom:16px; }
+.resume-preview-card .rp-photo {
+  width:72px; height:72px; border-radius:50%; object-fit:cover;
+  border:2px solid #e0e0e0; margin:0 auto 8px; display:block;
+}
+.resume-preview-card .rp-name { font-size:20px; font-weight:700; margin:4px 0; }
+.resume-preview-card .rp-meta { color:#777; font-size:12px; }
+.resume-preview-card .rp-section { margin-top:14px; padding-top:10px; border-top:1px dashed #e8e8e8; }
+.resume-preview-card .rp-section h4 { font-size:13px; font-weight:700; color:var(--accent,#12294E); margin-bottom:6px; }
+.resume-preview-card .rp-item { margin-bottom:8px; }
+.resume-preview-card .rp-item .rp-item-head { display:flex; justify-content:space-between; font-weight:600; font-size:12px; }
+.resume-preview-card .rp-item .rp-item-sub { color:#666; font-size:12px; margin-bottom:2px; }
+.resume-preview-card .rp-item .rp-item-desc { color:#555; font-size:12px; }
+.resume-preview-card .rp-empty { color:#bbb; font-style:italic; font-size:12px; }
+
+/* 右侧编辑面板 */
+.resume-edit-panel {
+  width:60%; overflow-y:auto; display:flex; flex-direction:column; gap:12px;
+  padding-right:4px;
+}
+#pdfPreviewContainer { flex:1; display:flex; flex-direction:column; min-height:0; }
+.resume-edit-panel .rep-toolbar {
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:var(--surface,#F6F7F9); border-radius:var(--radius-sm,10px);
+  padding:12px 16px;
+}
+.resume-edit-panel .rep-toolbar input[type="text"] {
+  flex:1; min-width:140px; padding:8px 12px; border:1px solid #d0d4dc;
+  border-radius:8px; font-size:13px; outline:none; background:#fff;
+}
+.resume-edit-panel .rep-toolbar input[type="text"]:focus { border-color:var(--accent,#12294E); }
+
+/* 主题色选择器 */
+.color-picker { display:flex; gap:6px; }
+.color-picker .color-dot {
+  width:24px; height:24px; border-radius:50%; cursor:pointer;
+  border:2px solid transparent; transition:all .2s;
+}
+.color-picker .color-dot:hover { transform:scale(1.15); }
+.color-picker .color-dot.active { border-color:#333; box-shadow:0 0 0 2px #fff, 0 0 0 4px currentColor; }
+
+/* Accordion 折叠模块 */
+.resume-accordion { background:var(--surface,#F6F7F9); border-radius:var(--radius-sm,10px); overflow:hidden; }
+.resume-accordion .ra-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:12px 16px; cursor:pointer; user-select:none;
+  font-size:14px; font-weight:600; color:var(--accent,#12294E);
+  transition:background .2s;
+}
+.resume-accordion .ra-header:hover { background:rgba(0,0,0,0.03); }
+.resume-accordion .ra-header .ra-arrow { transition:transform .25s; font-size:12px; color:#999; }
+.resume-accordion .ra-header.open .ra-arrow { transform:rotate(90deg); }
+.resume-accordion .ra-body { display:none; padding:0 16px 16px; }
+.resume-accordion .ra-body.open { display:block; }
+.ra-body .ra-field { margin-bottom:10px; }
+.ra-body .ra-field label { display:block; font-size:12px; color:#666; margin-bottom:3px; font-weight:500; }
+.ra-body .ra-field input,
+.ra-body .ra-field textarea,
+.ra-body .ra-field select {
+  width:100%; padding:8px 12px; border:1px solid #d0d4dc; border-radius:8px;
+  font-size:13px; outline:none; background:#fff; box-sizing:border-box;
+  font-family:inherit;
+}
+.ra-body .ra-field input:focus,
+.ra-body .ra-field textarea:focus,
+.ra-body .ra-field select:focus { border-color:var(--accent,#12294E); }
+.ra-body .ra-field textarea { resize:vertical; min-height:80px; }
+.ra-body .ra-row { display:flex; gap:10px; }
+.ra-body .ra-row .ra-field { flex:1; }
+
+/* 列表条目(教育/实习/项目) */
+.ra-list-item {
+  background:#fff; border:1px solid #e8eaef; border-radius:10px;
+  padding:12px; margin-bottom:10px; position:relative;
+}
+.ra-list-item .ra-list-fields { display:flex; flex-direction:column; gap:8px; }
+.ra-list-item .ra-list-row { display:flex; gap:8px; }
+.ra-list-item .ra-list-row .ra-field { flex:1; margin-bottom:0; }
+.ra-btn-del {
+  position:absolute; top:6px; right:8px;
+  width:22px; height:22px; border-radius:50%; border:none;
+  background:#9F2D3F; color:#fff; font-size:12px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  line-height:1; padding:0; transition:opacity .2s;
+}
+.ra-btn-del:hover { opacity:0.8; }
+.ra-btn-add {
+  padding:6px 14px; border:1px dashed var(--accent,#12294E); border-radius:8px;
+  background:transparent; color:var(--accent,#12294E); font-size:12px;
+  cursor:pointer; transition:all .2s; font-weight:500;
+}
+.ra-btn-add:hover { background:var(--accent,#12294E); color:#fff; }
+
+/* PDF 上传区域 */
+.resume-pdf-section {
+  background: var(--surface-2,#FAFAFB); border-radius: var(--radius-sm,10px);
+  padding: 14px 16px; margin-bottom:0;
+}
+.resume-pdf-section .rps-title {
+  font-size:13px; font-weight:600; color:var(--accent,#12294E); margin-bottom:10px;
+  display:flex; align-items:center; gap:6px;
+}
+.pdf-upload-zone {
+  border:2px dashed #d0d4dc; border-radius:10px; padding:18px 14px;
+  text-align:center; cursor:pointer; transition:all .2s;
+  background:#fff;
+}
+.pdf-upload-zone:hover, .pdf-upload-zone.dragover {
+  border-color:var(--accent,#12294E); background:#e8edf4;
+}
+.pdf-upload-zone .puz-icon { font-size:28px; margin-bottom:4px; }
+.pdf-upload-zone .puz-text { font-size:12px; color:#888; }
+.pdf-upload-zone .puz-text b { color:var(--accent,#12294E); }
+.pdf-file-card {
+  background:#fff; border:1px solid #e0e4ea; border-radius:10px;
+  padding:12px 14px; display:flex; align-items:center; gap:10px;
+}
+.pdf-file-card .pfc-icon { font-size:24px; flex-shrink:0; }
+.pdf-file-card .pfc-info { flex:1; min-width:0; }
+.pdf-file-card .pfc-name {
+  font-size:13px; font-weight:600; color:#1D1D1F;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.pdf-file-card .pfc-meta { font-size:11px; color:#999; margin-top:2px; }
+.pdf-file-card .pfc-actions { display:flex; gap:6px; flex-shrink:0; }
+.pfc-btn {
+  padding:4px 10px; border-radius:6px; font-size:11px; border:1px solid #d0d4dc;
+  background:#fff; color:#555; cursor:pointer; transition:all .2s;
+  white-space:nowrap;
+}
+.pfc-btn:hover { background:var(--accent,#12294E); color:#fff; border-color:var(--accent,#12294E); }
+.pfc-btn.del:hover { background:#9F2D3F; border-color:#9F2D3F; }
+
+
+@media (max-width:768px) {
+  .resume-container { flex-direction:column; }
+  .resume-preview-panel, .resume-edit-panel { width:100%; min-width:auto; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <div class="logo">O</div>
+    <h1>秋招管理平台</h1>
+    <nav class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('explore')">🔍 岗位清单<span class="tab-count" id="exploreCount">0</span></button>
+      <button class="tab-btn" onclick="switchTab('track')">📋 投递管理<span class="tab-count" id="trackCount">0</span></button>
+          <button class="tab-btn" onclick="switchTab('resume')">📄 简历管理</button>
+    </nav>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-outline btn-sm" onclick="syncStarJob()" id="btnSyncStarJob" title="从拾星 StarJob 同步最新岗位">🔄 同步 StarJob</button>
+  </div>
+</header>
+
+<!-- ============ 板块1: 岗位清单 ============ -->
+<section class="view-section active" id="sectionExplore">
+  <div class="stats-bar" id="exploreStats"></div>
+  <div class="toolbar">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="exploreSearch" placeholder="搜索公司名称..." oninput="renderExplore()">
+    </div>
+    <span class="filter-toggle" onclick="toggleFilterPanel()">⚙ 筛选<span class="filter-count" id="filterCount" style="display:none;">0</span></span>
+    <button class="btn btn-sm btn-outline" onclick="clearAllFilters()" style="color:var(--danger);border-color:rgba(239,68,68,0.25);display:none;" id="btnClearFilters">✕ 清空</button>
+    <div class="sort-row">
+      <span style="font-size:11px;color:var(--text-secondary);">排序:</span>
+      <button class="sort-btn active" data-sort="updated" onclick="setSort(this)">最近更新</button>
+      <button class="sort-btn" data-sort="opened" onclick="setSort(this)">最新开放</button>
+    </div>
+    <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;margin-left:auto;">
+      <input type="checkbox" id="exploreUntracked" onchange="renderExplore()"> 仅未加入
+    </label>
+  </div>
+  <!-- Filter Panel -->
+  <div class="filter-panel" id="filterPanel">
+    <div class="filter-section" id="provinceSection">
+      <div class="filter-section-title">📌 省份/地区</div>
+      <div class="province-grid" id="provinceGrid"></div>
+    </div>
+    <div class="filter-section" id="industrySection">
+      <div class="filter-section-title">🏢 所在行业</div>
+      <div class="filter-row" id="industryTags"></div>
+    </div>
+    <div class="filter-section" id="categorySection">
+      <div class="filter-section-title">📂 岗位类别</div>
+      <div class="filter-row" id="categoryTags"></div>
+    </div>
+    <div class="filter-section" id="typeSection">
+      <div class="filter-section-title">🏷 公司类型</div>
+      <div class="filter-row" id="typeTags"></div>
+    </div>
+    <div class="filter-section" id="dateSection">
+      <div class="filter-section-title">📅 开放日期</div>
+      <div class="filter-row" style="gap:8px;align-items:center;">
+        <input type="date" id="dateFrom" class="filter-select" style="font-size:12px;min-width:auto;width:140px;" onchange="onDateFilterChange()" title="起始日期">
+        <span style="font-size:12px;color:var(--text-secondary);">至</span>
+        <input type="date" id="dateTo" class="filter-select" style="font-size:12px;min-width:auto;width:140px;" onchange="onDateFilterChange()" title="结束日期">
+        <button class="btn btn-xs btn-outline" onclick="clearDateFilter()" style="display:none;" id="btnClearDate">✕ 清除</button>
+      </div>
+    </div>
+  </div>
+  <div class="job-grid" id="exploreGrid"></div>
+  <div class="empty-state" id="exploreEmpty" style="display:none;">
+    <div class="empty-icon">📭</div>
+    <p>没有匹配的岗位</p>
+    <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">尝试调整筛选条件，或点击右上角同步 StarJob 获取最新岗位</p>
+  </div>
+</section>
+
+<!-- ============ 板块2: 投递管理 ============ -->
+<section class="view-section" id="sectionTrack">
+  <div class="stats-bar" id="trackStats"></div>
+  <div class="toolbar">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="trackSearch" placeholder="搜索公司、岗位、城市、类型..." oninput="renderTrack()">
+    </div>
+    <div class="view-toggle" style="display:flex;gap:4px;">
+      <button id="btnBoard" class="btn btn-sm active" onclick="setTrackView('board')">看板</button>
+      <button id="btnList" class="btn btn-sm" onclick="setTrackView('list')">列表</button>
+      <button id="btnStarMap" class="btn btn-sm" onclick="setTrackView('star')">🌟 星图</button>
+    </div>
+    <select class="filter-select" id="filterStatus" onchange="renderTrack()">
+      <option value="">全部状态</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
+      <input type="checkbox" id="showDeadlineSoon" onchange="renderTrack()"> 仅临近截止
+    </label>
+    <button class="btn btn-outline btn-sm" onclick="toggleSummary()">📊 总结</button>
+    <button class="btn btn-outline btn-sm" onclick="exportData()">📥 导出</button>
+    <button class="btn btn-outline btn-sm" onclick="importData()">📤 导入</button>
+    <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ 添加岗位</button>
+  </div>
+
+  <!-- Summary Panel -->
+  <div class="summary-panel" id="summaryPanel">
+    <textarea id="summaryText" placeholder="记录投递总结、面试复盘、面经等..."></textarea>
+    <div class="btn-row">
+      <button class="btn btn-sm" onclick="loadSummary()">📂 加载</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSummary()">💾 保存</button>
+    </div>
+  </div>
+
+  <!-- Board View -->
+  <div class="board" id="board"></div>
+
+  <!-- List View -->
+  <div class="list-view" id="listView" style="display:none;"></div>
+  <!-- Star Map View -->
+  <div class="star-view" id="starView">
+    <div class="star-canvas-wrap" id="starCanvasWrap">
+      <button class="star-back-btn" onclick="setTrackView('board')" title="返回看板">← 返回</button>
+    </div>
+    <div class="star-panel" id="starPanel">
+      <div class="sp-placeholder">点击轨道上的星球<br>查看投递详情</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 板块3: 简历管理 ============ -->
+<section class="view-section" id="sectionResume">
+<div class="resume-container">
+
+  <!-- 左侧 PDF -->
+  <div class="resume-preview-panel">
+    <div class="resume-pdf-section" id="resumePdfSection"></div>
+  </div>
+
+  <!-- 右侧预览 -->
+  <div class="resume-edit-panel">
+    <div id="pdfPreviewContainer" style="display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span id="pdfPreviewLabel" style="font-size:13px; font-weight:600; color:var(--accent,#12294E);">📄 预览</span>
+        <button class="pfc-btn" onclick="closePdfPreview()" style="padding:2px 8px;">✕ 关闭预览</button>
+      </div>
+      <iframe id="pdfPreviewIframe" style="flex:1; width:100%; border:1px solid #d0d4dc; border-radius:8px;"></iframe>
+    </div>
+  </div>
+
+</div>
+</section>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="jobModal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">添加岗位</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>公司名称 *</label><input type="text" id="formCompany" placeholder="如: 字节跳动"></div>
+        <div class="form-group"><label>岗位名称 *</label><input type="text" id="formPosition" placeholder="如: 后端开发工程师"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>公司类型</label><select id="formCompanyType"><option value="">请选择</option><option>国央企</option><option>外企</option><option>大厂</option><option>独角兽</option><option>初创</option><option>其他</option></select></div>
+        <div class="form-group"><label>城市</label><input type="text" id="formCity" placeholder="如: 北京"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>投递日期</label><input type="date" id="formApplyDate"></div>
+        <div class="form-group"><label>截止日期</label><input type="date" id="formDeadline"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>笔/面试日期</label><input type="date" id="formInterviewDate"></div>
+        <div class="form-group"><label>薪资</label><input type="text" id="formSalary" placeholder="如: 25k*15"></div>
+      </div>
+      <div class="form-group"><label>投递链接</label><input type="text" id="formLink" placeholder="https://..."></div>
+      <div class="form-group"><label>备注</label><textarea id="formNotes" rows="2" placeholder="额外信息..."></textarea></div>
+      <input type="hidden" id="formEditId">
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveJob()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="detailTitle">岗位详情</h3>
+      <button class="modal-close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="detailDeleteBtn" style="margin-right:auto;">删除</button>
+      <select id="detailStatusSelect" onchange="changeStatus()" class="filter-select"></select>
+      <button class="btn btn-sm" onclick="closeDetail()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sync Result Modal -->
+<div class="modal-overlay" id="syncResultModal" style="display:none;">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <h3>🔄 StarJob 同步结果</h3>
+      <button class="modal-close" onclick="closeSyncResultModal()">×</button>
+    </div>
+    <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
+      <div id="syncSummary"></div>
+      <div id="syncList" style="margin-top:12px;font-size:13px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" onclick="closeSyncResultModal()">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== 常量 ====================
+const STATUSES = [
+  { key:'pending',    label:'待投递', dot:'#9CA3AF', badge:'#9CA3AF' },
+  { key:'applied',    label:'已投递', dot:'#2563EB', badge:'#2563EB' },
+  { key:'exam',       label:'笔试',   dot:'#8A4B16', badge:'#8A4B16' },
+  { key:'interview1', label:'一面',   dot:'#12294E', badge:'#12294E' },
+  { key:'interview2', label:'二面',   dot:'#1A3A6B', badge:'#1A3A6B' },
+  { key:'hr',         label:'终面',   dot:'#0891B2', badge:'#0891B2' },
+  { key:'failed',     label:'已挂',   dot:'#B45309', badge:'#B45309' },
+  { key:'offer',      label:'Offer',  dot:'#356447', badge:'#356447' },
+  { key:'rejected',   label:'已拒绝', dot:'#9F2D3F', badge:'#9F2D3F' },
+];
+const COMPANY_TYPE_MAP = { '科技':'科技','互联网':'大厂','央国企':'国央企','金融':'金融','外企':'外企','游戏':'大厂','在线教育':'其他','快消':'其他','制造业':'其他','其他':'其他' };
+const STORAGE_JOBS = 'campus_recruit_jobs';
+const STORAGE_JOBLIST = 'campus_job_list';
+const STORAGE_SUMMARY = 'campus_summary';
+const STORAGE_RESUME = 'campus_resume';
+const STARJOB_META_KEY = 'starjob_sync_meta';
+const SUPABASE_URL = 'https://uzzdcjdjlbnxmhvilldj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_0ImwuTX8ZtKikcqv5Zfwag_nrRLTzXL';
+const SJ_COMPANY_TYPE_TAGS = ['科技','互联网','央国企','金融','外企','游戏','在线教育','快消','其他','制造业'];
+
+function sjParseStartDate(raw) {
+  if (!raw) return '';
+  raw = String(raw).trim();
+  const m = raw.match(/^(\d{1,2})\.(\d{1,2})$/);
+  if (m) return `2026-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0,10);
+  return '';
+}
+function sjParseLocations(raw) {
+  if (!raw) return [];
+  raw = raw.replace(/，/g,',').replace(/、/g,',').replace(/等等/,'').replace(/等/g,'');
+  let parts = raw.split(',').map(s=>s.trim()).filter(Boolean);
+  if (parts.length<=1) parts = raw.split(/\s+/).filter(Boolean);
+  return parts.map(p=>p.replace(/[等及和与]$/,'')).filter(Boolean);
+}
+function sjTransformJobs(raw) {
+  return raw.map(j=>({
+    id: j.id,
+    company: j.company_name||'',
+    positionTypes: Array.isArray(j.job_categories)?j.job_categories:((j.job_categories||'').split(',').map(s=>s.trim()).filter(Boolean)),
+    companyTypes: (j.industry||'').split(',').map(s=>s.trim()).filter(t=>SJ_COMPANY_TYPE_TAGS.includes(t)),
+    cities: sjParseLocations(j.locations||''),
+    openingDate: sjParseStartDate(j.start_date),
+    url: j.apply_url||''
+  }));
+}
+
+// 省份城市映射
+const PROVINCE_MAP = {
+  '全国':['全国'],'上海':['上海'],'北京':['北京'],'天津':['天津'],'重庆':['重庆'],
+  '广东':['深圳','广州','东莞','佛山','珠海','惠州','中山','汕头','江门','湛江','肇庆','清远'],
+  '浙江':['杭州','宁波','温州','嘉兴','湖州','绍兴','金华','台州'],
+  '江苏':['苏州','南京','无锡','常州','南通','徐州','扬州','镇江','盐城','泰州','淮安','连云港','宿迁','昆山'],
+  '四川':['成都','绵阳','德阳','宜宾'],
+  '湖北':['武汉','宜昌','襄阳'],
+  '山东':['济南','青岛','烟台','威海','潍坊','淄博'],
+  '福建':['厦门','福州','泉州','莆田'],
+  '陕西':['西安','咸阳'],
+  '安徽':['合肥','芜湖'],
+  '河南':['郑州','洛阳','新乡'],
+  '湖南':['长沙','株洲'],
+  '辽宁':['沈阳','大连'],
+  '河北':['石家庄','保定','雄安新区','廊坊'],
+  '江西':['南昌'],
+  '广西':['南宁','桂林'],
+  '云南':['昆明'],
+  '贵州':['贵阳'],
+  '山西':['太原'],
+  '吉林':['长春'],
+  '黑龙江':['哈尔滨'],
+  '海南':['海口','三亚'],
+  '甘肃':['兰州'],
+  '内蒙古':['呼和浩特'],
+  '新疆':['乌鲁木齐'],
+  '西藏':['拉萨'],
+  '青海':['西宁'],
+  '宁夏':['银川'],
+  '香港':['香港'],
+  '澳门':['澳门'],
+  '台湾':['台北'],
+};
+
+// 岗位行业映射
+const INDUSTRIES = ['科技','互联网','金融','央国企','外企','游戏','制造业','快消','教育','医药','汽车','其他'];
+
+let jobs = [];         // 投递管理中的岗位
+let jobList = [];      // 岗位清单（来自 starjob + 手动）
+let trackView = 'board';
+let detailJobId = null;
+
+// 筛选状态
+let exploreSort = 'updated';
+let exploreFilters = {
+  provinces: new Set(),
+  industries: new Set(),
+  categories: new Set(),
+  types: new Set(),
+  dateFrom: '',  // YYYY-MM-DD
+  dateTo: '',    // YYYY-MM-DD
+};
+
+// ==================== 工具函数 ====================
+function genId() { return 'job_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+function toast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
+function escapeHtml(s) { if(!s) return ''; const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}; return String(s).replace(/[&<>"']/g,c=>m[c]); }
+function getStatusLabel(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).label; }
+function getStatusDot(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).dot; }
+function getStatusBadge(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).badge; }
+
+// ==================== 数据持久化 ====================
+function loadJobs() { try { const r=localStorage.getItem(STORAGE_JOBS); jobs=r?JSON.parse(r):[]; } catch { jobs=[]; } }
+function saveJobs() { localStorage.setItem(STORAGE_JOBS,JSON.stringify(jobs)); }
+
+function cleanupStaleJobs() {
+  const before = jobs.length;
+  jobs = jobs.filter(j => {
+    const hasStarjobId = (()=>{ try { return !!JSON.parse(j.notes||'{}').starjobId; } catch { return false; } })();
+    return !(j.status === 'pending' && !hasStarjobId);
+  });
+  const removed = before - jobs.length;
+  if (removed > 0) { saveJobs(); return removed; }
+  return 0;
+}
+function loadJobList() { try { const r=localStorage.getItem(STORAGE_JOBLIST); jobList=r?JSON.parse(r):[]; } catch { jobList=[]; } }
+function saveJobList() { localStorage.setItem(STORAGE_JOBLIST,JSON.stringify(jobList)); }
+
+// ==================== Tab 切换 ====================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view-section').forEach(s=>s.classList.remove('active'));
+  if (tab==='explore') {
+    document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+    document.getElementById('sectionExplore').classList.add('active');
+    renderExplore();
+  } else if (tab==='track') {
+    document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+    document.getElementById('sectionTrack').classList.add('active');
+    renderTrack();
+  } else if (tab==='resume') {
+    document.querySelector('.tab-btn:nth-child(3)').classList.add('active');
+    document.getElementById('sectionResume').classList.add('active');
+    renderResume();
+  }
+}
+
+// ==================== 面板1: 岗位清单 ====================
+function mergeJobList() {
+  // 合并 starjob 数据 + 手动岗位到 jobList
+  const starData = window.STARJOB_DATA || [];
+  const now = new Date().toISOString();
+  const existingIds = new Set(jobList.map(j=>j.starjobId).filter(Boolean));
+  for (const sj of starData) {
+    if (existingIds.has(sj.id)) {
+      // 刷新已有岗位的 url / openingDate；仅当数据变化时才更新同步时间
+      const existing = jobList.find(j => j.starjobId === sj.id);
+      if (existing) {
+        const oldUrl = existing.url || '';
+        const oldOpDate = existing.openingDate || '';
+        const newUrl = sj.url || '';
+        const newOpDate = sj.openingDate || '';
+        if (newUrl !== oldUrl || newOpDate !== oldOpDate) {
+          console.log('mergeJobList: 岗位数据变化，更新 addedAt', sj.company, { oldUrl, newUrl, oldOpDate, newOpDate });
+          existing.addedAt = now;
+        }
+        existing.url = newUrl;
+        existing.openingDate = newOpDate;
+      }
+      continue;
+    }
+    existingIds.add(sj.id);
+    jobList.push({
+      id: genId(),
+      starjobId: sj.id,
+      company: sj.company,
+      positionTypes: sj.positionTypes || [],
+      companyTypesRaw: sj.companyTypes || [],
+      companyType: mapCompanyTypes(sj.companyTypes),
+      cities: sj.cities || [],
+      city: (sj.cities||[]).join(' / '),
+      url: sj.url || '',
+      openingDate: sj.openingDate || '',
+      addedAt: now,
+    });
+  }
+  // 去重：同一 starjobId 只保留最后一条
+  const seen = new Map();
+  jobList = jobList.filter(j => {
+    if (!j.starjobId) return true;
+    if (seen.has(j.starjobId)) return false;
+    seen.set(j.starjobId, true);
+    return true;
+  });
+  saveJobList();
+}
+
+function mapCompanyTypes(types) {
+  if (!types||types.length===0) return '';
+  return [...new Set(types.map(t=>COMPANY_TYPE_MAP[t]||'其他'))].join(' / ');
+}
+
+function getIndustryFromJob(j) {
+  const raw = j.companyTypesRaw || [];
+  // 直接从原始标签中过滤出行业类标签
+  const direct = raw.filter(t => INDUSTRIES.includes(t));
+  if (direct.length) return [...new Set(direct)].join(' / ');
+  // 否则反向映射：从已映射的公司类型反查原 key 是否属于行业
+  const mapped = (j.companyType || '').split(' / ').map(s => s.trim()).filter(Boolean);
+  const reversed = mapped.map(m => {
+    const entry = Object.entries(COMPANY_TYPE_MAP).find(([k, v]) => v === m);
+    return entry && INDUSTRIES.includes(entry[0]) ? entry[0] : null;
+  }).filter(Boolean);
+  return reversed.length ? [...new Set(reversed)].join(' / ') : '';
+}
+
+function getProvinceForCity(city) {
+  for (const [prov, cities] of Object.entries(PROVINCE_MAP)) {
+    if (cities.includes(city)) return prov;
+  }
+  return null;
+}
+
+function getExploreFilters() {
+  const search = document.getElementById('exploreSearch').value.toLowerCase();
+  const untracked = document.getElementById('exploreUntracked').checked;
+  return {
+    search,
+    untracked,
+    provinces: exploreFilters.provinces,
+    industries: exploreFilters.industries,
+    categories: exploreFilters.categories,
+    types: exploreFilters.types,
+    dateFrom: exploreFilters.dateFrom,
+    dateTo: exploreFilters.dateTo,
+  };
+}
+
+function getTrackedStarJobIds() {
+  const ids = new Set();
+  for (const j of jobs) {
+    try { const n=JSON.parse(j.notes||'{}'); if (n.starjobId) ids.add(n.starjobId); } catch {}
+  }
+  return ids;
+}
+
+function toggleFilterPanel() {
+  const panel = document.getElementById('filterPanel');
+  panel.classList.toggle('show');
+  if (panel.classList.contains('show')) buildFilterPanel();
+}
+
+function setSort(btn) {
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  exploreSort = btn.dataset.sort;
+  renderExplore();
+}
+
+function buildFilterPanel() {
+  // 收集所有选项
+  const allCities = new Set(); const allProvinces = new Set();
+  const allIndustries = new Set(); const allCategories = new Set(); const allTypes = new Set();
+
+  for (const j of jobList) {
+    (j.cities||[]).forEach(c=>{ allCities.add(c); const p = getProvinceForCity(c); if(p) allProvinces.add(p); });
+    const ind = (j.companyTypesRaw||[]).filter(t=>INDUSTRIES.includes(t));
+    if (ind.length) ind.forEach(i=>allIndustries.add(i)); else { let i=mapCompanyTypes(j.companyTypesRaw).split(' / '); i.forEach(x=>{ if(INDUSTRIES.includes(x)) allIndustries.add(x); else { const m=Object.entries(COMPANY_TYPE_MAP).find(([k,v])=>v===x); if(m&&INDUSTRIES.includes(m[0])) allIndustries.add(m[0]); }}); }
+    (j.positionTypes||[]).forEach(t=>allCategories.add(t));
+    if (j.companyType) j.companyType.split(' / ').forEach(t=>allTypes.add(t));
+  }
+
+  // Province buttons
+  const provGrid = document.getElementById('provinceGrid');
+  const sortedProvs = [...allProvinces].sort((a,b)=>a==='全国'?-1:b==='全国'?1:a.localeCompare(b,'zh'));
+  provGrid.innerHTML = sortedProvs.map(p=>{
+    const active = exploreFilters.provinces.has(p) ? ' active' : '';
+    return `<span class="province-tag${active}" data-prov="${p}" onclick="toggleProvince(this)">${p}</span>`;
+  }).join('');
+
+  // Industry tags
+  const indDiv = document.getElementById('industryTags');
+  indDiv.innerHTML = [...INDUSTRIES].filter(i=>allIndustries.has(i)||i==='其他').map(i=>{
+    const active = exploreFilters.industries.has(i) ? ' active' : '';
+    return `<span class="filter-tag${active}" data-val="${i}" onclick="toggleFilter(this,'industries')">${i}</span>`;
+  }).join('');
+
+  // Category tags
+  const catDiv = document.getElementById('categoryTags');
+  catDiv.innerHTML = [...allCategories].sort().map(c=>{
+    const active = exploreFilters.categories.has(c) ? ' active' : '';
+    return `<span class="filter-tag${active}" data-val="${c}" onclick="toggleFilter(this,'categories')">${c}</span>`;
+  }).join('');
+
+  // Type tags
+  const typeDiv = document.getElementById('typeTags');
+  typeDiv.innerHTML = [...allTypes].sort().map(t=>{
+    const active = exploreFilters.types.has(t) ? ' active' : '';
+    return `<span class="filter-tag${active}" data-val="${t}" onclick="toggleFilter(this,'types')">${t}</span>`;
+  }).join('');
+
+  // Date section: restore inputs
+  document.getElementById('dateFrom').value = exploreFilters.dateFrom;
+  document.getElementById('dateTo').value = exploreFilters.dateTo;
+  updateDateFilterUI();
+
+  updateFilterCount();
+}
+
+function toggleProvince(el) {
+  const prov = el.dataset.prov;
+  if (exploreFilters.provinces.has(prov)) exploreFilters.provinces.delete(prov);
+  else exploreFilters.provinces.add(prov);
+  el.classList.toggle('active');
+  updateFilterCount();
+  renderExplore();
+}
+
+function toggleFilter(el, key) {
+  const val = el.dataset.val;
+  const set = exploreFilters[key];
+  if (set.has(val)) set.delete(val); else set.add(val);
+  el.classList.toggle('active');
+  updateFilterCount();
+  renderExplore();
+}
+
+function onDateFilterChange() {
+  exploreFilters.dateFrom = document.getElementById('dateFrom').value;
+  exploreFilters.dateTo = document.getElementById('dateTo').value;
+  updateDateFilterUI();
+  updateFilterCount();
+  renderExplore();
+}
+
+function clearDateFilter() {
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  exploreFilters.dateFrom = '';
+  exploreFilters.dateTo = '';
+  updateDateFilterUI();
+  updateFilterCount();
+  renderExplore();
+}
+
+function updateDateFilterUI() {
+  const btn = document.getElementById('btnClearDate');
+  btn.style.display = (exploreFilters.dateFrom || exploreFilters.dateTo) ? '' : 'none';
+}
+
+function updateFilterCount() {
+  const cnt = exploreFilters.provinces.size + exploreFilters.industries.size + exploreFilters.categories.size + exploreFilters.types.size + (exploreFilters.dateFrom || exploreFilters.dateTo ? 1 : 0);
+  const badge = document.getElementById('filterCount');
+  if (cnt > 0) { badge.style.display = 'inline'; badge.textContent = cnt; }
+  else { badge.style.display = 'none'; }
+  const btn = document.getElementById('btnClearFilters');
+  btn.style.display = cnt > 0 ? '' : 'none';
+}
+
+function clearAllFilters() {
+  exploreFilters.provinces.clear();
+  exploreFilters.industries.clear();
+  exploreFilters.categories.clear();
+  exploreFilters.types.clear();
+  exploreFilters.dateFrom = '';
+  exploreFilters.dateTo = '';
+  document.getElementById('dateFrom').value = '';
+  document.getElementById('dateTo').value = '';
+  updateDateFilterUI();
+  updateFilterCount();
+  if (document.getElementById('filterPanel').classList.contains('show')) buildFilterPanel();
+  renderExplore();
+}
+
+
+function getDateLabel(openingDate) {
+  if (!openingDate) return '';
+  const parts = openingDate.split('-');
+  if (parts.length === 3) return '<span class="job-card-date-tag">' + parts[1] + '-' + parts[2] + '</span>';
+  return '';
+}
+
+function renderExplore() {
+  const f = getExploreFilters();
+  const tracked = getTrackedStarJobIds();
+  let filtered = [...jobList];
+
+  if (f.search) filtered = filtered.filter(j=>
+    j.company.toLowerCase().includes(f.search)
+  );
+  if (f.untracked) filtered = filtered.filter(j=>{
+    if (j.starjobId) return !tracked.has(j.starjobId);
+    return true;
+  });
+
+  // Province filter
+  if (f.provinces.size > 0) {
+    filtered = filtered.filter(j=>{
+      const jobProvinces = new Set();
+      (j.cities||[]).forEach(c=>{ const p=getProvinceForCity(c); if(p) jobProvinces.add(p); });
+      return [...f.provinces].some(p=>jobProvinces.has(p));
+    });
+  }
+
+  // Industry filter
+  if (f.industries.size > 0) {
+    filtered = filtered.filter(j=>{
+      const jInds = new Set();
+      (j.companyTypesRaw||[]).forEach(t=>{ if(INDUSTRIES.includes(t)) jInds.add(t); });
+      if (jInds.size===0) { const ct=(j.companyType||'').split(' / '); ct.forEach(x=>{ const m=Object.entries(COMPANY_TYPE_MAP).find(([k,v])=>v===x); if(m&&INDUSTRIES.includes(m[0])) jInds.add(m[0]); }); }
+      return [...f.industries].some(i=>jInds.has(i));
+    });
+  }
+
+  // Category filter
+  if (f.categories.size > 0) {
+    filtered = filtered.filter(j=>(j.positionTypes||[]).some(t=>f.categories.has(t)));
+  }
+
+  // Type filter
+  if (f.types.size > 0) {
+    filtered = filtered.filter(j=>{
+      const jTypes = (j.companyType||'').split(' / ');
+      return [...f.types].some(t=>jTypes.includes(t));
+    });
+  }
+
+  // Date filter（按自选日期范围筛选）
+  if (f.dateFrom || f.dateTo) {
+    filtered = filtered.filter(j => {
+      if (!j.openingDate) return false;
+      const d = new Date(j.openingDate); d.setHours(0,0,0,0);
+      if (f.dateFrom) { const fd = new Date(f.dateFrom); fd.setHours(0,0,0,0); if (d < fd) return false; }
+      if (f.dateTo)   { const td = new Date(f.dateTo);   td.setHours(0,0,0,0); if (d > td) return false; }
+      return true;
+    });
+  }
+
+  // Sort
+  if (exploreSort === 'opened') {
+    filtered.sort((a,b)=>new Date(b.openingDate||'2020-01-01')-new Date(a.openingDate||'2020-01-01'));
+  } else {
+    // updated: 按同步加入时间从新到旧
+    filtered.sort((a,b)=>new Date(b.addedAt||0)-new Date(a.addedAt||0));
+  }
+
+  // 统计
+  const totalAll = jobList.length;
+  const trackedAll = jobList.filter(j=> j.starjobId ? tracked.has(j.starjobId) : false).length;
+  document.getElementById('exploreStats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">岗位总数</div><div class="stat-value" style="color:var(--accent)">${totalAll}</div></div>
+    <div class="stat-card"><div class="stat-label">已加入投递</div><div class="stat-value" style="color:var(--green)">${trackedAll}</div></div>
+    <div class="stat-card"><div class="stat-label">当前筛选</div><div class="stat-value" style="color:var(--amber)">${filtered.length}</div></div>
+  `;
+  document.getElementById('exploreCount').textContent = totalAll;
+  document.getElementById('trackCount').textContent = jobs.length;
+
+  // 渲染卡片
+  const grid = document.getElementById('exploreGrid');
+  const empty = document.getElementById('exploreEmpty');
+  if (filtered.length === 0) {
+    grid.innerHTML = ''; empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    grid.innerHTML = filtered.map(j=>{
+      const isTracked = j.starjobId ? tracked.has(j.starjobId) : false;
+      const posTags = (j.positionTypes||[]).slice(0,4).map(t=>`<span class="job-card-tag">${escapeHtml(t)}</span>`).join('');
+      const typeTags = j.companyType ? `<span class="job-card-tag type">${escapeHtml(j.companyType)}</span>` : '';
+      const industry = getIndustryFromJob(j);
+      const typeSet = new Set((j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean));
+      const industryDedup = industry ? industry.split(' / ').map(s=>s.trim()).filter(s=>!typeSet.has(s)).join(' / ') : '';
+      const industryTag = industryDedup ? `<span class="job-card-tag industry">${escapeHtml(industryDedup)}</span>` : '';
+      return `<div class="job-card${isTracked?' tracked':''}" onclick="openExploreDetail('${j.id}')">
+        <div class="job-card-header">
+          <div class="job-card-company">${escapeHtml(j.company)}${getDateLabel(j.openingDate)}</div>
+          ${isTracked ? '<span class="job-card-badge tracked">✓ 已加入</span>' : ''}
+        </div>
+        <div class="job-card-tags">${posTags}${typeTags}${industryTag}</div>
+        <div class="job-card-meta">
+          ${j.city ? `<span>📍 ${escapeHtml(j.city)}</span>` : ''}
+          ${j.url ? `<span>🔗 <a href="${escapeHtml(j.url)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--text-secondary)">详情</a></span>` : ''}
+        </div>
+        <div class="job-card-actions">
+          ${isTracked
+            ? `<button class="btn btn-xs" disabled>已加入投递</button>`
+            : `<button class="btn btn-success btn-xs" onclick="event.stopPropagation();addToTrack('${j.id}')">+ 加入投递</button>`
+          }
+        </div>
+      </div>`;
+    }).join('');
+  }
+  // 延迟构建筛选面板（避免每次render都重建）
+  if (document.getElementById('filterPanel').classList.contains('show')) buildFilterPanel();
+}
+
+function addToTrack(listId) {
+  const item = jobList.find(j=>j.id===listId);
+  if (!item) return;
+  const trackedIds = getTrackedStarJobIds();
+  if (item.starjobId && trackedIds.has(item.starjobId)) { toast('该岗位已在投递列表中'); return; }
+  const newJob = {
+    id: genId(),
+    company: item.company,
+    position: (item.positionTypes||[]).slice(0,3).join(' / '),
+    status: 'pending',
+    city: item.city || '',
+    companyType: item.companyType || '',
+    applyDate: '',
+    deadline: '',
+    interviewDate: '',
+    link: item.url || '',
+    salary: '',
+    notes: JSON.stringify({ starjobId: item.starjobId, positionTypes: item.positionTypes }),
+  };
+  jobs.push(newJob); saveJobs();
+  item.addedAt = new Date().toISOString(); saveJobList();
+  toast(`已加入投递: ${item.company}`);
+  renderExplore(); renderTrack();
+}
+
+function openExploreDetail(listId) {
+  const item = jobList.find(j=>j.id===listId);
+  if (!item) return;
+  const trackedIds = getTrackedStarJobIds();
+  const tracked = item.starjobId ? trackedIds.has(item.starjobId) : false;
+  const trackedJob = tracked ? jobs.find(j=>{ try { const n=JSON.parse(j.notes||'{}'); return item.starjobId ? n.starjobId===item.starjobId : false; } catch { return false; } }) : null;
+  const posTags = (item.positionTypes||[]).map(t=>`<span class="job-card-tag">${escapeHtml(t)}</span>`).join(' ');
+  const body = document.getElementById('detailBody');
+  body.innerHTML = `
+    <div style="margin-bottom:16px;"><strong style="font-size:18px;">${escapeHtml(item.company)}</strong></div>
+    <div style="margin-bottom:8px;">${posTags}</div>
+    <div style="font-size:13px;color:var(--text-secondary);line-height:1.8;">
+      <div>🏢 公司类型: ${escapeHtml(item.companyType||'未标注')}</div>
+      <div>🏭 所在行业: ${escapeHtml(getIndustryFromJob(item)||'未标注')}</div>
+      <div>📍 城市: ${escapeHtml(item.city||'未标注')}</div>
+      ${item.url ? `<div>🔗 <a href="${escapeHtml(item.url)}" target="_blank">查看详情</a></div>` : ''}
+      ${trackedJob ? `<div style="margin-top:8px;color:var(--green);">✓ 已在投递管理中 (${getStatusLabel(trackedJob.status)})</div>` : ''}
+    </div>
+  `;
+  document.getElementById('detailTitle').textContent = item.company;
+  document.getElementById('detailStatusSelect').style.display = 'none';
+  document.getElementById('detailDeleteBtn').style.display = 'none';
+  if (tracked) {
+    document.getElementById('detailDeleteBtn').style.display = 'inline-block';
+    document.getElementById('detailDeleteBtn').textContent = '查看投递';
+    document.getElementById('detailDeleteBtn').onclick = ()=>{ closeDetail(); switchTab('track'); };
+  } else {
+    document.getElementById('detailDeleteBtn').style.display = 'inline-block';
+    document.getElementById('detailDeleteBtn').textContent = '加入投递';
+    document.getElementById('detailDeleteBtn').onclick = ()=>{ closeDetail(); addToTrack(listId); };
+  }
+  document.getElementById('detailModal').style.display = 'flex';
+  detailJobId = null;
+}
+
+// ==================== 板块2: 投递管理 ====================
+function getTrackFilters() {
+  const search = document.getElementById('trackSearch').value.toLowerCase();
+  const status = document.getElementById('filterStatus').value;
+  const deadlineSoon = document.getElementById('showDeadlineSoon').checked;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const soonDate = new Date(today); soonDate.setDate(soonDate.getDate()+3);
+  return { search, status, deadlineSoon, today, soonDate };
+}
+
+function getFilteredJobs() {
+  const f = getTrackFilters();
+  return jobs.filter(j=>{
+    if (f.search && !j.company.toLowerCase().includes(f.search) && !j.position.toLowerCase().includes(f.search) && !(j.city||'').toLowerCase().includes(f.search) && !(j.companyType||'').toLowerCase().includes(f.search)) return false;
+    if (f.status && j.status!==f.status) return false;
+    if (f.deadlineSoon) {
+      if (!j.deadline) return false;
+      const d = new Date(j.deadline);
+      return d>=f.today && d<=f.soonDate;
+    }
+    return true;
+  });
+}
+
+function renderTrack() {
+  renderTrackStats();
+  if (trackView==='board') renderBoard(); else if (trackView==='list') renderList(); else renderStarMap();
+  updateFilterOptions();
+}
+
+function renderTrackStats() {
+  const bar = document.getElementById('trackStats');
+  const pendingCount = jobs.filter(j=>j.status==='pending').length;
+  bar.innerHTML = STATUSES.map(s=>{
+    const count = s.key === 'applied' ? jobs.filter(j=>j.status!=='pending').length : jobs.filter(j=>j.status===s.key).length;
+    return `<div class="stat-card" onclick="filterByStatus('${s.key}')">
+      <div class="stat-dot" style="background:${s.dot}"></div>
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-value" style="color:${s.badge}">${count}</div>
+    </div>`;
+  }).join('') + `<div class="stat-card" onclick="filterByStatus('')">
+    <div class="stat-label" style="font-size:12px;color:var(--text-secondary)">总计</div>
+    <div class="stat-value" style="color:var(--accent)">${jobs.length}</div>
+  </div>`;
+  document.getElementById('trackCount').textContent = jobs.length;
+}
+
+function filterByStatus(key) {
+  document.getElementById('filterStatus').value = key;
+  renderTrack();
+}
+
+function setTrackView(view) {
+  trackView = view;
+  document.getElementById('btnBoard').classList.toggle('active', view==='board');
+  document.getElementById('btnList').classList.toggle('active', view==='list');
+  document.getElementById('btnStarMap').classList.toggle('active', view==='star');
+  document.getElementById('board').style.display = view==='board'?'flex':'none';
+  document.getElementById('listView').style.display = view==='list'?'block':'none';
+  document.getElementById('starView').classList.toggle('active', view==='star');
+  renderTrack();
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  const filtered = getFilteredJobs();
+  board.innerHTML = STATUSES.map(s=>{
+    const colJobs = filtered.filter(j=>j.status===s.key);
+    return `<div class="column" data-status="${s.key}" ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 8px var(--accent-glow)';" ondragleave="this.style.borderColor='';this.style.boxShadow='';" ondrop="handleDrop(event,'${s.key}')">
+      <div class="column-header">
+        <div class="col-title"><span class="col-dot" style="background:${s.dot}"></span>${s.label}</div>
+        <div class="col-count">${colJobs.length}</div>
+      </div>
+      <div class="column-body">
+        ${colJobs.length===0?`<div class="empty-state"><div class="empty-icon">📭</div>这一栏还没有岗位</div>`:colJobs.map(j=>renderCard(j)).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderCard(j) {
+  const deadlineHtml = j.deadline ? getDeadlineTag(j.deadline) : '';
+  const cityHtml = j.city ? `<span>📍 ${escapeHtml(j.city)}</span>` : '';
+  const typeHtml = j.companyType ? `<span>🏢 ${escapeHtml(j.companyType)}</span>` : '';
+  return `<div class="card" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${j.id}')" onclick="openDetail('${j.id}')" style="border-left-color:${getStatusDot(j.status)}">
+    <div class="card-actions">
+      <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openEditModal('${j.id}')" title="编辑">✎</button>
+      <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteJob('${j.id}')" title="删除">✕</button>
+    </div>
+    <div class="card-company">${escapeHtml(j.company)}</div>
+    <div class="card-position">${escapeHtml(j.position)}</div>
+    <div class="card-meta">${typeHtml}${cityHtml}${deadlineHtml}${j.salary?`<span>💰 ${escapeHtml(j.salary)}</span>`:''}</div>
+  </div>`;
+}
+
+function getDeadlineTag(dateStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  const diff = Math.ceil((d-today)/86400000);
+  let cls = 'card-deadline'; if (diff<=3&&diff>=0) cls='card-deadline-soon';
+  return `<span class="${cls}">⏰ ${dateStr}${diff<0?' (已过)':diff===0?' (今天)':diff<=3?' ('+diff+'天)':''}</span>`;
+}
+
+function renderList() {
+  const filtered = getFilteredJobs();
+  const statusOrder = STATUSES.map(s => s.key);
+  filtered.sort((a, b) => statusOrder.indexOf(b.status) - statusOrder.indexOf(a.status));
+  const lv = document.getElementById('listView');
+  if (filtered.length===0) { lv.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div>没有匹配的岗位</div>`; return; }
+  lv.innerHTML = `<table class="list-table"><thead><tr>
+    <th>公司</th><th>岗位</th><th>类型</th><th>城市</th><th>状态</th><th>投递日期</th><th>截止日期</th><th>笔/面试</th><th>薪资</th><th>操作</th>
+  </tr></thead><tbody>${filtered.map(j=>`<tr>
+    <td><strong>${escapeHtml(j.company)}</strong></td>
+    <td>${escapeHtml(j.position)}</td>
+    <td>${escapeHtml(j.companyType||'-')}</td>
+    <td>${escapeHtml(j.city||'-')}</td>
+    <td><span class="status-badge" style="background:${getStatusBadge(j.status)}">${getStatusLabel(j.status)}</span></td>
+    <td>${j.applyDate||'-'}</td>
+    <td>${j.deadline||'-'}</td>
+    <td>${j.interviewDate||'-'}</td>
+    <td>${j.salary||'-'}</td>
+    <td>
+      <button class="btn btn-xs btn-outline" onclick="openEditModal('${j.id}')">✎</button>
+      <button class="btn btn-xs btn-danger" onclick="deleteJob('${j.id}')">✕</button>
+    </td>
+  </tr>`).join('')}</tbody></table>`;
+}
+
+function updateFilterOptions() {
+  const sel = document.getElementById('filterStatus');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部状态</option>' + STATUSES.map(s=>`<option value="${s.key}"${s.key===cur?' selected':''}>${s.label}</option>`).join('');
+}
+
+function handleDrop(e, newStatus) {
+  e.preventDefault(); e.currentTarget.style.borderColor=''; e.currentTarget.style.boxShadow='';
+  const id = e.dataTransfer.getData('text/plain');
+  const j = jobs.find(j=>j.id===id);
+  if (j && j.status!==newStatus) { j.status=newStatus; saveJobs(); renderTrack(); toast(`状态已更新为「${getStatusLabel(newStatus)}」`); }
+}
+
+// ==================== 投递岗位 CRUD ====================
+function openAddModal() {
+  document.getElementById('modalTitle').textContent = '添加岗位';
+  ['formEditId','formCompany','formPosition','formCompanyType','formCity','formApplyDate','formDeadline','formInterviewDate','formSalary','formLink','formNotes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('jobModal').style.display = 'flex';
+}
+
+function openEditModal(id) {
+  const j = jobs.find(j=>j.id===id); if (!j) return;
+  document.getElementById('modalTitle').textContent = '编辑岗位';
+  document.getElementById('formEditId').value = j.id;
+  document.getElementById('formCompany').value = j.company||'';
+  document.getElementById('formPosition').value = j.position||'';
+  document.getElementById('formCompanyType').value = j.companyType||'';
+  document.getElementById('formCity').value = j.city||'';
+  document.getElementById('formApplyDate').value = j.applyDate||'';
+  document.getElementById('formDeadline').value = j.deadline||'';
+  document.getElementById('formInterviewDate').value = j.interviewDate||'';
+  document.getElementById('formSalary').value = j.salary||'';
+  document.getElementById('formLink').value = j.link||'';
+  document.getElementById('formNotes').value = j.notes||'';
+  document.getElementById('jobModal').style.display = 'flex';
+}
+
+function saveJob() {
+  const editId = document.getElementById('formEditId').value;
+  const data = {
+    company: document.getElementById('formCompany').value.trim(),
+    position: document.getElementById('formPosition').value.trim(),
+    companyType: document.getElementById('formCompanyType').value,
+    city: document.getElementById('formCity').value.trim(),
+    applyDate: document.getElementById('formApplyDate').value,
+    deadline: document.getElementById('formDeadline').value,
+    interviewDate: document.getElementById('formInterviewDate').value,
+    salary: document.getElementById('formSalary').value.trim(),
+    link: document.getElementById('formLink').value.trim(),
+    notes: document.getElementById('formNotes').value.trim(),
+  };
+  if (!data.company || !data.position) { toast('公司名称和岗位名称为必填项'); return; }
+  if (editId) {
+    const j = jobs.find(j=>j.id===editId);
+    if (j) { Object.assign(j,data); saveJobs(); toast('岗位已更新'); }
+  } else {
+    jobs.push({ id:genId(), status:'applied', ...data });
+    saveJobs(); toast('岗位已添加');
+  }
+  closeModal(); renderTrack();
+}
+
+function deleteJob(id) {
+  if (!confirm('确定删除这个岗位吗？')) return;
+  jobs = jobs.filter(j=>j.id!==id);
+  saveJobs(); renderTrack(); toast('已删除');
+}
+
+function closeModal() { document.getElementById('jobModal').style.display = 'none'; }
+
+// ==================== 详情弹窗 ====================
+function openDetail(id) {
+  const j = jobs.find(j=>j.id===id); if (!j) return;
+  detailJobId = id;
+  document.getElementById('detailTitle').textContent = j.company + ' - ' + j.position;
+  document.getElementById('detailBody').innerHTML = `
+    <div style="font-size:13px;color:var(--text-secondary);line-height:2;">
+      <div>🏢 公司类型: ${escapeHtml(j.companyType||'未填写')}</div>
+      <div>📍 城市: ${escapeHtml(j.city||'未填写')}</div>
+      <div>📅 投递日期: ${j.applyDate||'未填写'}</div>
+      <div>⏰ 截止日期: ${j.deadline||'未填写'}</div>
+      <div>📝 笔/面试: ${j.interviewDate||'未填写'}</div>
+      <div>💰 薪资: ${escapeHtml(j.salary||'未填写')}</div>
+      <div>🔗 链接: ${j.link?`<a href="${escapeHtml(j.link)}" target="_blank">${escapeHtml(j.link)}</a>`:'未填写'}</div>
+      <div>📋 备注: ${escapeHtml(j.notes||'无')}</div>
+    </div>
+  `;
+  const sel = document.getElementById('detailStatusSelect');
+  sel.style.display = 'inline-block';
+  sel.innerHTML = STATUSES.map(s=>`<option value="${s.key}"${s.key===j.status?' selected':''}>${s.label}</option>`).join('');
+  document.getElementById('detailDeleteBtn').style.display = 'inline-block';
+  document.getElementById('detailDeleteBtn').onclick = ()=>{ closeDetail(); deleteJob(id); };
+  document.getElementById('detailModal').style.display = 'flex';
+}
+
+function changeStatus() {
+  if (!detailJobId) return;
+  const newStatus = document.getElementById('detailStatusSelect').value;
+  const j = jobs.find(j=>j.id===detailJobId);
+  if (j) { j.status = newStatus; saveJobs(); renderTrack(); toast(`状态已更新为「${getStatusLabel(newStatus)}」`); }
+}
+
+function closeDetail() { document.getElementById('detailModal').style.display = 'none'; detailJobId = null; }
+
+// ==================== 导入/导出 ====================
+function exportData() {
+  const blob = new Blob([JSON.stringify(jobs,null,2)],{type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '秋招投递数据.json'; a.click();
+  toast('数据已导出');
+}
+
+function importData() {
+  const input = document.createElement('input'); input.type='file'; input.accept='.json';
+  input.onchange = ()=>{
+    const file = input.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try {
+        const data = JSON.parse(reader.result);
+        if (!Array.isArray(data)) throw new Error('格式错误');
+        const merged = [...jobs];
+        for (const item of data) {
+          if (!merged.find(j=>j.id===item.id)) merged.push(item);
+        }
+        jobs = merged; saveJobs(); renderTrack();
+        toast(`已导入 ${data.length} 条数据`);
+      } catch { toast('文件格式错误'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ==================== 投递总结 ====================
+function toggleSummary() {
+  const panel = document.getElementById('summaryPanel');
+  panel.style.display = panel.style.display==='block'?'none':'block';
+  if (panel.style.display==='block') loadSummary();
+}
+function saveSummary() {
+  localStorage.setItem(STORAGE_SUMMARY, document.getElementById('summaryText').value);
+  toast('总结已保存');
+}
+function loadSummary() {
+  document.getElementById('summaryText').value = localStorage.getItem(STORAGE_SUMMARY)||'';
+}
+
+// ==================== StarJob 同步 ====================
+function getSyncMeta() { try { return JSON.parse(localStorage.getItem(STARJOB_META_KEY)||'{}'); } catch { return {}; } }
+function setSyncMeta(m) { localStorage.setItem(STARJOB_META_KEY, JSON.stringify(m)); }
+
+async function syncStarJob() {
+  const btn = document.getElementById('btnSyncStarJob');
+  btn.textContent = '⏳ 同步中...'; btn.disabled = true;
+
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/jobs?select=*&is_active=eq.true&order=created_at.desc&limit=500`;
+    const resp = await fetch(url, { headers: { apikey: SUPABASE_KEY } });
+    if (!resp.ok) throw new Error(`API 返回 ${resp.status}`);
+    const raw = await resp.json();
+    if (!raw||!Array.isArray(raw)||raw.length===0) throw new Error('未获取到数据');
+
+    const data = sjTransformJobs(raw);
+    const meta = getSyncMeta();
+    const syncedIds = new Set(meta.syncedIds||[]);
+    const existingStarJobIds = new Set(jobList.map(j=>(j.starjobId||null)).filter(Boolean));
+    let newCount=0, skipCount=0;
+    const newCos=[];
+
+    for (const sj of data) {
+      if (existingStarJobIds.has(sj.id)) { skipCount++; continue; }
+      syncedIds.add(sj.id);
+      meta.syncedIds = meta.syncedIds||[];
+      meta.syncedIds.push(sj.id);
+      newCount++;
+      newCos.push(sj.company);
+    }
+
+    meta.lastSyncAt = new Date().toISOString();
+    meta.totalRemote = data.length;
+    setSyncMeta(meta);
+    window.STARJOB_DATA = data;
+    mergeJobList(); saveJobList();
+    renderExplore();
+
+    const summary = document.getElementById('syncSummary');
+    summary.innerHTML = `<div style="display:flex;gap:16px;margin-bottom:8px;">
+      <div style="flex:1;text-align:center;padding:12px;background:rgba(53,100,71,0.08);border-radius:8px;border:1px solid rgba(53,100,71,0.15)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
+      <div style="flex:1;text-align:center;padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:24px;font-weight:700;color:var(--text-muted)">${skipCount}</div><div style="font-size:12px;color:var(--text-muted)">已存在</div></div>
+      <div style="flex:1;text-align:center;padding:12px;background:rgba(37,99,235,0.08);border-radius:8px;border:1px solid rgba(37,99,235,0.15)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
+    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}</p>`;
+
+    let listHtml = '';
+    if (newCos.length>0) {
+      listHtml += '<div style="font-weight:600;color:var(--green);margin-bottom:4px;">新增公司:</div>';
+      listHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+      newCos.slice(0,50).forEach(c=>{ listHtml+=`<span style="background:rgba(53,100,71,0.1);color:var(--green);padding:2px 8px;border-radius:4px;font-size:12px;">${c}</span>`; });
+      if (newCos.length>50) listHtml+=`<span style="font-size:12px;color:var(--text-muted)">等 ${newCos.length} 个</span>`;
+      listHtml += '</div>';
+    }
+    document.getElementById('syncList').innerHTML = listHtml;
+    document.getElementById('syncResultModal').style.display = 'flex';
+    toast(`StarJob 同步完成: 新增 ${newCount} 个岗位`);
+  } catch(e) {
+    document.getElementById('syncSummary').innerHTML=`<p style="color:var(--danger)">同步失败: ${e.message}</p><p style="color:var(--text-secondary)">请检查网络后重试</p>`;
+    document.getElementById('syncList').innerHTML='';
+    document.getElementById('syncResultModal').style.display='flex';
+  }
+  btn.textContent='🔄 同步 StarJob'; btn.disabled=false;
+}
+
+function closeSyncResultModal() { document.getElementById('syncResultModal').style.display = 'none'; }
+
+// ==================== Init ====================
+loadJobs();
+const cleaned = cleanupStaleJobs();
+if (cleaned > 0) console.log('已清理 ' + cleaned + ' 条旧版自动同步数据');
+loadJobList();
+mergeJobList(); saveJobList(); renderExplore();
+renderTrack();
+updateFilterOptions();
+
+/* ═══════════ 星图渲染（3D 球体 · 右面板布局） ═══════════ */
+let starDetailJobId = null;
+let starAnimId = null;
+let starStars = [];
+let starClusterMap = null;   // string coord → { count, jobs }
+let starSelectedClusters = null;
+
+const STAGE_COLORS = {
+  'pending':   '#94a3b8',
+  'applied':   '#3b82f6',
+  'exam':      '#f59e0b',
+  'interview1':'#06b6d4',
+  'interview2':'#8b5cf6',
+  'hr':        '#ec4899',
+  'failed':    '#F97316',
+  'offer':     '#10b981',
+  'rejected':  '#6b7280'
+};
+
+function renderStarMap() {
+  const container = document.getElementById('starView');
+  if (starAnimId) { cancelAnimationFrame(starAnimId); starAnimId = null; }
+
+  const filterVal = document.getElementById('filterStatus').value;
+  const searchVal = (document.getElementById('trackSearch').value || '').toLowerCase();
+
+  let filteredJobs = jobs;
+  if (filterVal) filteredJobs = filteredJobs.filter(j => j.status === filterVal);
+  if (searchVal) filteredJobs = filteredJobs.filter(j =>
+    (j.company||'').toLowerCase().includes(searchVal) ||
+    (j.position||'').toLowerCase().includes(searchVal) ||
+    (j.city||'').toLowerCase().includes(searchVal));
+  // 星图隐藏已挂和已拒绝
+  filteredJobs = filteredJobs.filter(j => j.status !== 'failed' && j.status !== 'rejected');
+
+  const stageJobs = {};
+  STATUSES.forEach(s => {
+    if (s.key !== 'failed' && s.key !== 'rejected') stageJobs[s.key] = [];
+  });
+  filteredJobs.forEach(j => {
+    if (!stageJobs[j.status]) stageJobs[j.status] = [];
+    stageJobs[j.status].push(j);
+  });
+  const pendingJobs = stageJobs['pending'] || [];
+
+  // --- Canvas in left wrap ---
+  const wrap = document.getElementById('starCanvasWrap');
+  wrap.innerHTML = '';
+  const canvas = document.createElement('canvas');
+  const tooltip = document.createElement('div');
+  tooltip.className = 'star-tooltip';
+  wrap.appendChild(canvas);
+  wrap.appendChild(tooltip);
+  const oldBelt = wrap.querySelector('.explore-belt');
+  if (oldBelt) oldBelt.remove();
+
+  const dpr = window.devicePixelRatio || 1;
+  const W = wrap.clientWidth;
+  const H = wrap.clientHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const cx = W * 0.44, cy = H * 0.48;
+  const stageOrder = STATUSES.map(s => s.key);
+  const activeStages = stageOrder.filter(k => stageJobs[k] && stageJobs[k].length > 0);
+  const maxR = Math.min(cx, cy, W - cx - 20, H - cy - 10) + 15;
+  const orbitStep = maxR / Math.max(activeStages.length, 1);
+
+  // --- Build stars with cluster support ---
+  starClusterMap = {};
+  starSelectedClusters = {};
+  starStars = [];
+  activeStages.forEach((key, idx) => {
+    const jobsArr = stageJobs[key];
+    const cnt = jobsArr.length;
+    const expansion = Math.min(cnt * 1.5, orbitStep * 0.7);
+    const r = orbitStep * (activeStages.length - idx) + expansion;
+    const color = STAGE_COLORS[key] || '#94a3b8';
+    const subRings = cnt > 18 ? 3 : (cnt > 9 ? 2 : 1);
+    const spread = 28;
+    const orbitPhase = idx * (Math.PI / (activeStages.length || 1));
+    jobsArr.forEach((j, ji) => {
+      const ringIdx = ji % subRings;
+      const ringR = r + (ringIdx - (subRings - 1) / 2) * spread;
+      const angle = (ji / cnt) * Math.PI * 2 + orbitPhase + ringIdx * 0.3;
+      starStars.push({
+        job: j, stage: key, color, cx, cy,
+        rx: ringR, ry: ringR * 0.48, angle,
+        speed: 0.00018 / Math.max(idx + 1, 1),
+        size: 12 + (cnt < 8 ? 6 : 0),
+        screenX: 0, screenY: 0
+      });
+    });
+  });
+
+  // --- Background starfield ---
+  const bgStars = Array.from({length: 130}, () => ({
+    x: Math.random() * W, y: Math.random() * H,
+    r: Math.random() * 1.6 + 0.2,
+    phase: Math.random() * Math.PI * 2,
+    tSpeed: 0.0006 + Math.random() * 0.003
+  }));
+
+  // --- Mouse ---
+  let hoveredStars = [];
+  canvas.onmousemove = function(e) {
+    if (isDragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    hoveredStars = [];
+    for (const st of starStars) {
+      if ((mx - st.screenX) ** 2 + (my - st.screenY) ** 2 < 260) {
+        hoveredStars.push(st);
+      }
+    }
+    canvas.style.cursor = hoveredStars.length ? 'pointer' : 'default';
+    if (hoveredStars.length === 1) {
+      const st = hoveredStars[0];
+      tooltip.style.display = 'block';
+      tooltip.style.left = (mx + 16) + 'px';
+      tooltip.style.top = (my - 10) + 'px';
+      tooltip.innerHTML = '<b>' + st.job.company + '</b><small>' + (st.job.position||'') + ' · ' + (st.job.city||'') + '</small>';
+    } else if (hoveredStars.length > 1) {
+      const names = hoveredStars.map(s => s.job.company).join(', ');
+      tooltip.style.display = 'block';
+      tooltip.style.left = (mx + 16) + 'px';
+      tooltip.style.top = (my - 10) + 'px';
+      tooltip.innerHTML = '<b>' + hoveredStars.length + ' 家公司</b><small>' + names.substring(0, 60) + '</small>';
+    } else {
+      tooltip.style.display = 'none';
+    }
+  };
+  canvas.onclick = function() {
+    if (wasDragging) { wasDragging = false; return; }
+    if (hoveredStars.length === 1) {
+      openStarPanel(hoveredStars[0].job);
+    } else if (hoveredStars.length > 1) {
+      // click on cluster → show panel with list
+      showStarClusterPanel(hoveredStars.map(s => s.job));
+    }
+  };
+
+  // --- Helper: Draw 3D sphere node ---
+  function draw3DSphere(ctx, x, y, r, color, highlight) {
+    // body gradient: light at top-left, dark at bottom-right
+    const grad = ctx.createRadialGradient(x - r*0.25, y - r*0.3, r*0.05, x, y, r);
+    grad.addColorStop(0, highlight || '#ffffff');
+    grad.addColorStop(0.28, color);
+    grad.addColorStop(0.7, darkenColor(color, 0.5));
+    grad.addColorStop(1, darkenColor(color, 0.8));
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad; ctx.fill();
+    // edge light
+    const edge = ctx.createRadialGradient(x, y, r*0.85, x, y, r);
+    edge.addColorStop(0, 'rgba(255,255,255,0)');
+    edge.addColorStop(1, 'rgba(255,255,255,0.08)');
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = edge; ctx.fill();
+  }
+
+  function darkenColor(hex, factor) {
+    if (!hex || hex[0] !== '#') return hex;
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    const f = 1 - factor;
+    const rr = Math.round(r * f).toString(16).padStart(2,'0');
+    const gg = Math.round(g * f).toString(16).padStart(2,'0');
+    const bb = Math.round(b * f).toString(16).padStart(2,'0');
+    return '#' + rr + gg + bb;
+  }
+
+  // --- Animation loop ---
+  const zoom = { scale: 1, panX: 0, panY: 0 };
+  let isDragging = false, dragStartX = 0, dragStartY = 0, dragPanX = 0, dragPanY = 0;
+  let wasDragging = false;
+
+  canvas.style.cursor = 'grab';
+  canvas.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    isDragging = true; wasDragging = false;
+    dragStartX = e.clientX; dragStartY = e.clientY;
+    dragPanX = zoom.panX; dragPanY = zoom.panY;
+    canvas.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) wasDragging = true;
+    zoom.panX = dragPanX + dx;
+    zoom.panY = dragPanY + dy;
+  });
+  window.addEventListener('mouseup', function() {
+    if (isDragging) { isDragging = false; canvas.style.cursor = 'grab'; }
+  });
+
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.15 : 0.87;
+    const newScale = Math.max(0.35, Math.min(5, zoom.scale * factor));
+    zoom.panX = mx - (mx - zoom.panX) * (newScale / zoom.scale);
+    zoom.panY = my - (my - zoom.panY) * (newScale / zoom.scale);
+    zoom.scale = newScale;
+  }, { passive: false });
+
+  // Use the drag-aware click handler
+  let lastT = performance.now();
+  function frame(now) {
+    const dt = Math.min(now - lastT, 50);
+    lastT = now;
+    ctx.clearRect(0, 0, W, H);
+
+    // Twinkling background
+    bgStars.forEach(bs => {
+      bs.phase += bs.tSpeed * dt;
+      const a = 0.10 + 0.30 * (0.5 + 0.5 * Math.sin(bs.phase));
+      ctx.beginPath(); ctx.arc(bs.x, bs.y, bs.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fill();
+    });
+
+    // Orbit rings - solid thin lines matching screenshot
+    const effCx = cx + zoom.panX, effCy = cy + zoom.panY;
+    activeStages.forEach((key, idx) => {
+      const r = orbitStep * (activeStages.length - idx) * zoom.scale;
+      const col = STAGE_COLORS[key] || '#64748b';
+      ctx.save(); ctx.beginPath();
+      ctx.ellipse(effCx, effCy, r, r * 0.48, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = 0.18; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.restore();
+    });
+
+    // Update star positions
+    starStars.forEach(st => {
+      st.angle += st.speed * dt;
+      st.screenX = st.cx + zoom.panX + st.rx * zoom.scale * Math.cos(st.angle);
+      st.screenY = st.cy + zoom.panY + st.ry * zoom.scale * Math.sin(st.angle);
+    });
+
+    // Cluster detection: group stars within threshold
+    starClusterMap = {};
+    const visited = new Set();
+    const threshold = 0;
+    for (let i = 0; i < starStars.length; i++) {
+      if (visited.has(i)) continue;
+      const cluster = [i];
+      for (let j = i + 1; j < starStars.length; j++) {
+        if (visited.has(j)) continue;
+        const a = starStars[i], b = starStars[j];
+        if (a.stage === b.stage && Math.abs(a.screenX - b.screenX) < threshold && Math.abs(a.screenY - b.screenY) < threshold) {
+          cluster.push(j);
+          visited.add(j);
+        }
+      }
+      if (cluster.length > 1) {
+        visited.add(i);
+        const key = cluster.map(k => starStars[k].job.id).join(',');
+        const avgX = cluster.reduce((s,k) => s + starStars[k].screenX, 0) / cluster.length;
+        const avgY = cluster.reduce((s,k) => s + starStars[k].screenY, 0) / cluster.length;
+        starClusterMap[key] = { ids: cluster.map(k => starStars[k].job.id), x: avgX, y: avgY, count: cluster.length, stage: starStars[i].stage };
+      }
+    }
+
+    // Draw stars with clustering
+    const drawnClusterKeys = new Set();
+    const clusteredIndices = new Set();
+    for (const [cKey, cInfo] of Object.entries(starClusterMap)) {
+      clusteredIndices.add(cKey);
+      if (starSelectedClusters[cKey]) {
+        // expanded cluster: draw all individual stars
+        cInfo.ids.forEach(id => {
+          const st = starStars.find(s => s.job.id === id);
+          if (!st) return;
+          const selCol = starSelectedClusters[cKey].selectedId === id ? '#fbbf24' : st.color;
+          const selSz = (starSelectedClusters[cKey].selectedId === id ? st.size + 3 : st.size) * zoom.scale;
+          // glow
+          const glow = ctx.createRadialGradient(st.screenX, st.screenY, selSz*0.3, st.screenX, st.screenY, selSz*2.5);
+          glow.addColorStop(0, selCol); glow.addColorStop(1, 'transparent');
+          ctx.beginPath(); ctx.arc(st.screenX, st.screenY, selSz*2.5, 0, Math.PI*2);
+          ctx.fillStyle = glow; ctx.fill();
+          draw3DSphere(ctx, st.screenX, st.screenY, selSz, selCol, '#f8fafc');
+          // label
+          const lblSz = Math.max(8, 10 * Math.min(zoom.scale, 2.5));
+          ctx.font = `500 ${lblSz}px system-ui, sans-serif`;
+          ctx.fillStyle = '#cbd5e1';
+          ctx.textAlign = 'center';
+          ctx.fillText(st.job.company, st.screenX, st.screenY + selSz + 14 * zoom.scale);
+        });
+      } else {
+        // collapsed cluster: draw single proxy node + "+N"
+        const col = STAGE_COLORS[cInfo.stage] || '#94a3b8';
+        const clSz = 14 * zoom.scale;
+        const glow = ctx.createRadialGradient(cInfo.x, cInfo.y, 5 * zoom.scale, cInfo.x, cInfo.y, 28 * zoom.scale);
+        glow.addColorStop(0, col); glow.addColorStop(1, 'transparent');
+        ctx.beginPath(); ctx.arc(cInfo.x, cInfo.y, 28 * zoom.scale, 0, Math.PI*2);
+        ctx.fillStyle = glow; ctx.fill();
+        draw3DSphere(ctx, cInfo.x, cInfo.y, clSz, col, '#f1f5f9');
+        const clFontSz = Math.max(9, 11 * Math.min(zoom.scale, 3));
+        ctx.font = `700 ${clFontSz}px system-ui, sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText('+' + cInfo.count, cInfo.x, cInfo.y + 4 * zoom.scale);
+        drawnClusterKeys.add(cKey);
+      }
+    }
+
+    // Draw non-clustered stars
+    const nclFontSz = Math.max(8, 10 * Math.min(zoom.scale, 2.5));
+    starStars.forEach(st => {
+      const inAnyCluster = Object.values(starClusterMap).some(c => c.ids.includes(st.job.id));
+      if (inAnyCluster && !Object.keys(starSelectedClusters).some(k => starClusterMap[k] && starClusterMap[k].ids.includes(st.job.id))) return;
+      if (inAnyCluster) return; // drawn in expanded cluster above
+      if (Object.values(starClusterMap).some(c => Object.keys(starSelectedClusters).includes(Object.keys(starClusterMap).find(k => starClusterMap[k].ids.includes(st.job.id))))) {
+        // drawn as part of expanded
+        return;
+      }
+      const sz = st.size * zoom.scale;
+      const glow = ctx.createRadialGradient(st.screenX, st.screenY, sz*0.3, st.screenX, st.screenY, sz*2.5);
+      glow.addColorStop(0, st.color); glow.addColorStop(1, 'transparent');
+      ctx.beginPath(); ctx.arc(st.screenX, st.screenY, sz*2.5, 0, Math.PI*2);
+      ctx.fillStyle = glow; ctx.fill();
+      draw3DSphere(ctx, st.screenX, st.screenY, sz, st.color, '#f8fafc');
+      // company label
+      ctx.font = `500 ${nclFontSz}px system-ui, sans-serif`;
+      ctx.fillStyle = '#cbd5e1';
+      ctx.textAlign = 'center';
+      ctx.fillText(st.job.company, st.screenX, st.screenY + sz + 14 * zoom.scale);
+    });
+
+    // Pulsing core
+    const pulse = 1 + 0.06 * Math.sin(now * 0.0022);
+    const cg = ctx.createRadialGradient(effCx, effCy, 5 * zoom.scale, effCx, effCy, 40 * pulse * zoom.scale);
+    cg.addColorStop(0, 'rgba(99,102,241,0.5)');
+    cg.addColorStop(0.4, 'rgba(99,102,241,0.10)');
+    cg.addColorStop(1, 'rgba(99,102,241,0)');
+    ctx.beginPath(); ctx.arc(effCx, effCy, 40 * pulse * zoom.scale, 0, Math.PI * 2);
+    ctx.fillStyle = cg; ctx.fill();
+    ctx.beginPath(); ctx.arc(effCx, effCy, 26 * zoom.scale, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(148,163,184,0.35)'; ctx.lineWidth = 1.5 * zoom.scale; ctx.stroke();
+    ctx.beginPath(); ctx.arc(effCx, effCy, 20 * zoom.scale, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(6,10,26,0.94)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(148,163,184,0.55)'; ctx.lineWidth = 1.2 * zoom.scale; ctx.stroke();
+    const coreFontSize = Math.max(14, 22 * zoom.scale);
+    ctx.fillStyle = '#f1f5f9'; ctx.font = `700 ${coreFontSize}px system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(filteredJobs.length, effCx, effCy - 3 * zoom.scale);
+    const subFontSize = Math.max(8, 10 * zoom.scale);
+    ctx.fillStyle = '#94a3b8'; ctx.font = `500 ${subFontSize}px system-ui, sans-serif`;
+    ctx.fillText('投递中', effCx, effCy + 14 * zoom.scale);
+
+    starAnimId = requestAnimationFrame(frame);
+  }
+  starAnimId = requestAnimationFrame(frame);
+
+  // --- Reset right panel ---
+  starDetailJobId = null;
+  const panel = document.getElementById('starPanel');
+  panel.innerHTML = '<div class="sp-placeholder">点击轨道上的星球<br>查看投递详情</div>';
+}
+
+/* --- 显示集群列表 --- */
+function showStarClusterPanel(starList) {
+  const panel = document.getElementById('starPanel');
+  const items = starList.map(s => (
+    '<div style="padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" ' +
+    'onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'transparent\'" ' +
+    'onclick="openStarPanel(jobs.find(j=>j.id===\'' + s.id + '\'))">' +
+    '<div style="font-weight:600">' + s.company + '</div>' +
+    '<div style="font-size:12px;color:var(--text-muted);margin-top:2px">' + (s.position||'') + ' · ' + (s.city||'') + '</div>' +
+    '</div>'
+  )).join('');
+  panel.innerHTML =
+    '<div class="sp-header" style="display:flex;align-items:center;justify-content:space-between">' +
+      '<span class="sp-company" style="font-size:16px">附近 ' + starList.length + ' 家公司</span>' +
+      '<span style="cursor:pointer;font-size:18px;color:var(--text-muted)" onclick="document.getElementById(\'starPanel\').innerHTML=\'<div class=sp-placeholder>点击轨道上的星球<br>查看投递详情</div>\';">\u2715</span>' +
+    '</div>' +
+    '<div>' + items + '</div>';
+}
+
+/* --- 右侧面板：选中节点详情 --- */
+function openStarPanel(job) {
+  if (!job) return;
+  starDetailJobId = job.id;
+  const panel = document.getElementById('starPanel');
+  const s = STATUSES.find(st => st.key === job.status);
+  const statusLabel = s ? s.label : job.status;
+  const industry = job.companyType || '-';
+
+  const updated = job.updatedAt
+    ? (function() { const d = new Date(job.updatedAt); return ('0'+(d.getMonth()+1)).slice(-2)+'/'+('0'+d.getDate()).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); })()
+    : '-';
+
+  panel.innerHTML =
+    '<div class="sp-header">' +
+      '<div class="sp-company">' + job.company + '</div>' +
+      '<div class="sp-position">' + (job.position || '未填写岗位') + '</div>' +
+    '</div>' +
+    '<div class="sp-body">' +
+      '<div class="sp-row"><span class="sp-label">当前轨道</span><span class="sp-val">' + statusLabel + '</span></div>' +
+      '<div class="sp-row"><span class="sp-label">地点</span><span class="sp-val">' + (job.city || '-') + '</span></div>' +
+      '<div class="sp-row"><span class="sp-label">行业</span><span class="sp-val">' + industry + '</span></div>' +
+      '<div class="sp-row"><span class="sp-label">最近更新</span><span class="sp-val">' + updated + '</span></div>' +
+      (job.link ? '<div class="sp-row"><span class="sp-label">投递链接</span><span class="sp-val"><a href="' + job.link + '" target="_blank" style="color:var(--accent);text-decoration:none;">打开链接 →</a></span></div>' : '') +
+    '</div>' +
+    '<div class="sp-actions">' +
+      '<button class="sp-btn primary" onclick="openEditModal(\'' + job.id + '\')">查看/修改进度</button>' +
+    '</div>';
+}
+
+function openStarDetailLink(link) {
+  if (link) window.open(link, '_blank');
+}
+
+function zoomStar(e) { e.preventDefault(); }
+
+
+// ==================== 板块3: 简历管理 JS ====================
+// 默认空简历模板
+function defaultResumeData() {
+  return {
+    basicInfo: { name:"", sex:1, birthday:"", email:"", mobile:"", workYears:-1, photo:"", photoShow:false, minzu:"", zhengzhi:"", jiguan:"", hunyin:0, height:"", weight:"", inShort:"" },
+    coreStrength: { content:"" },
+    education: [],
+    academic: { content:"" },
+    internship: [],
+    campusProject: [],
+    skillsHonors: { content:"" },
+    jobIntent: { content:"" },
+    settings: { title:"个人简历", skin:"#607a9d", lastSyncAt:null },
+    resumePdf: []
+  };
+}
+
+function loadResumeData() {
+  try { const r=localStorage.getItem(STORAGE_RESUME); return r?JSON.parse(r):defaultResumeData(); }
+  catch { return defaultResumeData(); }
+}
+
+function saveResumeData(data) {
+  localStorage.setItem(STORAGE_RESUME, JSON.stringify(data));
+}
+
+/* ========== RENDER ========== */
+function renderResume() {
+  const data = loadResumeData();
+  renderPdfStatus(data);
+}
+
+/* ========== PDF 上传处理 ========== */
+function renderPdfStatus(data) {
+  const section = document.getElementById('resumePdfSection');
+  // 兼容旧格式：单对象 → 数组；非数组 → 空数组
+  const rawPdf = data.resumePdf;
+  const pdfs = Array.isArray(rawPdf) ? rawPdf : (rawPdf && typeof rawPdf === 'object' && rawPdf.fileName ? [rawPdf] : []);
+  let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+    + '<div class="rps-title" style="margin-bottom:0;">📎 简历附件'+(pdfs.length?' <span style="font-weight:400;font-size:12px;color:#999;">('+pdfs.length+'份)</span>':'')+'</div>'
+    + '<a class="btn btn-outline btn-sm" href="https://www.qmjianli.com/my/cv" target="_blank" style="text-decoration:none;white-space:nowrap;">🔗 跳转全民简历</a>'
+    + '</div>';
+
+  // always show upload zone (compact when files exist)
+  html += '<div style="margin-bottom:10px;">'
+    + '<div class="pdf-upload-zone" id="pdfUploadZone" style="padding:' + (pdfs.length ? '12px 14px' : '18px 14px') + ';">'
+    + '<div class="puz-icon" style="font-size:' + (pdfs.length ? '22px' : '28px') + ';margin-bottom:' + (pdfs.length ? '2px' : '4px') + ';">📂</div>'
+    + '<div class="puz-text">拖拽 <b>.pdf</b> 到此处或 <b>点击添加</b>'+(pdfs.length?'（可上传多份）':'')+'</div>'
+    + '<input type="file" id="pdfFileInput" accept=".pdf" onchange="handlePdfUpload(this.files)" style="display:none;">'
+    + '</div></div>';
+
+  // list existing PDFs
+  pdfs.forEach(function(pdf, i) {
+    const sizeKB = Math.round((pdf.base64||'').length * 0.75 / 1024);
+    const uploadedAt = pdf.uploadedAt ? new Date(pdf.uploadedAt).toLocaleString('zh-CN') : '';
+    html += '<div class="pdf-file-card" style="margin-bottom:8px;">'
+      + '<div class="pfc-icon">📄</div>'
+      + '<div class="pfc-info">'
+      + '<div class="pfc-name">'+escapeHtml(pdf.fileName||'resume.pdf')+'</div>'
+      + '<div class="pfc-meta">'+sizeKB+' KB'+(uploadedAt?' · '+uploadedAt:'')+'</div>'
+      + '</div>'
+      + '<div class="pfc-actions">'
+      + '<button class="pfc-btn" onclick="previewPdf('+i+')">🔍 预览</button>'
+      + '<button class="pfc-btn" onclick="downloadPdf('+i+')">⬇ 下载</button>'
+      + '<button class="pfc-btn" onclick="renamePdf('+i+')">✏️ 重命名</button>'
+      + '<button class="pfc-btn" onclick="replacePdf('+i+')">🔄 替换</button>'
+      + '<button class="pfc-btn del" onclick="removePdf('+i+')">✕ 删除</button>'
+      + '</div>'
+      + '</div>';
+  });
+
+  section.innerHTML = html;
+
+  // bind upload zone events
+  const zone = document.getElementById('pdfUploadZone');
+  if (zone) {
+    zone.onclick = function(){ document.getElementById('pdfFileInput').click(); };
+    zone.ondragover = function(e){ e.preventDefault(); zone.classList.add('dragover'); };
+    zone.ondragleave = function(){ zone.classList.remove('dragover'); };
+    zone.ondrop = function(e){ e.preventDefault(); zone.classList.remove('dragover'); handlePdfUpload(e.dataTransfer.files); };
+  }
+}
+
+function handlePdfUpload(files) {
+  if (!files || !files.length) return;
+  const file = files[0];
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    toast('请上传 .pdf 格式的文件'); return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    toast('PDF 文件不能超过 10MB'); return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = loadResumeData();
+    if (!Array.isArray(data.resumePdf)) data.resumePdf = [];
+    data.resumePdf.push({
+      fileName: file.name,
+      base64: e.target.result,
+      uploadedAt: new Date().toISOString()
+    });
+    saveResumeData(data);
+    renderPdfStatus(data);
+    toast('PDF 简历已添加（共'+data.resumePdf.length+'份）');
+  };
+  reader.readAsDataURL(file);
+}
+
+
+function removePdf(idx) {
+  const data = loadResumeData();
+  if (!data.resumePdf || idx < 0 || idx >= data.resumePdf.length) return;
+  const name = data.resumePdf[idx].fileName || 'resume.pdf';
+  data.resumePdf.splice(idx, 1);
+  saveResumeData(data);
+  renderPdfStatus(data);
+  toast('已删除「'+name+'」（剩余'+data.resumePdf.length+'份）');
+}
+
+function renamePdf(idx) {
+  const data = loadResumeData();
+  const rawPdf2 = data.resumePdf;
+  const pdfs = Array.isArray(rawPdf2) ? rawPdf2 : (rawPdf2 && typeof rawPdf2 === 'object' && rawPdf2.fileName ? [rawPdf2] : []);
+  if (idx < 0 || idx >= pdfs.length) return;
+  const oldName = pdfs[idx].fileName || 'resume.pdf';
+  const newName = prompt('请输入新的文件名（保留 .pdf 后缀）：', oldName);
+  if (!newName || newName === oldName) return;
+  const safeName = newName.trim();
+  if (!safeName) return;
+  const finalName = safeName.endsWith('.pdf') ? safeName : safeName + '.pdf';
+  const renamed = {
+    fileName: finalName,
+    base64: pdfs[idx].base64,
+    uploadedAt: pdfs[idx].uploadedAt || new Date().toISOString()
+  };
+  // 旧单对象格式 → 转为数组，避免旧 fileName 残留
+  if (Array.isArray(data.resumePdf)) {
+    data.resumePdf[idx] = renamed;
+  } else {
+    data.resumePdf = [renamed];
+  }
+  saveResumeData(data);
+  renderPdfStatus(data);
+  toast('已重命名为「'+finalName+'」');
+}
+
+function previewPdf(idx) {
+  const data = loadResumeData();
+  const rawPdf2 = data.resumePdf;
+  const pdfs = Array.isArray(rawPdf2) ? rawPdf2 : (rawPdf2 && typeof rawPdf2 === 'object' && rawPdf2.fileName ? [rawPdf2] : []);
+  if (idx < 0 || idx >= pdfs.length || !pdfs[idx].base64) return;
+  const container = document.getElementById('pdfPreviewContainer');
+  const iframe = document.getElementById('pdfPreviewIframe');
+  const label = document.getElementById('pdfPreviewLabel');
+  iframe.src = pdfs[idx].base64;
+  label.textContent = '📄 正在预览：' + (pdfs[idx].fileName || 'resume.pdf');
+  container.style.display = 'flex';
+}
+
+function closePdfPreview() {
+  document.getElementById('pdfPreviewContainer').style.display = 'none';
+  document.getElementById('pdfPreviewIframe').src = '';
+}
+
+function replacePdf(idx) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.pdf';
+  input.onchange = function() {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      toast('请上传 .pdf 格式的文件'); return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast('PDF 文件不能超过 10MB'); return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const data = loadResumeData();
+      data.resumePdf[idx] = {
+        fileName: file.name,
+        base64: e.target.result,
+        uploadedAt: new Date().toISOString()
+      };
+      saveResumeData(data);
+      renderPdfStatus(data);
+      toast('PDF 已替换');
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+function downloadPdf(idx) {
+  const data = loadResumeData();
+  const rawPdf2 = data.resumePdf;
+  const pdfs = Array.isArray(rawPdf2) ? rawPdf2 : (rawPdf2 && typeof rawPdf2 === 'object' && rawPdf2.fileName ? [rawPdf2] : []);
+  if (idx < 0 || idx >= pdfs.length || !pdfs[idx].base64) return;
+  const pdf = pdfs[idx];
+  const a = document.createElement('a');
+  a.href = pdf.base64;
+  a.download = pdf.fileName || 'resume.pdf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+</script>
+</body>
+</html>
