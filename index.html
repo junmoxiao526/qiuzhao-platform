@@ -763,6 +763,7 @@ body {
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ==================== 常量 ====================
 const STATUSES = [
@@ -781,6 +782,8 @@ const STORAGE_JOBS = 'campus_recruit_jobs';
 const STORAGE_JOBLIST = 'campus_job_list';
 const STORAGE_SUMMARY = 'campus_summary';
 const STORAGE_RESUME = 'campus_resume';
+const SUPA_URL = 'https://dppxnheifyqenroqtusw.supabase.co';
+const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwcHhuaGVpZnlxZW5yb3F0dXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMDAzMjEsImV4cCI6MjEwMjU3NjMyMX0._Lli_AZ_qifLW9EI3W0qjevJkNrAwvMm4GcgcR-1mAI';
 const STARJOB_META_KEY = 'starjob_sync_meta';
 const SUPABASE_URL = 'https://uzzdcjdjlbnxmhvilldj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_0ImwuTX8ZtKikcqv5Zfwag_nrRLTzXL';
@@ -877,7 +880,60 @@ function getStatusBadge(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).b
 
 // ==================== 数据持久化 ====================
 function loadJobs() { try { const r=localStorage.getItem(STORAGE_JOBS); jobs=r?JSON.parse(r):[]; } catch { jobs=[]; } }
-function saveJobs() { localStorage.setItem(STORAGE_JOBS,JSON.stringify(jobs)); }
+function saveJobs() { localStorage.setItem(STORAGE_JOBS,JSON.stringify(jobs)); cloudPush('jobs', jobs); }
+
+// ==================== Supabase 云同步 ====================
+let supabaseClient = null;
+try { if (window.supabase) supabaseClient = supabase.createClient(SUPA_URL, SUPA_ANON_KEY); } catch(e) {}
+function nowIso() { return new Date().toISOString(); }
+async function cloudPush(key, data) {
+  try {
+    if (!supabaseClient) return;
+    await supabaseClient.from('sync_data').upsert({ key, payload: { data, updatedAt: nowIso() } }, { onConflict: 'key' });
+  } catch(e) { console.warn('[cloudPush]', key, e); }
+}
+async function cloudPull(key) {
+  try {
+    if (!supabaseClient) return null;
+    const { data } = await supabaseClient.from('sync_data').select('payload').eq('key', key).maybeSingle();
+    return data ? data.payload : null;
+  } catch(e) { console.warn('[cloudPull]', key, e); return null; }
+}
+function mergeById(localArr, remoteArr) {
+  const map = new Map();
+  [...(localArr||[]), ...(remoteArr||[])].forEach(it => {
+    if (!it || it.id === undefined || it.id === null) { map.set('__noid_' + Math.random(), it); return; }
+    const cur = map.get(it.id);
+    if (!cur) { map.set(it.id, it); return; }
+    const t1 = cur.addedAt || 0, t2 = it.addedAt || 0;
+    if (t2 > t1) map.set(it.id, it);
+  });
+  return [...map.values()];
+}
+async function cloudSyncAll() {
+  try {
+    if (!supabaseClient) return;
+    const r1 = await cloudPull('jobList');
+    if (r1 && Array.isArray(r1.data)) { jobList = mergeById(jobList, r1.data); saveJobList(); }
+    const r2 = await cloudPull('jobs');
+    if (r2 && Array.isArray(r2.data)) { jobs = mergeById(jobs, r2.data); saveJobs(); }
+    const r3 = await cloudPull('summary');
+    if (r3 && typeof r3.data === 'string' && r3.data) {
+      localStorage.setItem(STORAGE_SUMMARY, r3.data);
+      const el = document.getElementById('summaryText'); if (el) el.value = r3.data;
+    }
+    const r4 = await cloudPull('resume');
+    if (r4 && typeof r4.data === 'object' && r4.data) {
+      const local = loadResumeData();
+      const merged = { ...r4.data };
+      if (!merged.resumePdf && local.resumePdf) merged.resumePdf = local.resumePdf;
+      saveResumeData(merged);
+      renderResume();
+    }
+    renderExplore();
+    renderTrack();
+  } catch(e) { console.warn('[cloudSyncAll]', e); }
+}
 
 function cleanupStaleJobs() {
   const before = jobs.length;
@@ -890,7 +946,7 @@ function cleanupStaleJobs() {
   return 0;
 }
 function loadJobList() { try { const r=localStorage.getItem(STORAGE_JOBLIST); jobList=r?JSON.parse(r):[]; } catch { jobList=[]; } }
-function saveJobList() { localStorage.setItem(STORAGE_JOBLIST,JSON.stringify(jobList)); }
+function saveJobList() { localStorage.setItem(STORAGE_JOBLIST,JSON.stringify(jobList)); cloudPush('jobList', jobList); }
 
 // ==================== Tab 切换 ====================
 function switchTab(tab) {
@@ -1587,7 +1643,9 @@ function toggleSummary() {
   if (panel.style.display==='block') loadSummary();
 }
 function saveSummary() {
-  localStorage.setItem(STORAGE_SUMMARY, document.getElementById('summaryText').value);
+  const v = document.getElementById('summaryText').value;
+  localStorage.setItem(STORAGE_SUMMARY, v);
+  cloudPush('summary', v);
   toast('总结已保存');
 }
 function loadSummary() {
@@ -1668,6 +1726,7 @@ loadJobList();
 mergeJobList(); saveJobList(); renderExplore();
 renderTrack();
 updateFilterOptions();
+cloudSyncAll();
 
 /* ═══════════ 星图渲染（3D 球体 · 右面板布局） ═══════════ */
 let starDetailJobId = null;
@@ -2117,6 +2176,12 @@ function loadResumeData() {
 
 function saveResumeData(data) {
   localStorage.setItem(STORAGE_RESUME, JSON.stringify(data));
+  let pushData = data;
+  if (JSON.stringify(data).length > 4 * 1024 * 1024) {
+    pushData = { ...data };
+    delete pushData.resumePdf;
+  }
+  cloudPush('resume', pushData);
 }
 
 /* ========== RENDER ========== */
