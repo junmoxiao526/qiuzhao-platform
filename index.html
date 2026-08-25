@@ -1800,6 +1800,7 @@ function renderStarMap() {
   const maxR = Math.min(cx, cy, W - cx - 20, H - cy - 10) + 15;
   const spread = 28;
   const gap = 26;
+  const minInner = 70;
   const usableMax = maxR - 20;
   const ringInfos = activeStages.map((key, idx) => {
     const jobsArr = stageJobs[key];
@@ -1809,13 +1810,16 @@ function renderStarMap() {
       halfWidth: ((subRings - 1) / 2) * spread,
       subRingWidth: (subRings - 1) * spread };
   });
-  const totalWidth = ringInfos.reduce((s, info) => s + info.subRingWidth + gap, 0);
+  const totalSpan = ringInfos.reduce((s, info) => s + info.subRingWidth, 0) + (ringInfos.length > 1 ? (ringInfos.length - 1) * gap : 0);
+  const available = Math.max(0, usableMax - minInner);
+  const gapActual = ringInfos.length > 1
+    ? gap + Math.max(0, (available - totalSpan) / (ringInfos.length - 1))
+    : gap;
   let rCursor = usableMax;
-  ringInfos.forEach(info => {
+  ringInfos.forEach((info, i) => {
     info.r = rCursor - info.halfWidth;
-    rCursor -= info.subRingWidth + gap;
+    rCursor -= info.subRingWidth + (i === ringInfos.length - 1 ? 0 : gapActual);
   });
-  const minInner = 70;
   if (rCursor < minInner) {
     const scale = (usableMax - minInner) / (usableMax - rCursor);
     ringInfos.forEach(info => { info.r = minInner + (info.r - minInner) * scale; });
