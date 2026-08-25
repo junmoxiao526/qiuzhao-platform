@@ -1813,16 +1813,20 @@ function renderStarMap() {
     const subRings = cnt > 18 ? 3 : (cnt > 9 ? 2 : 1);
     const spread = 28;
     const orbitPhase = idx * (Math.PI / (activeStages.length || 1));
-    jobsArr.forEach((j, ji) => {
-      const ringIdx = ji % subRings;
-      const ringR = r + (ringIdx - (subRings - 1) / 2) * spread;
-      const angle = (ji / cnt) * Math.PI * 2 + orbitPhase + ringIdx * 0.3;
-      starStars.push({
-        job: j, stage: key, color, cx, cy,
-        rx: ringR, ry: ringR * 0.48, angle,
-        speed: 0.00018 / Math.max(idx + 1, 1),
-        size: 12 + (cnt < 8 ? 6 : 0),
-        screenX: 0, screenY: 0
+    const groups = Array.from({ length: subRings }, () => []);
+    jobsArr.forEach((j, ji) => groups[ji % subRings].push(j));
+    groups.forEach((group, gi) => {
+      const ringR = r + (gi - (subRings - 1) / 2) * spread;
+      const n = group.length;
+      group.forEach((j, k) => {
+        const angle = (k / n) * Math.PI * 2 + orbitPhase + gi * (Math.PI / Math.max(n, 1));
+        starStars.push({
+          job: j, stage: key, color, cx, cy,
+          rx: ringR, ry: ringR * 0.48, angle,
+          speed: 0.00018 / Math.max(idx + 1, 1),
+          size: 12 + (cnt < 8 ? 6 : 0),
+          screenX: 0, screenY: 0
+        });
       });
     });
   });
