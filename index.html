@@ -1747,6 +1747,36 @@ const STAGE_COLORS = {
   'rejected':  '#6b7280'
 };
 
+/* 椭圆等弧长均匀角度：避免角度均匀导致椭圆上下两端聚集 */
+function ellipseAngles(a, b, n, phase) {
+  if (n <= 1) return [phase || 0];
+  const M = Math.max(n * 24, 400);
+  const ts = new Array(M + 1), cum = new Array(M + 1);
+  cum[0] = 0;
+  for (let i = 0; i <= M; i++) {
+    const t = (i / M) * Math.PI * 2;
+    ts[i] = t;
+    if (i > 0) {
+      const dt = t - ts[i - 1];
+      const mid = (t + ts[i - 1]) / 2;
+      const ds = Math.sqrt(a * a * Math.sin(mid) * Math.sin(mid) + b * b * Math.cos(mid) * Math.cos(mid)) * dt;
+      cum[i] = cum[i - 1] + ds;
+    }
+  }
+  const S = cum[M];
+  const step = S / n;
+  const angles = new Array(n);
+  let j = 0;
+  for (let k = 0; k < n; k++) {
+    const target = k * step + step * 0.5;
+    while (j < M && cum[j + 1] < target) j++;
+    const t0 = ts[j], t1 = ts[j + 1], c0 = cum[j], c1 = cum[j + 1];
+    const frac = (c1 - c0) > 1e-9 ? (target - c0) / (c1 - c0) : 0;
+    angles[k] = t0 + (t1 - t0) * frac + (phase || 0);
+  }
+  return angles;
+}
+
 function renderStarMap() {
   const container = document.getElementById('starView');
   if (starAnimId) { cancelAnimationFrame(starAnimId); starAnimId = null; }
@@ -1816,10 +1846,15 @@ function renderStarMap() {
     ? gap + Math.max(0, (available - totalSpan) / (ringInfos.length - 1))
     : gap;
   let rCursor = usableMax;
-  ringInfos.forEach((info, i) => {
-    info.r = rCursor - info.halfWidth;
-    rCursor -= info.subRingWidth + (i === ringInfos.length - 1 ? 0 : gapActual);
-  });
+  if (ringInfos.length === 1) {
+    // 单轨道时居中放置，避免贴边
+    ringInfos[0].r = minInner + (usableMax - minInner) * 0.62;
+  } else {
+    ringInfos.forEach((info, i) => {
+      info.r = rCursor - info.halfWidth;
+      rCursor -= info.subRingWidth + (i === ringInfos.length - 1 ? 0 : gapActual);
+    });
+  }
   if (rCursor < minInner) {
     const scale = (usableMax - minInner) / (usableMax - rCursor);
     ringInfos.forEach(info => { info.r = minInner + (info.r - minInner) * scale; });
@@ -1842,11 +1877,11 @@ function renderStarMap() {
     groups.forEach((group, gi) => {
       const ringR = r + (gi - (subRings - 1) / 2) * spread;
       const n = group.length;
+      const angles = ellipseAngles(ringR, ringR * 0.62, n, orbitPhase + gi * (Math.PI / Math.max(n, 1)));
       group.forEach((j, k) => {
-        const angle = (k / n) * Math.PI * 2 + orbitPhase + gi * (Math.PI / Math.max(n, 1));
         starStars.push({
           job: j, stage: key, color, cx, cy,
-          rx: ringR, ry: ringR * 0.48, angle,
+          rx: ringR, ry: ringR * 0.62, angle: angles[k],
           speed: 0.00018 / Math.max(idx + 1, 1),
           size: 12 + (cnt < 8 ? 6 : 0),
           screenX: 0, screenY: 0
@@ -1990,7 +2025,7 @@ function renderStarMap() {
       const r = (ringInfos[idx] ? ringInfos[idx].r : 100) * zoom.scale;
       const col = STAGE_COLORS[key] || '#64748b';
       ctx.save(); ctx.beginPath();
-      ctx.ellipse(effCx, effCy, r, r * 0.48, 0, 0, Math.PI * 2);
+      ctx.ellipse(effCx, effCy, r, r * 0.62, 0, 0, Math.PI * 2);
       ctx.strokeStyle = col;
       ctx.globalAlpha = 0.18; ctx.lineWidth = 1.2; ctx.stroke();
       ctx.restore();
@@ -2070,28 +2105,40 @@ function renderStarMap() {
       }
     }
 
-    // Draw non-clustered stars
+    // Draw non-clustered stars with collision-free labels
     const nclFontSz = Math.max(8, 10 * Math.min(zoom.scale, 2.5));
+    const labelItems = [];
     starStars.forEach(st => {
       const inAnyCluster = Object.values(starClusterMap).some(c => c.ids.includes(st.job.id));
-      if (inAnyCluster && !Object.keys(starSelectedClusters).some(k => starClusterMap[k] && starClusterMap[k].ids.includes(st.job.id))) return;
-      if (inAnyCluster) return; // drawn in expanded cluster above
-      if (Object.values(starClusterMap).some(c => Object.keys(starSelectedClusters).includes(Object.keys(starClusterMap).find(k => starClusterMap[k].ids.includes(st.job.id))))) {
-        // drawn as part of expanded
-        return;
-      }
+      if (inAnyCluster) return; // cluster stars drawn above (collapsed proxy or expanded)
       const sz = st.size * zoom.scale;
       const glow = ctx.createRadialGradient(st.screenX, st.screenY, sz*0.3, st.screenX, st.screenY, sz*2.5);
       glow.addColorStop(0, st.color); glow.addColorStop(1, 'transparent');
       ctx.beginPath(); ctx.arc(st.screenX, st.screenY, sz*2.5, 0, Math.PI*2);
       ctx.fillStyle = glow; ctx.fill();
       draw3DSphere(ctx, st.screenX, st.screenY, sz, st.color, '#f8fafc');
-      // company label
-      ctx.font = `500 ${nclFontSz}px system-ui, sans-serif`;
-      ctx.fillStyle = '#cbd5e1';
-      ctx.textAlign = 'center';
-      ctx.fillText(st.job.company, st.screenX, st.screenY + sz + 14 * zoom.scale);
+      labelItems.push({ text: st.job.company, x: st.screenX, y: st.screenY + sz + 14 * zoom.scale, fontSz: nclFontSz });
     });
+    // greedy collision avoidance: draw labels top-first, skip overlapped ones
+    ctx.font = '500 ' + nclFontSz + 'px system-ui, sans-serif';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.textAlign = 'center';
+    const labelRects = [];
+    labelItems.sort((a, b) => a.y - b.y);
+    for (const item of labelItems) {
+      const tw = ctx.measureText(item.text).width;
+      const rect = { x: item.x - tw / 2 - 2, y: item.y - nclFontSz, w: tw + 4, h: nclFontSz + 2 };
+      let overlap = false;
+      for (const r of labelRects) {
+        if (rect.x < r.x + r.w && rect.x + rect.w > r.x && rect.y < r.y + r.h && rect.y + rect.h > r.y) {
+          overlap = true; break;
+        }
+      }
+      if (!overlap) {
+        labelRects.push(rect);
+        ctx.fillText(item.text, item.x, item.y);
+      }
+    }
 
     // Pulsing core
     const pulse = 1 + 0.06 * Math.sin(now * 0.0022);
