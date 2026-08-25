@@ -1983,7 +1983,7 @@ function renderStarMap() {
     // Orbit rings - solid thin lines matching screenshot
     const effCx = cx + zoom.panX, effCy = cy + zoom.panY;
     activeStages.forEach((key, idx) => {
-      const r = orbitStep * (activeStages.length - idx) * zoom.scale;
+      const r = (ringInfos[idx] ? ringInfos[idx].r : 100) * zoom.scale;
       const col = STAGE_COLORS[key] || '#64748b';
       ctx.save(); ctx.beginPath();
       ctx.ellipse(effCx, effCy, r, r * 0.48, 0, 0, Math.PI * 2);
