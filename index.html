@@ -1798,20 +1798,40 @@ function renderStarMap() {
   const stageOrder = STATUSES.map(s => s.key);
   const activeStages = stageOrder.filter(k => stageJobs[k] && stageJobs[k].length > 0);
   const maxR = Math.min(cx, cy, W - cx - 20, H - cy - 10) + 15;
-  const orbitStep = maxR / Math.max(activeStages.length, 1);
+  const spread = 28;
+  const gap = 26;
+  const usableMax = maxR - 20;
+  const ringInfos = activeStages.map((key, idx) => {
+    const jobsArr = stageJobs[key];
+    const cnt = jobsArr.length;
+    const subRings = cnt > 18 ? 3 : (cnt > 9 ? 2 : 1);
+    return { key, idx, jobsArr, cnt, subRings,
+      halfWidth: ((subRings - 1) / 2) * spread,
+      subRingWidth: (subRings - 1) * spread };
+  });
+  const totalWidth = ringInfos.reduce((s, info) => s + info.subRingWidth + gap, 0);
+  let rCursor = usableMax;
+  ringInfos.forEach(info => {
+    info.r = rCursor - info.halfWidth;
+    rCursor -= info.subRingWidth + gap;
+  });
+  const minInner = 70;
+  if (rCursor < minInner) {
+    const scale = (usableMax - minInner) / (usableMax - rCursor);
+    ringInfos.forEach(info => { info.r = minInner + (info.r - minInner) * scale; });
+  }
 
   // --- Build stars with cluster support ---
   starClusterMap = {};
   starSelectedClusters = {};
   starStars = [];
   activeStages.forEach((key, idx) => {
-    const jobsArr = stageJobs[key];
-    const cnt = jobsArr.length;
-    const expansion = Math.min(cnt * 1.5, orbitStep * 0.7);
-    const r = orbitStep * (activeStages.length - idx) + expansion;
+    const info = ringInfos[idx];
+    const jobsArr = info.jobsArr;
+    const cnt = info.cnt;
+    const subRings = info.subRings;
+    const r = info.r;
     const color = STAGE_COLORS[key] || '#94a3b8';
-    const subRings = cnt > 18 ? 3 : (cnt > 9 ? 2 : 1);
-    const spread = 28;
     const orbitPhase = idx * (Math.PI / (activeStages.length || 1));
     const groups = Array.from({ length: subRings }, () => []);
     jobsArr.forEach((j, ji) => groups[ji % subRings].push(j));
