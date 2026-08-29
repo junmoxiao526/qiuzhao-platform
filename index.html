@@ -560,7 +560,6 @@ body {
     </nav>
   </div>
   <div class="header-right">
-    <button class="btn btn-outline btn-sm" onclick="syncStarJob()" id="btnSyncStarJob" title="从拾星 StarJob 同步最新岗位">🔄 同步 StarJob</button>
     <button class="btn btn-outline btn-sm" onclick="syncQiuzhiFangzhou()" id="btnSyncQiuzhiFangzhou" title="从招聘方舟同步最新校园招聘岗位">🔄 同步招聘方舟</button>
   </div>
 </header>
@@ -612,7 +611,7 @@ body {
   <div class="empty-state" id="exploreEmpty" style="display:none;">
     <div class="empty-icon">📭</div>
     <p>没有匹配的岗位</p>
-    <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">尝试调整筛选条件，或点击右上角同步 StarJob 获取最新岗位</p>
+    <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">尝试调整筛选条件，或点击右上角同步招聘方舟获取最新岗位</p>
   </div>
 </section>
 
@@ -781,10 +780,7 @@ const STORAGE_SUMMARY = 'campus_summary';
 const STORAGE_RESUME = 'campus_resume';
 const SUPA_URL = 'https://dppxnheifyqenroqtusw.supabase.co';
 const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwcHhuaGVpZnlxZW5yb3F0dXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMDAzMjEsImV4cCI6MjEwMjU3NjMyMX0._Lli_AZ_qifLW9EI3W0qjevJkNrAwvMm4GcgcR-1mAI';
-const STARJOB_META_KEY = 'starjob_sync_meta';
 const QIUZHI_META_KEY = 'qiuzhi_sync_meta';
-const SUPABASE_URL = 'https://uzzdcjdjlbnxmhvilldj.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_0ImwuTX8ZtKikcqv5Zfwag_nrRLTzXL';
 const SJ_COMPANY_TYPE_TAGS = ['科技','互联网','央国企','金融','外企','游戏','在线教育','快消','其他','制造业'];
 
 function sjParseStartDate(raw) {
@@ -802,18 +798,6 @@ function sjParseLocations(raw) {
   if (parts.length<=1) parts = raw.split(/\s+/).filter(Boolean);
   return parts.map(p=>p.replace(/[等及和与]$/,'')).filter(Boolean);
 }
-function sjTransformJobs(raw) {
-  return raw.map(j=>({
-    id: j.id,
-    company: j.company_name||'',
-    positionTypes: Array.isArray(j.job_categories)?j.job_categories:((j.job_categories||'').split(',').map(s=>s.trim()).filter(Boolean)),
-    companyTypes: (j.industry||'').split(',').map(s=>s.trim()).filter(t=>SJ_COMPANY_TYPE_TAGS.includes(t)),
-    cities: sjParseLocations(j.locations||''),
-    openingDate: sjParseStartDate(j.start_date),
-    url: j.apply_url||''
-  }));
-}
-
 // 省份城市映射
 const PROVINCE_MAP = {
   '全国':['全国'],'上海':['上海'],'北京':['北京'],'天津':['天津'],'重庆':['重庆'],
@@ -965,55 +949,6 @@ function switchTab(tab) {
 }
 
 // ==================== 面板1: 岗位清单 ====================
-function mergeJobList() {
-  // 合并 starjob 数据 + 手动岗位到 jobList
-  const starData = window.STARJOB_DATA || [];
-  const now = new Date().toISOString();
-  const existingIds = new Set(jobList.map(j=>j.starjobId).filter(Boolean));
-  for (const sj of starData) {
-    if (existingIds.has(sj.id)) {
-      // 刷新已有岗位的 url / openingDate；仅当数据变化时才更新同步时间
-      const existing = jobList.find(j => j.starjobId === sj.id);
-      if (existing) {
-        const oldUrl = existing.url || '';
-        const oldOpDate = existing.openingDate || '';
-        const newUrl = sj.url || '';
-        const newOpDate = sj.openingDate || '';
-        if (newUrl !== oldUrl || newOpDate !== oldOpDate) {
-          console.log('mergeJobList: 岗位数据变化，更新 addedAt', sj.company, { oldUrl, newUrl, oldOpDate, newOpDate });
-          existing.addedAt = now;
-        }
-        existing.url = newUrl;
-        existing.openingDate = newOpDate;
-      }
-      continue;
-    }
-    existingIds.add(sj.id);
-    jobList.push({
-      id: genId(),
-      starjobId: sj.id,
-      company: sj.company,
-      positionTypes: sj.positionTypes || [],
-      companyTypesRaw: sj.companyTypes || [],
-      companyType: mapCompanyTypes(sj.companyTypes),
-      cities: sj.cities || [],
-      city: (sj.cities||[]).join(' / '),
-      url: sj.url || '',
-      openingDate: sj.openingDate || '',
-      addedAt: now,
-    });
-  }
-  // 去重：同一 starjobId 只保留最后一条
-  const seen = new Map();
-  jobList = jobList.filter(j => {
-    if (!j.starjobId) return true;
-    if (seen.has(j.starjobId)) return false;
-    seen.set(j.starjobId, true);
-    return true;
-  });
-  saveJobList();
-}
-
 function mapCompanyTypes(types) {
   if (!types||types.length===0) return '';
   return [...new Set(types.map(t=>COMPANY_TYPE_MAP[t]||'其他'))].join(' / ');
@@ -1637,71 +1572,6 @@ function loadSummary() {
   document.getElementById('summaryText').value = localStorage.getItem(STORAGE_SUMMARY)||'';
 }
 
-// ==================== StarJob 同步 ====================
-function getSyncMeta() { try { return JSON.parse(localStorage.getItem(STARJOB_META_KEY)||'{}'); } catch { return {}; } }
-function setSyncMeta(m) { localStorage.setItem(STARJOB_META_KEY, JSON.stringify(m)); }
-
-async function syncStarJob() {
-  const btn = document.getElementById('btnSyncStarJob');
-  btn.textContent = '⏳ 同步中...'; btn.disabled = true;
-  document.getElementById('syncResultTitle').textContent = '🔄 StarJob 同步结果';
-
-  try {
-    const url = `${SUPABASE_URL}/rest/v1/jobs?select=*&is_active=eq.true&order=created_at.desc&limit=1000`;
-    const resp = await fetch(url, { headers: { apikey: SUPABASE_KEY } });
-    if (!resp.ok) throw new Error(`API 返回 ${resp.status}`);
-    const raw = await resp.json();
-    if (!raw||!Array.isArray(raw)||raw.length===0) throw new Error('未获取到数据');
-
-    const data = sjTransformJobs(raw);
-    const meta = getSyncMeta();
-    const syncedIds = new Set(meta.syncedIds||[]);
-    const existingStarJobIds = new Set(jobList.map(j=>(j.starjobId||null)).filter(Boolean));
-    let newCount=0, skipCount=0;
-    const newCos=[];
-
-    for (const sj of data) {
-      if (existingStarJobIds.has(sj.id)) { skipCount++; continue; }
-      syncedIds.add(sj.id);
-      meta.syncedIds = meta.syncedIds||[];
-      meta.syncedIds.push(sj.id);
-      newCount++;
-      newCos.push(sj.company);
-    }
-
-    meta.lastSyncAt = new Date().toISOString();
-    meta.totalRemote = data.length;
-    setSyncMeta(meta);
-    window.STARJOB_DATA = data;
-    mergeJobList(); saveJobList();
-    renderExplore();
-
-    const summary = document.getElementById('syncSummary');
-    summary.innerHTML = `<div style="display:flex;gap:16px;margin-bottom:8px;">
-      <div style="flex:1;text-align:center;padding:12px;background:rgba(53,100,71,0.08);border-radius:8px;border:1px solid rgba(53,100,71,0.15)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
-      <div style="flex:1;text-align:center;padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:24px;font-weight:700;color:var(--text-muted)">${skipCount}</div><div style="font-size:12px;color:var(--text-muted)">已存在</div></div>
-      <div style="flex:1;text-align:center;padding:12px;background:rgba(37,99,235,0.08);border-radius:8px;border:1px solid rgba(37,99,235,0.15)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
-    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}</p>`;
-
-    let listHtml = '';
-    if (newCos.length>0) {
-      listHtml += '<div style="font-weight:600;color:var(--green);margin-bottom:4px;">新增公司:</div>';
-      listHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
-      newCos.slice(0,50).forEach(c=>{ listHtml+=`<span style="background:rgba(53,100,71,0.1);color:var(--green);padding:2px 8px;border-radius:4px;font-size:12px;">${c}</span>`; });
-      if (newCos.length>50) listHtml+=`<span style="font-size:12px;color:var(--text-muted)">等 ${newCos.length} 个</span>`;
-      listHtml += '</div>';
-    }
-    document.getElementById('syncList').innerHTML = listHtml;
-    document.getElementById('syncResultModal').style.display = 'flex';
-    toast(`StarJob 同步完成: 新增 ${newCount} 个岗位`);
-  } catch(e) {
-    document.getElementById('syncSummary').innerHTML=`<p style="color:var(--danger)">同步失败: ${e.message}</p><p style="color:var(--text-secondary)">请检查网络后重试</p>`;
-    document.getElementById('syncList').innerHTML='';
-    document.getElementById('syncResultModal').style.display='flex';
-  }
-  btn.textContent='🔄 同步 StarJob'; btn.disabled=false;
-}
-
 function getQiuzhiSyncMeta() { try { return JSON.parse(localStorage.getItem(QIUZHI_META_KEY)||'{}'); } catch { return {}; } }
 function setQiuzhiSyncMeta(m) { localStorage.setItem(QIUZHI_META_KEY, JSON.stringify(m)); }
 
@@ -1865,7 +1735,13 @@ loadJobs();
 const cleaned = cleanupStaleJobs();
 if (cleaned > 0) console.log('已清理 ' + cleaned + ' 条旧版自动同步数据');
 loadJobList();
-mergeJobList(); saveJobList(); renderExplore();
+// 清理历史 StarJob 来源岗位（已停用 StarJob 同步）
+{
+  const _before = jobList.length;
+  jobList = jobList.filter(j => !j.starjobId);
+  if (jobList.length !== _before) console.log('已移除 ' + (_before - jobList.length) + ' 条 StarJob 来源岗位');
+}
+saveJobList(); renderExplore();
 renderTrack();
 updateFilterOptions();
 cloudSyncAll();
