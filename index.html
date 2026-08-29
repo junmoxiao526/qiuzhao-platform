@@ -561,6 +561,7 @@ body {
   </div>
   <div class="header-right">
     <button class="btn btn-outline btn-sm" onclick="syncStarJob()" id="btnSyncStarJob" title="从拾星 StarJob 同步最新岗位">🔄 同步 StarJob</button>
+    <button class="btn btn-outline btn-sm" onclick="syncQiuzhiFangzhou()" id="btnSyncQiuzhiFangzhou" title="从招聘方舟同步最新校园招聘岗位">🔄 同步招聘方舟</button>
   </div>
 </header>
 
@@ -747,7 +748,7 @@ body {
 <div class="modal-overlay" id="syncResultModal" style="display:none;">
   <div class="modal" style="max-width:640px;">
     <div class="modal-header">
-      <h3>🔄 StarJob 同步结果</h3>
+      <h3 id="syncResultTitle">🔄 同步结果</h3>
       <button class="modal-close" onclick="closeSyncResultModal()">×</button>
     </div>
     <div class="modal-body" style="max-height:60vh;overflow-y:auto;">
@@ -785,6 +786,7 @@ const STORAGE_RESUME = 'campus_resume';
 const SUPA_URL = 'https://dppxnheifyqenroqtusw.supabase.co';
 const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwcHhuaGVpZnlxZW5yb3F0dXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMDAzMjEsImV4cCI6MjEwMjU3NjMyMX0._Lli_AZ_qifLW9EI3W0qjevJkNrAwvMm4GcgcR-1mAI';
 const STARJOB_META_KEY = 'starjob_sync_meta';
+const QIUZHI_META_KEY = 'qiuzhi_sync_meta';
 const SUPABASE_URL = 'https://uzzdcjdjlbnxmhvilldj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_0ImwuTX8ZtKikcqv5Zfwag_nrRLTzXL';
 const SJ_COMPANY_TYPE_TAGS = ['科技','互联网','央国企','金融','外企','游戏','在线教育','快消','其他','制造业'];
@@ -938,8 +940,8 @@ async function cloudSyncAll() {
 function cleanupStaleJobs() {
   const before = jobs.length;
   jobs = jobs.filter(j => {
-    const hasStarjobId = (()=>{ try { return !!JSON.parse(j.notes||'{}').starjobId; } catch { return false; } })();
-    return !(j.status === 'pending' && !hasStarjobId);
+    const hasSourceId = (()=>{ try { const n=JSON.parse(j.notes||'{}'); return !!(n.starjobId||n.qiuzhiId); } catch { return false; } })();
+    return !(j.status === 'pending' && !hasSourceId);
   });
   const removed = before - jobs.length;
   if (removed > 0) { saveJobs(); return removed; }
@@ -1061,7 +1063,7 @@ function getExploreFilters() {
 function getTrackedStarJobIds() {
   const ids = new Set();
   for (const j of jobs) {
-    try { const n=JSON.parse(j.notes||'{}'); if (n.starjobId) ids.add(n.starjobId); } catch {}
+    try { const n=JSON.parse(j.notes||'{}'); if (n.starjobId) ids.add('s:'+n.starjobId); if (n.qiuzhiId) ids.add('q:'+n.qiuzhiId); } catch {}
   }
   return ids;
 }
@@ -1211,7 +1213,8 @@ function renderExplore() {
     j.company.toLowerCase().includes(f.search)
   );
   if (f.untracked) filtered = filtered.filter(j=>{
-    if (j.starjobId) return !tracked.has(j.starjobId);
+    const k = j.qiuzhiId ? 'q:'+j.qiuzhiId : (j.starjobId ? 's:'+j.starjobId : '');
+    if (k) return !tracked.has(k);
     return true;
   });
 
@@ -1268,7 +1271,7 @@ function renderExplore() {
 
   // 统计
   const totalAll = jobList.length;
-  const trackedAll = jobList.filter(j=> j.starjobId ? tracked.has(j.starjobId) : false).length;
+  const trackedAll = jobList.filter(j=>{ const k = j.qiuzhiId ? 'q:'+j.qiuzhiId : (j.starjobId ? 's:'+j.starjobId : ''); return k ? tracked.has(k) : false; }).length;
   document.getElementById('exploreStats').innerHTML = `
     <div class="stat-card"><div class="stat-label">岗位总数</div><div class="stat-value" style="color:var(--accent)">${totalAll}</div></div>
     <div class="stat-card"><div class="stat-label">已加入投递</div><div class="stat-value" style="color:var(--green)">${trackedAll}</div></div>
@@ -1285,7 +1288,7 @@ function renderExplore() {
   } else {
     empty.style.display = 'none';
     grid.innerHTML = filtered.map(j=>{
-      const isTracked = j.starjobId ? tracked.has(j.starjobId) : false;
+      const isTracked = (j.qiuzhiId ? tracked.has('q:'+j.qiuzhiId) : (j.starjobId ? tracked.has('s:'+j.starjobId) : false));
       const posTags = (j.positionTypes||[]).slice(0,4).map(t=>`<span class="job-card-tag">${escapeHtml(t)}</span>`).join('');
       const typeTags = j.companyType ? `<span class="job-card-tag type">${escapeHtml(j.companyType)}</span>` : '';
       const industry = getIndustryFromJob(j);
@@ -1319,7 +1322,8 @@ function addToTrack(listId) {
   const item = jobList.find(j=>j.id===listId);
   if (!item) return;
   const trackedIds = getTrackedStarJobIds();
-  if (item.starjobId && trackedIds.has(item.starjobId)) { toast('该岗位已在投递列表中'); return; }
+  const itemKey = item.qiuzhiId ? 'q:'+item.qiuzhiId : (item.starjobId ? 's:'+item.starjobId : '');
+  if (itemKey && trackedIds.has(itemKey)) { toast('该岗位已在投递列表中'); return; }
   const newJob = {
     id: genId(),
     company: item.company,
@@ -1328,11 +1332,11 @@ function addToTrack(listId) {
     city: item.city || '',
     companyType: item.companyType || '',
     applyDate: '',
-    deadline: '',
+    deadline: item.deadline || '',
     interviewDate: '',
     link: item.url || '',
     salary: '',
-    notes: JSON.stringify({ starjobId: item.starjobId, positionTypes: item.positionTypes }),
+    notes: JSON.stringify({ starjobId: item.starjobId, qiuzhiId: item.qiuzhiId, positionTypes: item.positionTypes }),
   };
   jobs.push(newJob); saveJobs();
   item.addedAt = new Date().toISOString(); saveJobList();
@@ -1344,8 +1348,9 @@ function openExploreDetail(listId) {
   const item = jobList.find(j=>j.id===listId);
   if (!item) return;
   const trackedIds = getTrackedStarJobIds();
-  const tracked = item.starjobId ? trackedIds.has(item.starjobId) : false;
-  const trackedJob = tracked ? jobs.find(j=>{ try { const n=JSON.parse(j.notes||'{}'); return item.starjobId ? n.starjobId===item.starjobId : false; } catch { return false; } }) : null;
+  const itemKey = item.qiuzhiId ? 'q:'+item.qiuzhiId : (item.starjobId ? 's:'+item.starjobId : '');
+  const tracked = itemKey ? trackedIds.has(itemKey) : false;
+  const trackedJob = tracked ? jobs.find(j=>{ try { const n=JSON.parse(j.notes||'{}'); return item.qiuzhiId ? n.qiuzhiId===item.qiuzhiId : (item.starjobId ? n.starjobId===item.starjobId : false); } catch { return false; } }) : null;
   const posTags = (item.positionTypes||[]).map(t=>`<span class="job-card-tag">${escapeHtml(t)}</span>`).join(' ');
   const body = document.getElementById('detailBody');
   body.innerHTML = `
@@ -1659,6 +1664,7 @@ function setSyncMeta(m) { localStorage.setItem(STARJOB_META_KEY, JSON.stringify(
 async function syncStarJob() {
   const btn = document.getElementById('btnSyncStarJob');
   btn.textContent = '⏳ 同步中...'; btn.disabled = true;
+  document.getElementById('syncResultTitle').textContent = '🔄 StarJob 同步结果';
 
   try {
     const url = `${SUPABASE_URL}/rest/v1/jobs?select=*&is_active=eq.true&order=created_at.desc&limit=1000`;
@@ -1714,6 +1720,151 @@ async function syncStarJob() {
     document.getElementById('syncResultModal').style.display='flex';
   }
   btn.textContent='🔄 同步 StarJob'; btn.disabled=false;
+}
+
+function getQiuzhiSyncMeta() { try { return JSON.parse(localStorage.getItem(QIUZHI_META_KEY)||'{}'); } catch { return {}; } }
+function setQiuzhiSyncMeta(m) { localStorage.setItem(QIUZHI_META_KEY, JSON.stringify(m)); }
+
+function qzTransformJobs(campusList) {
+  const out = [];
+  for (const day of (campusList||[])) {
+    for (const d of (day.datas||[])) {
+      if (!d || !d.company) continue;
+      out.push({
+        id: d.id,
+        company: d.company,
+        positionTypes: Array.isArray(d.positions)
+          ? d.positions.map(s=>String(s).trim()).filter(Boolean)
+          : String(d.positions||'').split(/[\s\/]+/).map(s=>s.trim()).filter(Boolean),
+        companyTypes: (d.industry||'').split(/[\/、]/).map(s=>s.trim()).filter(t=>SJ_COMPANY_TYPE_TAGS.includes(t)),
+        typeTags: Array.isArray(d.typeTag) ? d.typeTag.map(s=>String(s).trim()).filter(Boolean) : [],
+        cities: sjParseLocations(d.locations||''),
+        openingDate: sjParseStartDate(d.createTime),
+        deadline: d.deadline || '',
+        batch: d.batch || '',
+        url: d.applyUrl || d.sourceUrl || d.noticeUrl || '',
+        noticeUrl: d.noticeUrl || '',
+        referralCode: d.referralCode || '',
+        popular: !!d.popular,
+      });
+    }
+  }
+  return out;
+}
+
+function mergeQiuzhiList() {
+  const qzData = window.QIUZHI_DATA || [];
+  const now = new Date().toISOString();
+  const existingIds = new Set(jobList.map(j=>j.qiuzhiId).filter(Boolean));
+  for (const q of qzData) {
+    if (existingIds.has(q.id)) {
+      const existing = jobList.find(j => j.qiuzhiId === q.id);
+      if (existing) {
+        const oldUrl = existing.url || '';
+        const newUrl = q.url || '';
+        if (newUrl !== oldUrl) existing.addedAt = now;
+        existing.url = newUrl;
+        if (q.deadline) existing.deadline = q.deadline;
+        if (q.batch) existing.batch = q.batch;
+      }
+      continue;
+    }
+    existingIds.add(q.id);
+    jobList.push({
+      id: genId(),
+      qiuzhiId: q.id,
+      company: q.company,
+      positionTypes: q.positionTypes || [],
+      companyTypesRaw: [...new Set([...(q.companyTypes||[]), ...(q.typeTags||[])])],
+      companyType: mapCompanyTypes(q.companyTypes) || q.typeTags.join(' / '),
+      cities: q.cities || [],
+      city: (q.cities||[]).join(' / '),
+      url: q.url || '',
+      openingDate: q.openingDate || '',
+      deadline: q.deadline || '',
+      batch: q.batch || '',
+      noticeUrl: q.noticeUrl || '',
+      referralCode: q.referralCode || '',
+      popular: !!q.popular,
+      addedAt: now,
+    });
+  }
+  const seen = new Map();
+  jobList = jobList.filter(j => {
+    if (!j.qiuzhiId) return true;
+    if (seen.has(j.qiuzhiId)) return false;
+    seen.set(j.qiuzhiId, true);
+    return true;
+  });
+  saveJobList();
+}
+
+async function syncQiuzhiFangzhou() {
+  const btn = document.getElementById('btnSyncQiuzhiFangzhou');
+  btn.textContent = '⏳ 同步中...'; btn.disabled = true;
+  document.getElementById('syncResultTitle').textContent = '🔄 招聘方舟同步结果';
+
+  try {
+    // 生成最近 30 天的日期列表（与站点页面展示窗口一致）
+    const dateList = [];
+    for (let i=0;i<30;i++) {
+      const d = new Date(Date.now()-i*86400000);
+      const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      dateList.push({date: ds, md5: ''});
+    }
+    const resp = await fetch('https://api.qiuzhifangzhou.com/api/campus/getCampusList', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dateList }),
+    });
+    if (!resp.ok) throw new Error(`API 返回 ${resp.status}`);
+    const raw = await resp.json();
+    const campusList = (raw && raw.campusList) || [];
+    const data = qzTransformJobs(campusList);
+    if (data.length===0) throw new Error('未获取到数据');
+
+    const meta = getQiuzhiSyncMeta();
+    const existingQiuzhiIds = new Set(jobList.map(j=>(j.qiuzhiId||null)).filter(Boolean));
+    let newCount=0, skipCount=0;
+    const newCos=[];
+    for (const q of data) {
+      if (existingQiuzhiIds.has(q.id)) { skipCount++; continue; }
+      meta.syncedIds = meta.syncedIds||[];
+      meta.syncedIds.push(q.id);
+      newCount++;
+      newCos.push(q.company);
+    }
+    meta.lastSyncAt = new Date().toISOString();
+    meta.totalRemote = data.length;
+    setQiuzhiSyncMeta(meta);
+    window.QIUZHI_DATA = data;
+    mergeQiuzhiList(); saveJobList();
+    renderExplore();
+
+    const summary = document.getElementById('syncSummary');
+    summary.innerHTML = `<div style="display:flex;gap:16px;margin-bottom:8px;">
+      <div style="flex:1;text-align:center;padding:12px;background:rgba(53,100,71,0.08);border-radius:8px;border:1px solid rgba(53,100,71,0.15)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
+      <div style="flex:1;text-align:center;padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:24px;font-weight:700;color:var(--text-muted)">${skipCount}</div><div style="font-size:12px;color:var(--text-muted)">已存在</div></div>
+      <div style="flex:1;text-align:center;padding:12px;background:rgba(37,99,235,0.08);border-radius:8px;border:1px solid rgba(37,99,235,0.15)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
+    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}</p>`;
+
+    let listHtml = '';
+    if (newCos.length>0) {
+      listHtml += '<div style="font-weight:600;color:var(--green);margin-bottom:4px;">新增公司:</div>';
+      listHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+      newCos.slice(0,50).forEach(c=>{ listHtml+=`<span style="background:rgba(53,100,71,0.1);color:var(--green);padding:2px 8px;border-radius:4px;font-size:12px;">${c}</span>`; });
+      if (newCos.length>50) listHtml+=`<span style="font-size:12px;color:var(--text-muted)">等 ${newCos.length} 个</span>`;
+      listHtml += '</div>';
+    }
+    document.getElementById('syncList').innerHTML = listHtml;
+    document.getElementById('syncResultModal').style.display = 'flex';
+    toast(`招聘方舟同步完成: 新增 ${newCount} 个岗位`);
+  } catch(e) {
+    document.getElementById('syncSummary').innerHTML=`<p style="color:var(--danger)">同步失败: ${e.message}</p><p style="color:var(--text-secondary)">请检查网络后重试</p>`;
+    document.getElementById('syncList').innerHTML='';
+    document.getElementById('syncResultModal').style.display='flex';
+  }
+  btn.textContent='🔄 同步招聘方舟'; btn.disabled=false;
 }
 
 function closeSyncResultModal() { document.getElementById('syncResultModal').style.display = 'none'; }
