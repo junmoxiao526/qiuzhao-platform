@@ -1725,6 +1725,18 @@ async function syncStarJob() {
 function getQiuzhiSyncMeta() { try { return JSON.parse(localStorage.getItem(QIUZHI_META_KEY)||'{}'); } catch { return {}; } }
 function setQiuzhiSyncMeta(m) { localStorage.setItem(QIUZHI_META_KEY, JSON.stringify(m)); }
 
+function qzSplitPositions(raw) {
+  if (!raw) return [];
+  const parts = String(raw).split(/[\s\/]+/).map(s=>s.trim()).filter(Boolean);
+  const out = [];
+  for (const p of parts) {
+    if (out.length >= 3) break;
+    const t = p.length > 12 ? p.slice(0,12)+'…' : p;
+    if (!out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
 function qzTransformJobs(campusList) {
   const out = [];
   for (const day of (campusList||[])) {
@@ -1733,9 +1745,7 @@ function qzTransformJobs(campusList) {
       out.push({
         id: d.id,
         company: d.company,
-        positionTypes: Array.isArray(d.positions)
-          ? d.positions.map(s=>String(s).trim()).filter(Boolean)
-          : String(d.positions||'').split(/[\s\/]+/).map(s=>s.trim()).filter(Boolean),
+        positionTypes: qzSplitPositions(d.positions),
         companyTypes: (d.industry||'').split(/[\/、]/).map(s=>s.trim()).filter(t=>SJ_COMPANY_TYPE_TAGS.includes(t)),
         typeTags: Array.isArray(d.typeTag) ? d.typeTag.map(s=>String(s).trim()).filter(Boolean) : [],
         cities: sjParseLocations(d.locations||''),
@@ -1764,6 +1774,7 @@ function mergeQiuzhiList() {
         const newUrl = q.url || '';
         if (newUrl !== oldUrl) existing.addedAt = now;
         existing.url = newUrl;
+        existing.positionTypes = q.positionTypes || existing.positionTypes;
         if (q.deadline) existing.deadline = q.deadline;
         if (q.batch) existing.batch = q.batch;
       }
