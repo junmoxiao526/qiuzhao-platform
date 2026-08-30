@@ -211,6 +211,8 @@ body {
 .explore-table .expl-act { white-space:nowrap; }
 .explore-table .expl-act .btn { padding:4px 12px; font-size:11.5px; }
 .explore-table .expl-industry { max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.explore-table .expl-batch { max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.explore-table .expl-heat { white-space:nowrap; }
 .explore-table .expl-tags { max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tag-chip { display:inline-block; padding:2px 9px; border-radius:4px; font-size:11px; font-weight:700; color:#fff; margin:1px 2px 1px 0; white-space:nowrap; }
 .chip-orange { background:#F97316; }
@@ -1304,8 +1306,8 @@ function renderExplore() {
         <td class="expl-link-cell">${applyHtml}</td>
         <td class="expl-industry" title="${escapeHtml(industry)}">${escapeHtml(industry)||'<span class="expl-dim">-</span>'}</td>
         <td class="expl-tags" title="${escapeHtml(typeText)}">${typeTags}</td>
-        <td>${escapeHtml(j.batch||'-')}</td>
-        <td>${heat}</td>
+        <td class="expl-batch" title="${escapeHtml(j.batch||'-')}">${escapeHtml(j.batch||'-')}</td>
+        <td class="expl-heat">${heat}</td>
         <td class="expl-pos" title="${escapeHtml(posText)}">${escapeHtml(posText)}</td>
         <td class="expl-city" title="${escapeHtml(cityText)}">${escapeHtml(cityText)}</td>
         <td class="expl-act">
