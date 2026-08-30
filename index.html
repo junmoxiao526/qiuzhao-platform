@@ -229,7 +229,6 @@ body {
 .tracked-badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; color:#fff; background:var(--green); margin-left:2px; white-space:nowrap; vertical-align:middle; }
 .company-link { color:var(--accent); cursor:pointer; }
 .company-link:hover { text-decoration:underline; }
-.expl-badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; color:var(--accent); background:rgba(138,109,255,.16); margin-left:6px; white-space:nowrap; vertical-align:middle; }
 .card-company { cursor:pointer; }
 .explore-table .expl-link-cell { white-space:nowrap; }
 .explore-table .expl-link { color:#8A6DFF; text-decoration:none; font-weight:500; }
@@ -1220,7 +1219,7 @@ function getDateLabel(openingDate) {
 }
 
 function getExploreUpdateLabel(j) {
-  const src = j.updatedAt || j.addedAt || j.openingDate || '';
+  const src = j.openingDate || j.updatedAt || j.addedAt || '';
   if (!src) return '<span class="expl-dim">-</span>';
   const m = String(src).match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return m[2] + '-' + m[3];
@@ -1236,21 +1235,33 @@ function tagClass(t) {
   if (t.indexOf('大厂')>=0) return 'chip-cyan';
   return 'chip-other';
 }
+function sjParsePopular(v) {
+  if (v === true || v === 'true') return 3;
+  const n = Number(v);
+  if (!isNaN(n) && n >= 1 && n <= 3) return Math.round(n);
+  return v ? 3 : 0;
+}
 function heatBlocks(popular) {
-  if (popular) return '<span class="heat-block heat-high"></span><span class="heat-block heat-high"></span><span class="heat-block heat-high"></span>';
+  let n = 0;
+  if (popular === true || popular === 'true') n = 3;
+  else { const v = Number(popular); if (!isNaN(v) && v >= 1 && v <= 3) n = Math.round(v); }
+  if (n >= 3) return '<span class="heat-block heat-high"></span><span class="heat-block heat-high"></span><span class="heat-block heat-high"></span>';
+  if (n === 2) return '<span class="heat-block heat-high"></span><span class="heat-block heat-high"></span><span class="heat-block heat-low"></span>';
+  if (n === 1) return '<span class="heat-block heat-high"></span><span class="heat-block heat-low"></span><span class="heat-block heat-low"></span>';
   return '<span class="heat-block heat-low"></span><span class="heat-block heat-low"></span>';
 }
 
 // ==================== 企业关联：投递管理 <-> 岗位清单 ====================
-function getExploreCountByCompany(name) {
-  if (!name) return 0;
-  const n = String(name).trim().toLowerCase();
-  return jobList.filter(j=>j.company && String(j.company).trim().toLowerCase()===n).length;
-}
 function getTrackJobsByCompany(name) {
   if (!name) return [];
   const n = String(name).trim().toLowerCase();
-  return jobs.filter(j=>j.company && String(j.company).trim().toLowerCase()===n);
+  return jobs.filter(j=>j.company && companiesMatch(j.company, n));
+}
+function companiesMatch(a, b) {
+  const x = String(a).trim().toLowerCase();
+  const y = String(b).trim().toLowerCase();
+  if (!x || !y) return false;
+  return x === y || x.includes(y) || y.includes(x);
 }
 function gotoExploreCompany(name) {
   switchTab('explore');
@@ -1345,10 +1356,10 @@ function renderExplore() {
       const posText = (j.positionTypes||[]).join('、') || '-';
       const cityArr = (j.cities&&j.cities.length) ? j.cities : (j.city ? [j.city] : []);
       const cityText = cityArr.length ? cityArr.join(' / ') : '-';
-      const heat = heatBlocks(!!j.popular);
+      const heat = heatBlocks(j.popular);
       const trkCnt = getTrackJobsByCompany(j.company).length;
       const companyCell = trkCnt>0
-        ? `<div class="expl-company"><span class="expl-company-link" onclick="event.stopPropagation();gotoTrackCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span><span class="tracked-badge" title="该企业在投递管理中有 ${trkCnt} 条记录">投递中</span></div>`
+        ? `<div class="expl-company"><span class="expl-company-link" onclick="event.stopPropagation();gotoTrackCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span><span class="tracked-badge" title="该企业在投递管理中有 ${trkCnt} 条记录">已投递</span></div>`
         : `<div class="expl-company"><span>${escapeHtml(j.company)}</span></div>`;
       return `<tr onclick="openExploreDetail('${j.id}')">
         <td class="expl-act">
@@ -1520,16 +1531,12 @@ function renderCard(j) {
   const deadlineHtml = j.deadline ? getDeadlineTag(j.deadline) : '';
   const cityHtml = j.city ? `<span>📍 ${escapeHtml(j.city)}</span>` : '';
   const typeHtml = j.companyType ? `<span>🏢 ${escapeHtml(j.companyType)}</span>` : '';
-  const expCnt = getExploreCountByCompany(j.company);
-  const companyHtml = expCnt>0
-    ? `<div class="card-company" title="点击查看岗位清单在招岗位"><span class="company-link" onclick="event.stopPropagation();gotoExploreCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span><span class="expl-badge">在招 ${expCnt}</span></div>`
-    : `<div class="card-company">${escapeHtml(j.company)}</div>`;
   return `<div class="card" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${j.id}')" onclick="openDetail('${j.id}')" style="border-left-color:${getStatusDot(j.status)}">
     <div class="card-actions">
       <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openEditModal('${j.id}')" title="编辑">✎</button>
       <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteJob('${j.id}')" title="删除">✕</button>
     </div>
-    ${companyHtml}
+    <div class="card-company">${escapeHtml(j.company)}</div>
     <div class="card-position">${escapeHtml(j.position)}</div>
     <div class="card-meta">${typeHtml}${cityHtml}${deadlineHtml}${j.salary?`<span>💰 ${escapeHtml(j.salary)}</span>`:''}</div>
   </div>`;
@@ -1552,12 +1559,8 @@ function renderList() {
   lv.innerHTML = `<table class="list-table"><thead><tr>
     <th>公司</th><th>岗位</th><th>类型</th><th>城市</th><th>状态</th><th>投递日期</th><th>截止日期</th><th>笔/面试</th><th>薪资</th><th>操作</th>
   </tr></thead><tbody>${filtered.map(j=>{
-    const expCnt = getExploreCountByCompany(j.company);
-    const companyHtml = expCnt>0
-      ? `<span class="company-link" title="岗位清单在招 ${expCnt} 个岗位" onclick="gotoExploreCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span> <span class="expl-badge">在招 ${expCnt}</span>`
-      : escapeHtml(j.company);
     return `<tr>
-    <td><strong>${companyHtml}</strong></td>
+    <td><strong>${escapeHtml(j.company)}</strong></td>
     <td>${escapeHtml(j.position)}</td>
     <td>${escapeHtml(j.companyType||'-')}</td>
     <td>${escapeHtml(j.city||'-')}</td>
@@ -1647,14 +1650,10 @@ function closeModal() { document.getElementById('jobModal').style.display = 'non
 function openDetail(id) {
   const j = jobs.find(j=>j.id===id); if (!j) return;
   detailJobId = id;
-  const expCnt = getExploreCountByCompany(j.company);
-  const expLink = expCnt>0
-    ? `<div>🏢 <a href="#" onclick="event.preventDefault();closeDetail();gotoExploreCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}" style="color:var(--accent);font-weight:600;">${escapeHtml(j.company)}</a>：岗位清单中还有 <span style="color:var(--accent);font-weight:700;">${expCnt}</span> 个在招岗位，点击查看</div>`
-    : `<div>🏢 公司类型: ${escapeHtml(j.companyType||'未填写')}</div>`;
   document.getElementById('detailTitle').textContent = j.company + ' - ' + j.position;
   document.getElementById('detailBody').innerHTML = `
     <div style="font-size:13px;color:var(--text-secondary);line-height:2;">
-      ${expLink}
+      <div>🏢 公司类型: ${escapeHtml(j.companyType||'未填写')}</div>
       <div>📍 城市: ${escapeHtml(j.city||'未填写')}</div>
       <div>📅 投递日期: ${j.applyDate||'未填写'}</div>
       <div>⏰ 截止日期: ${j.deadline||'未填写'}</div>
@@ -1760,7 +1759,7 @@ function qzTransformJobs(campusList) {
         url: d.applyUrl || d.sourceUrl || d.noticeUrl || '',
         noticeUrl: d.noticeUrl || '',
         referralCode: d.referralCode || '',
-        popular: !!d.popular,
+        popular: sjParsePopular(d.popular),
       });
     }
   }
@@ -1805,7 +1804,7 @@ function mergeQiuzhiList() {
       batch: q.batch || '',
       noticeUrl: q.noticeUrl || '',
       referralCode: q.referralCode || '',
-      popular: !!q.popular,
+      popular: sjParsePopular(q.popular),
       addedAt: now,
     });
   }
