@@ -650,10 +650,6 @@ body {
       <div class="filter-section-title">📌 省份/地区</div>
       <div class="province-grid" id="provinceGrid"></div>
     </div>
-    <div class="filter-section" id="industrySection">
-      <div class="filter-section-title">🏢 所在行业</div>
-      <div class="filter-row" id="industryTags"></div>
-    </div>
     <div class="filter-section" id="typeSection">
       <div class="filter-section-title">🏷 公司类型</div>
       <div class="filter-row" id="typeTags"></div>
@@ -945,7 +941,6 @@ let detailJobId = null;
 let exploreSort = 'updated';
 let exploreFilters = {
   provinces: new Set(),
-  industries: new Set(),
   types: new Set(),
   dateFrom: '',  // YYYY-MM-DD
   dateTo: '',    // YYYY-MM-DD
@@ -1084,7 +1079,6 @@ function getExploreFilters() {
     search,
     untracked,
     provinces: exploreFilters.provinces,
-    industries: exploreFilters.industries,
     types: exploreFilters.types,
     dateFrom: exploreFilters.dateFrom,
     dateTo: exploreFilters.dateTo,
@@ -1115,13 +1109,13 @@ function setSort(btn) {
 function buildFilterPanel() {
   // 收集所有选项
   const allCities = new Set(); const allProvinces = new Set();
-  const allIndustries = new Set(); const allTypes = new Set();
+  const allTypes = new Set();
 
   for (const j of jobList) {
     (j.cities||[]).forEach(c=>{ allCities.add(c); const p = getProvinceForCity(c); if(p) allProvinces.add(p); });
-    const ind = (j.companyTypesRaw||[]).filter(t=>INDUSTRIES.includes(t));
-    if (ind.length) ind.forEach(i=>allIndustries.add(i)); else { let i=mapCompanyTypes(j.companyTypesRaw).split(' / '); i.forEach(x=>{ if(INDUSTRIES.includes(x)) allIndustries.add(x); else { const m=Object.entries(COMPANY_TYPE_MAP).find(([k,v])=>v===x); if(m&&INDUSTRIES.includes(m[0])) allIndustries.add(m[0]); }}); }
-    if (j.companyType) j.companyType.split(' / ').forEach(t=>allTypes.add(t));
+    const tagList = (j.typeTags && j.typeTags.length) ? j.typeTags
+      : (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean);
+    tagList.forEach(t=>allTypes.add(t));
   }
 
   // Province buttons
@@ -1130,13 +1124,6 @@ function buildFilterPanel() {
   provGrid.innerHTML = sortedProvs.map(p=>{
     const active = exploreFilters.provinces.has(p) ? ' active' : '';
     return `<span class="province-tag${active}" data-prov="${p}" onclick="toggleProvince(this)">${p}</span>`;
-  }).join('');
-
-  // Industry tags
-  const indDiv = document.getElementById('industryTags');
-  indDiv.innerHTML = [...INDUSTRIES].filter(i=>allIndustries.has(i)||i==='其他').map(i=>{
-    const active = exploreFilters.industries.has(i) ? ' active' : '';
-    return `<span class="filter-tag${active}" data-val="${i}" onclick="toggleFilter(this,'industries')">${i}</span>`;
   }).join('');
 
   // Type tags
@@ -1196,7 +1183,7 @@ function updateDateFilterUI() {
 }
 
 function updateFilterCount() {
-  const cnt = exploreFilters.provinces.size + exploreFilters.industries.size + exploreFilters.types.size + (exploreFilters.dateFrom || exploreFilters.dateTo ? 1 : 0);
+  const cnt = exploreFilters.provinces.size + exploreFilters.types.size + (exploreFilters.dateFrom || exploreFilters.dateTo ? 1 : 0);
   const badge = document.getElementById('filterCount');
   if (cnt > 0) { badge.style.display = 'inline'; badge.textContent = cnt; }
   else { badge.style.display = 'none'; }
@@ -1206,7 +1193,6 @@ function updateFilterCount() {
 
 function clearAllFilters() {
   exploreFilters.provinces.clear();
-  exploreFilters.industries.clear();
   exploreFilters.types.clear();
   exploreFilters.dateFrom = '';
   exploreFilters.dateTo = '';
@@ -1271,21 +1257,12 @@ function renderExplore() {
     });
   }
 
-  // Industry filter
-  if (f.industries.size > 0) {
-    filtered = filtered.filter(j=>{
-      const jInds = new Set();
-      (j.companyTypesRaw||[]).forEach(t=>{ if(INDUSTRIES.includes(t)) jInds.add(t); });
-      if (jInds.size===0) { const ct=(j.companyType||'').split(' / '); ct.forEach(x=>{ const m=Object.entries(COMPANY_TYPE_MAP).find(([k,v])=>v===x); if(m&&INDUSTRIES.includes(m[0])) jInds.add(m[0]); }); }
-      return [...f.industries].some(i=>jInds.has(i));
-    });
-  }
-
-  // Type filter
+  // Type filter（与性质列一致：优先 typeTags）
   if (f.types.size > 0) {
     filtered = filtered.filter(j=>{
-      const jTypes = (j.companyType||'').split(' / ');
-      return [...f.types].some(t=>jTypes.includes(t));
+      const tagList = (j.typeTags && j.typeTags.length) ? j.typeTags
+        : (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean);
+      return [...f.types].some(t=>tagList.includes(t));
     });
   }
 
