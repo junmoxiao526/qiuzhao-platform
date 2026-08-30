@@ -250,9 +250,15 @@ body {
 .chip-pink { background:#EC4899; }
 .chip-cyan { background:#06B6D4; }
 .chip-other { background:#64748B; }
-.heat-block { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:2px; }
-.heat-high { background:#F87171; box-shadow:0 0 4px rgba(248,113,113,0.6); }
-.heat-low { background:#4ADE80; box-shadow:0 0 4px rgba(74,222,128,0.5); }
+.heat-block { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:2px; vertical-align:middle; }
+.heat-on-3 { background:#EF4444; box-shadow:0 0 5px rgba(239,68,68,0.8); }
+.heat-on-2 { background:#F97316; box-shadow:0 0 4px rgba(249,115,22,0.7); }
+.heat-on-1 { background:#F59E0B; box-shadow:0 0 4px rgba(245,158,11,0.6); }
+.heat-off { background:#3f4b5b; opacity:.55; }
+.heat-lv { display:inline-block; font-size:10px; font-weight:700; margin-left:3px; vertical-align:middle; }
+.heat-lv-3 { color:#F87171; }
+.heat-lv-2 { color:#FB923C; }
+.heat-lv-1 { color:#FBBF24; }
 /* 详情弹窗内保留的通用标签样式 */
 .job-card-tag { display:inline-block; padding:2px 9px; border-radius:4px; font-size:11px; background:rgba(123,97,255,0.14); color:#C7BFFF; margin:1px 2px 1px 0; }
 .job-card-tag.type { background:rgba(123,97,255,0.22); color:#D6CFFF; }
@@ -657,7 +663,7 @@ body {
       <div class="province-grid" id="provinceGrid"></div>
     </div>
     <div class="filter-section" id="typeSection">
-      <div class="filter-section-title">🏷 公司类型</div>
+      <div class="filter-section-title">🏷 性质</div>
       <div class="filter-row" id="typeTags"></div>
     </div>
     <div class="filter-section" id="dateSection">
@@ -1245,10 +1251,16 @@ function heatBlocks(popular) {
   let n = 0;
   if (popular === true || popular === 'true') n = 3;
   else { const v = Number(popular); if (!isNaN(v) && v >= 1 && v <= 3) n = Math.round(v); }
-  if (n >= 3) return '<span class="heat-block heat-high"></span><span class="heat-block heat-high"></span><span class="heat-block heat-high"></span>';
-  if (n === 2) return '<span class="heat-block heat-high"></span><span class="heat-block heat-high"></span><span class="heat-block heat-low"></span>';
-  if (n === 1) return '<span class="heat-block heat-high"></span><span class="heat-block heat-low"></span><span class="heat-block heat-low"></span>';
-  return '<span class="heat-block heat-low"></span><span class="heat-block heat-low"></span>';
+  let cells = '';
+  for (let i = 0; i < 3; i++) {
+    if (i < n) cells += `<span class="heat-block heat-on-${n}"></span>`;
+    else cells += '<span class="heat-block heat-off"></span>';
+  }
+  let label = '';
+  if (n >= 3) label = '<span class="heat-lv heat-lv-3">高热</span>';
+  else if (n === 2) label = '<span class="heat-lv heat-lv-2">中热</span>';
+  else if (n === 1) label = '<span class="heat-lv heat-lv-1">温热</span>';
+  return cells + label;
 }
 
 // ==================== 企业关联：投递管理 <-> 岗位清单 ====================
@@ -1363,7 +1375,7 @@ function renderExplore() {
         : `<div class="expl-company"><span>${escapeHtml(j.company)}</span></div>`;
       return `<tr onclick="openExploreDetail('${j.id}')">
         <td class="expl-act">
-          ${isTracked
+          ${trkCnt>0
             ? `<button class="btn btn-xs" disabled style="opacity:.5">✓ 已加入</button>`
             : `<button class="btn btn-success btn-xs" onclick="event.stopPropagation();addToTrack('${j.id}')">+ 加入投递</button>`
           }
@@ -1781,6 +1793,7 @@ function mergeQiuzhiList() {
         existing.positionTypes = q.positionTypes || existing.positionTypes;
         existing.industryRaw = q.industryRaw || existing.industryRaw;
         existing.typeTags = q.typeTags || existing.typeTags;
+        if (q.popular !== undefined && q.popular !== null) existing.popular = sjParsePopular(q.popular);
         if (q.deadline) existing.deadline = q.deadline;
         if (q.batch) existing.batch = q.batch;
       }
