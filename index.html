@@ -156,6 +156,27 @@ body {
 .filter-tag:hover { border-color:var(--accent); color:var(--accent); }
 .filter-tag.active { background:rgba(123,97,255,0.16); color:#D3C8FF; border-color:rgba(123,97,255,0.35); }
 
+/* 表头性质筛选下拉 */
+.th-type-head { cursor:pointer; user-select:none; position:relative; }
+.th-type-head .th-arrow { font-size:9px; margin-left:4px; opacity:.6; transition:transform .18s; display:inline-block; }
+.th-type-head.filtering { color:var(--accent); }
+.th-type-head.filtering .th-arrow { transform:rotate(180deg); }
+.th-type-menu {
+  position:fixed; z-index:100;
+  min-width:180px; max-width:260px; max-height:280px; overflow-y:auto;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 12px 32px rgba(0,0,0,0.45); padding:12px;
+  display:none; animation:fadeDown .18s ease;
+}
+.th-type-menu.open { display:block; }
+.th-type-menu .tm-row { display:flex; flex-wrap:wrap; gap:6px; }
+.th-type-menu .tm-clear {
+  display:block; width:100%; text-align:left; font-size:11px; color:var(--text-muted);
+  padding:6px 2px 10px; cursor:pointer; border-bottom:1px solid var(--border); margin-bottom:10px;
+}
+.th-type-menu .tm-clear:hover { color:var(--danger); }
+.th-type-menu .filter-tag { font-size:11px; padding:3px 9px; }
+
 /* Filter Panel */
 .filter-panel {
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
@@ -686,7 +707,9 @@ body {
           <th>公告链接</th>
           <th>投递链接</th>
           <th>行业</th>
-          <th>性质</th>
+          <th class="th-type-head" onclick="toggleTypeMenu(event)">性质<span class="th-arrow">▼</span>
+            <div class="th-type-menu" id="typeHeaderMenu" onclick="event.stopPropagation()"></div>
+          </th>
           <th>批次</th>
           <th>热门</th>
           <th>职位</th>
@@ -1171,6 +1194,78 @@ function toggleFilter(el, key) {
   renderExplore();
 }
 
+/* ===== 表头性质筛选 ===== */
+function collectTypeOptions() {
+  const allTypes = new Set();
+  for (const j of jobList) {
+    const tagList = (j.typeTags && j.typeTags.length) ? j.typeTags
+      : (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean);
+    tagList.forEach(t=>allTypes.add(t));
+  }
+  return [...allTypes].sort();
+}
+
+function toggleTypeMenu(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('typeHeaderMenu');
+  if (menu.classList.contains('open')) { closeTypeMenu(); return; }
+  const types = collectTypeOptions();
+  menu.innerHTML =
+    '<span class="tm-clear" onclick="clearTypeHeaderFilter()">✕ 清除性质筛选</span>' +
+    '<div class="tm-row">' + types.map(t=>{
+      const active = exploreFilters.types.has(t) ? ' active' : '';
+      return `<span class="filter-tag${active}" data-val="${t}" onclick="toggleTypeHeaderFilter(this)">${t}</span>`;
+    }).join('') + '</div>';
+  menu.classList.add('open');
+  updateTypeHeadState();
+  // 将下拉定位到表头正下方
+  const head = e && e.currentTarget ? e.currentTarget : document.querySelector('.th-type-head');
+  if (head) {
+    const r = head.getBoundingClientRect();
+    menu.style.top = (r.bottom + 6) + 'px';
+    let left = r.left;
+    if (left + menu.offsetWidth > window.innerWidth - 8) left = Math.max(8, window.innerWidth - menu.offsetWidth - 8);
+    menu.style.left = left + 'px';
+  }
+}
+
+function closeTypeMenu() {
+  const menu = document.getElementById('typeHeaderMenu');
+  menu.classList.remove('open');
+}
+
+function toggleTypeHeaderFilter(el) {
+  const val = el.dataset.val;
+  if (exploreFilters.types.has(val)) exploreFilters.types.delete(val); else exploreFilters.types.add(val);
+  el.classList.toggle('active');
+  updateTypeHeadState();
+  updateFilterCount();
+  renderExplore();
+}
+
+function clearTypeHeaderFilter() {
+  exploreFilters.types.clear();
+  closeTypeMenu();
+  updateTypeHeadState();
+  updateFilterCount();
+  renderExplore();
+  if (document.getElementById('filterPanel').classList.contains('show')) buildFilterPanel();
+}
+
+function updateTypeHeadState() {
+  const head = document.querySelector('.th-type-head');
+  if (!head) return;
+  head.classList.toggle('filtering', exploreFilters.types.size > 0);
+  // 同步侧边面板中的 active 状态
+  document.querySelectorAll('#typeTags .filter-tag').forEach(tag=>{
+    tag.classList.toggle('active', exploreFilters.types.has(tag.dataset.val));
+  });
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.th-type-head')) closeTypeMenu();
+});
+
 function onDateFilterChange() {
   exploreFilters.dateFrom = document.getElementById('dateFrom').value;
   exploreFilters.dateTo = document.getElementById('dateTo').value;
@@ -1201,6 +1296,8 @@ function updateFilterCount() {
   else { badge.style.display = 'none'; }
   const btn = document.getElementById('btnClearFilters');
   btn.style.display = cnt > 0 ? '' : 'none';
+  const thHead = document.querySelector('.th-type-head');
+  if (thHead) thHead.classList.toggle('filtering', exploreFilters.types.size > 0);
 }
 
 function clearAllFilters() {
