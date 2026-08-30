@@ -6,20 +6,20 @@
 <title>秋招管理平台</title>
 <style>
 :root {
-  --bg: #E9EBEF; --surface: #F6F7F9; --surface-2: #FAFAFB; --surface-3: #EEF0F3;
-  --text: #1D1D1F; --text-secondary: #515154; --text-muted: #6E6E73;
-  --border: #D2D2D7; --border-strong: #B7B7BC;
-  --accent: #12294E; --accent-2: #1A3A6B; --accent-glow: rgba(18,41,78,0.12);
-  --green: #356447; --green-glow: rgba(53,100,71,0.12);
-  --amber: #8A4B16; --amber-glow: rgba(138,75,22,0.12);
-  --rose: #9F2D3F; --rose-glow: rgba(159,45,63,0.12);
-  --cyan: #0891B2; --blue: #2563EB; --danger: #9F2D3F; --danger-glow: rgba(159,45,63,0.12);
-  --radius: 18px; --radius-sm: 10px; --radius-xs: 6px;
+  --bg: #121212; --surface: #1A1A1E; --surface-2: #202024; --surface-3: #26262C;
+  --text: #E0E0E0; --text-secondary: #B0B0B8; --text-muted: #8A8A92;
+  --border: #333338; --border-strong: #4A4A52;
+  --accent: #7B61FF; --accent-2: #8A6DFF; --accent-glow: rgba(123,97,255,0.15);
+  --green: #4ADE80; --green-glow: rgba(74,222,128,0.14);
+  --amber: #FBBF24; --amber-glow: rgba(251,191,36,0.14);
+  --rose: #F87171; --rose-glow: rgba(248,113,113,0.14);
+  --cyan: #22D3EE; --blue: #60A5FA; --danger: #F87171; --danger-glow: rgba(248,113,113,0.14);
+  --radius: 14px; --radius-sm: 8px; --radius-xs: 6px;
   --transition: 0.2s ease;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-md: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
-  --shadow-lg: 0 4px 16px rgba(0,0,0,0.10), 0 0 0 1px rgba(0,0,0,0.05);
-  --shadow-glow: 0 0 12px rgba(18,41,78,0.10), 0 0 0 1px rgba(18,41,78,0.15);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,255,255,0.05);
+  --shadow-glow: 0 0 12px rgba(123,97,255,0.20), 0 0 0 1px rgba(123,97,255,0.25);
   --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -28,17 +28,17 @@ body {
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
   background:var(--bg); color:var(--text); min-height:100vh; line-height:1.6;
   display:flex; flex-direction:column;
-  background-image:radial-gradient(ellipse 80% 80% at 50% -20%, rgba(18,41,78,0.05),transparent);
+  background-image:radial-gradient(ellipse 80% 80% at 50% -20%, rgba(123,97,255,0.07),transparent);
 }
-::selection { background:rgba(18,41,78,0.18); color:var(--text); }
+::selection { background:rgba(123,97,255,0.25); color:#fff; }
 ::-webkit-scrollbar { width:6px; height:6px; }
 ::-webkit-scrollbar-track { background:transparent; }
-::-webkit-scrollbar-thumb { background:#C7C7CC; border-radius:3px; }
-::-webkit-scrollbar-thumb:hover { background:#A1A1A6; }
+::-webkit-scrollbar-thumb { background:#3A3A40; border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:#4A4A52; }
 
 /* ═══════ Header ═══════ */
 .header {
-  background:rgba(246,247,249,0.80); backdrop-filter:blur(20px) saturate(180%);
+  background:rgba(26,26,30,0.85); backdrop-filter:blur(20px) saturate(180%);
   -webkit-backdrop-filter:blur(20px) saturate(180%);
   border-bottom:1px solid var(--border); padding:10px 28px;
   display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100;
@@ -122,7 +122,7 @@ body {
   transition:all var(--transition); font-weight:500;
 }
 .filter-tag:hover { border-color:var(--accent); color:var(--accent); }
-.filter-tag.active { background:#E8EDF4; color:var(--accent); border-color:rgba(18,41,78,0.25); }
+.filter-tag.active { background:rgba(123,97,255,0.16); color:#D3C8FF; border-color:rgba(123,97,255,0.35); }
 
 /* Filter Panel */
 .filter-panel {
@@ -163,38 +163,73 @@ body {
   font-weight:600;
 }
 
-/* ═══════ Job Cards Grid ═══════ */
-.job-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:14px; padding:0 28px 28px; }
-.job-card {
-  background:var(--surface); border-radius:var(--radius); padding:18px;
-  border:1px solid var(--border); transition:all var(--transition); cursor:pointer;
-  position:relative; overflow:hidden;
+/* ═══════ 岗位清单深色数据表格（求职方舟AI 风格） ═══════ */
+.explore-table-wrap { padding:0 28px 28px; overflow-x:auto; }
+.explore-table {
+  width:100%; min-width:1120px; border-collapse:collapse;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden;
 }
-.job-card::after {
-  content:''; position:absolute; inset:0; border-radius:var(--radius);
-  opacity:0; transition:opacity var(--transition);
-  background:radial-gradient(600px circle at var(--mx,50%) var(--my,50%), rgba(18,41,78,0.06),transparent 40%);
-  pointer-events:none;
+.explore-table thead th {
+  background:#202026; color:#C9CBD4; text-align:left;
+  padding:12px 14px; font-size:11.5px; font-weight:700; letter-spacing:0.5px;
+  border-bottom:1px solid var(--border); white-space:nowrap; user-select:none;
 }
-.job-card:hover { transform:translateY(-3px); border-color:var(--border-strong); box-shadow:var(--shadow-lg); }
-.job-card:hover::after { opacity:1; }
-.job-card.tracked { border-color:rgba(53,100,71,0.25); }
-.job-card.tracked:hover { border-color:rgba(53,100,71,0.4); box-shadow:0 4px 16px rgba(0,0,0,0.10),0 0 0 1px rgba(53,100,71,0.15),0 0 12px var(--green-glow); }
-.job-card-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
-.job-card-company { font-size:17px; font-weight:700; letter-spacing:-0.3px; }
-.job-card-badge { padding:3px 8px; border-radius:5px; font-size:10.5px; font-weight:700; letter-spacing:0.3px; }
-.job-card-badge.tracked { background:rgba(53,100,71,0.10); color:var(--green); }
+.explore-table thead th:first-child { width:34px; }
+.explore-table thead th:last-child { width:104px; }
+.explore-table thead th { border-right:1px solid rgba(255,255,255,0.04); }
+.explore-table thead th:last-child { border-right:none; }
+.explore-table tbody td {
+  padding:11px 14px; font-size:13px; color:var(--text-secondary);
+  border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle;
+  border-right:1px solid rgba(255,255,255,0.03);
+  line-height:1.45; height:48px; min-height:48px; overflow:hidden;
+  text-overflow:ellipsis;
+}
+.explore-table tbody td:last-child { border-right:none; }
+.explore-table tbody tr { cursor:pointer; transition:background .12s; height:48px; min-height:48px; }
+.explore-table tbody tr:nth-child(odd) { background:#1A1A1E; }
+.explore-table tbody tr:nth-child(even) { background:#16161A; }
+.explore-table tbody tr:hover { background:#242430; }
+.explore-table tbody tr:last-child td { border-bottom:none; }
+.explore-table .expl-check { width:34px; text-align:center; }
+.explore-table .expl-check input { cursor:pointer; accent-color:#8A6DFF; }
+.explore-table .expl-update { color:#B8BCC8; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.explore-table .expl-company { display:flex; align-items:center; gap:8px; font-weight:700; color:var(--text); white-space:nowrap; }
+.explore-table .company-ico {
+  width:26px; height:26px; border-radius:50%; flex-shrink:0;
+  background:linear-gradient(135deg,#3B82F6,#1D4ED8); color:#fff;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:800; letter-spacing:0;
+}
+.explore-table .expl-link-cell { white-space:nowrap; }
+.explore-table .expl-link { color:#8A6DFF; text-decoration:none; font-weight:500; }
+.explore-table .expl-link:hover { text-decoration:underline; color:#A58CFF; }
+.explore-table .expl-dim { color:#5A5A62; }
+.explore-table .expl-pos { max-width:240px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.explore-table .expl-city { max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.explore-table .expl-act { white-space:nowrap; }
+.explore-table .expl-act .btn { padding:4px 12px; font-size:11.5px; }
+.explore-table .expl-tags { max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tag-chip { display:inline-block; padding:2px 9px; border-radius:4px; font-size:11px; font-weight:700; color:#fff; margin:1px 2px 1px 0; white-space:nowrap; }
+.chip-orange { background:#F97316; }
+.chip-purple { background:#8B5CF6; }
+.chip-blue { background:#3B82F6; }
+.chip-gold { background:#F59E0B; }
+.chip-pink { background:#EC4899; }
+.chip-cyan { background:#06B6D4; }
+.chip-other { background:#64748B; }
+.heat-block { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:2px; }
+.heat-high { background:#F87171; box-shadow:0 0 4px rgba(248,113,113,0.6); }
+.heat-low { background:#4ADE80; box-shadow:0 0 4px rgba(74,222,128,0.5); }
+/* 详情弹窗内保留的通用标签样式 */
+.job-card-tag { display:inline-block; padding:2px 9px; border-radius:4px; font-size:11px; background:rgba(123,97,255,0.14); color:#C7BFFF; margin:1px 2px 1px 0; }
+.job-card-tag.type { background:rgba(123,97,255,0.22); color:#D6CFFF; }
+.job-card-tag.industry { background:rgba(74,222,128,0.14); color:#7EE2A8; }
 .job-card-date-tag {
   padding:3px 8px; border-radius:5px; font-size:11px; font-weight:600; white-space:nowrap;
   background:var(--surface-2); color:var(--text-muted); border:1px solid var(--border);
 }
-.job-card-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; }
-.job-card-tag { padding:3px 8px; border-radius:5px; font-size:11px; font-weight:500; }
-.job-card-tag { background:var(--surface-2); color:var(--text-muted); }
-.job-card-tag.type { background:#E8EDF4; color:var(--accent); }
-.job-card-tag.industry { background:rgba(53,100,71,0.10); color:var(--green); }
-.job-card-meta { font-size:12px; color:var(--text-muted); display:flex; gap:14px; flex-wrap:wrap; }
-.job-card-actions { margin-top:12px; display:flex; gap:8px; }
 
 /* ═══════ Board ═══════ */
 .board { display:flex; gap:10px; padding:0 28px 28px; overflow-x:auto; min-height:320px; }
@@ -325,7 +360,7 @@ body {
   font-size:10px; background:var(--surface-3); color:var(--text-muted);
   padding:1px 7px; border-radius:8px; margin-left:5px; font-weight:600;
 }
-.tab-btn.active .tab-count { background:#E8EDF4; color:var(--accent); }
+.tab-btn.active .tab-count { background:rgba(123,97,255,0.18); color:#C9BDFF; }
 
 /* ═══════ Star View ═══════ */
 .star-view { width:100%; height:calc(100vh - 140px); min-height:600px;
@@ -372,13 +407,13 @@ body {
 
 /* Responsive */
 @media (max-width:768px) {
-  .job-grid { grid-template-columns:1fr; }
+  .explore-table-wrap { padding:0 14px 20px; }
   .header { flex-wrap:wrap; gap:8px; padding:10px 16px; }
   .tab-nav { margin-left:0; }
   .column { min-width:220px; }
   .stats-bar { padding:12px 16px; }
   .toolbar { padding:0 16px 12px; }
-  .job-grid { padding:0 16px 20px; }
+  .explore-table-wrap { padding:0 14px 20px; }
   .board { padding:0 16px 20px; }
   .star-detail { right:8px; width:260px; }
   .explore-belt { right:8px; bottom:8px; }
@@ -432,10 +467,10 @@ body {
   padding:12px 16px;
 }
 .resume-edit-panel .rep-toolbar input[type="text"] {
-  flex:1; min-width:140px; padding:8px 12px; border:1px solid #d0d4dc;
-  border-radius:8px; font-size:13px; outline:none; background:#fff;
+  flex:1; min-width:140px; padding:8px 12px; border:1px solid var(--border);
+  border-radius:8px; font-size:13px; outline:none; background:var(--surface-2); color:var(--text);
 }
-.resume-edit-panel .rep-toolbar input[type="text"]:focus { border-color:var(--accent,#12294E); }
+.resume-edit-panel .rep-toolbar input[type="text"]:focus { border-color:var(--accent); }
 
 /* 主题色选择器 */
 .color-picker { display:flex; gap:6px; }
@@ -444,7 +479,7 @@ body {
   border:2px solid transparent; transition:all .2s;
 }
 .color-picker .color-dot:hover { transform:scale(1.15); }
-.color-picker .color-dot.active { border-color:#333; box-shadow:0 0 0 2px #fff, 0 0 0 4px currentColor; }
+.color-picker .color-dot.active { border-color:#111; box-shadow:0 0 0 2px #7B61FF, 0 0 0 4px currentColor; }
 
 /* Accordion 折叠模块 */
 .resume-accordion { background:var(--surface,#F6F7F9); border-radius:var(--radius-sm,10px); overflow:hidden; }
@@ -454,30 +489,30 @@ body {
   font-size:14px; font-weight:600; color:var(--accent,#12294E);
   transition:background .2s;
 }
-.resume-accordion .ra-header:hover { background:rgba(0,0,0,0.03); }
-.resume-accordion .ra-header .ra-arrow { transition:transform .25s; font-size:12px; color:#999; }
+.resume-accordion .ra-header:hover { background:rgba(255,255,255,0.05); }
+.resume-accordion .ra-header .ra-arrow { transition:transform .25s; font-size:12px; color:var(--text-muted); }
 .resume-accordion .ra-header.open .ra-arrow { transform:rotate(90deg); }
 .resume-accordion .ra-body { display:none; padding:0 16px 16px; }
 .resume-accordion .ra-body.open { display:block; }
 .ra-body .ra-field { margin-bottom:10px; }
-.ra-body .ra-field label { display:block; font-size:12px; color:#666; margin-bottom:3px; font-weight:500; }
+.ra-body .ra-field label { display:block; font-size:12px; color:var(--text-muted); margin-bottom:3px; font-weight:500; }
 .ra-body .ra-field input,
 .ra-body .ra-field textarea,
 .ra-body .ra-field select {
-  width:100%; padding:8px 12px; border:1px solid #d0d4dc; border-radius:8px;
-  font-size:13px; outline:none; background:#fff; box-sizing:border-box;
+  width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:8px;
+  font-size:13px; outline:none; background:var(--surface-2); color:var(--text); box-sizing:border-box;
   font-family:inherit;
 }
 .ra-body .ra-field input:focus,
 .ra-body .ra-field textarea:focus,
-.ra-body .ra-field select:focus { border-color:var(--accent,#12294E); }
+.ra-body .ra-field select:focus { border-color:var(--accent); }
 .ra-body .ra-field textarea { resize:vertical; min-height:80px; }
 .ra-body .ra-row { display:flex; gap:10px; }
 .ra-body .ra-row .ra-field { flex:1; }
 
 /* 列表条目(教育/实习/项目) */
 .ra-list-item {
-  background:#fff; border:1px solid #e8eaef; border-radius:10px;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
   padding:12px; margin-bottom:10px; position:relative;
 }
 .ra-list-item .ra-list-fields { display:flex; flex-direction:column; gap:8px; }
@@ -492,11 +527,11 @@ body {
 }
 .ra-btn-del:hover { opacity:0.8; }
 .ra-btn-add {
-  padding:6px 14px; border:1px dashed var(--accent,#12294E); border-radius:8px;
-  background:transparent; color:var(--accent,#12294E); font-size:12px;
+  padding:6px 14px; border:1px dashed var(--accent); border-radius:8px;
+  background:transparent; color:var(--accent); font-size:12px;
   cursor:pointer; transition:all .2s; font-weight:500;
 }
-.ra-btn-add:hover { background:var(--accent,#12294E); color:#fff; }
+.ra-btn-add:hover { background:var(--accent); color:#fff; }
 
 /* PDF 上传区域 */
 .resume-pdf-section {
@@ -508,34 +543,34 @@ body {
   display:flex; align-items:center; gap:6px;
 }
 .pdf-upload-zone {
-  border:2px dashed #d0d4dc; border-radius:10px; padding:18px 14px;
+  border:2px dashed var(--border-strong); border-radius:10px; padding:18px 14px;
   text-align:center; cursor:pointer; transition:all .2s;
-  background:#fff;
+  background:var(--surface-2);
 }
 .pdf-upload-zone:hover, .pdf-upload-zone.dragover {
-  border-color:var(--accent,#12294E); background:#e8edf4;
+  border-color:var(--accent); background:rgba(123,97,255,0.12);
 }
 .pdf-upload-zone .puz-icon { font-size:28px; margin-bottom:4px; }
-.pdf-upload-zone .puz-text { font-size:12px; color:#888; }
-.pdf-upload-zone .puz-text b { color:var(--accent,#12294E); }
+.pdf-upload-zone .puz-text { font-size:12px; color:var(--text-muted); }
+.pdf-upload-zone .puz-text b { color:var(--accent); }
 .pdf-file-card {
-  background:#fff; border:1px solid #e0e4ea; border-radius:10px;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
   padding:12px 14px; display:flex; align-items:center; gap:10px;
 }
 .pdf-file-card .pfc-icon { font-size:24px; flex-shrink:0; }
 .pdf-file-card .pfc-info { flex:1; min-width:0; }
 .pdf-file-card .pfc-name {
-  font-size:13px; font-weight:600; color:#1D1D1F;
+  font-size:13px; font-weight:600; color:var(--text);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-.pdf-file-card .pfc-meta { font-size:11px; color:#999; margin-top:2px; }
+.pdf-file-card .pfc-meta { font-size:11px; color:var(--text-muted); margin-top:2px; }
 .pdf-file-card .pfc-actions { display:flex; gap:6px; flex-shrink:0; }
 .pfc-btn {
-  padding:4px 10px; border-radius:6px; font-size:11px; border:1px solid #d0d4dc;
-  background:#fff; color:#555; cursor:pointer; transition:all .2s;
+  padding:4px 10px; border-radius:6px; font-size:11px; border:1px solid var(--border);
+  background:var(--surface-2); color:var(--text-secondary); cursor:pointer; transition:all .2s;
   white-space:nowrap;
 }
-.pfc-btn:hover { background:var(--accent,#12294E); color:#fff; border-color:var(--accent,#12294E); }
+.pfc-btn:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
 .pfc-btn.del:hover { background:#9F2D3F; border-color:#9F2D3F; }
 
 
@@ -607,7 +642,27 @@ body {
       </div>
     </div>
   </div>
-  <div class="job-grid" id="exploreGrid"></div>
+  <div class="explore-table-wrap">
+    <table class="explore-table">
+      <thead>
+        <tr>
+          <th style="width:34px;"></th>
+          <th>更新</th>
+          <th>公司</th>
+          <th>公告链接</th>
+          <th>投递链接</th>
+          <th>行业</th>
+          <th>标签</th>
+          <th>批次</th>
+          <th>热门</th>
+          <th>职位</th>
+          <th>地点</th>
+          <th style="width:120px;">操作</th>
+        </tr>
+      </thead>
+      <tbody id="exploreGrid"></tbody>
+    </table>
+  </div>
   <div class="empty-state" id="exploreEmpty" style="display:none;">
     <div class="empty-icon">📭</div>
     <p>没有匹配的岗位</p>
@@ -681,7 +736,7 @@ body {
         <span id="pdfPreviewLabel" style="font-size:13px; font-weight:600; color:var(--accent,#12294E);">📄 预览</span>
         <button class="pfc-btn" onclick="closePdfPreview()" style="padding:2px 8px;">✕ 关闭预览</button>
       </div>
-      <iframe id="pdfPreviewIframe" style="flex:1; width:100%; border:1px solid #d0d4dc; border-radius:8px;"></iframe>
+      <iframe id="pdfPreviewIframe" style="flex:1; width:100%; border:1px solid var(--border); border-radius:8px;"></iframe>
     </div>
   </div>
 
@@ -766,8 +821,8 @@ const STATUSES = [
   { key:'pending',    label:'待投递', dot:'#9CA3AF', badge:'#9CA3AF' },
   { key:'applied',    label:'已投递', dot:'#2563EB', badge:'#2563EB' },
   { key:'exam',       label:'笔试',   dot:'#8A4B16', badge:'#8A4B16' },
-  { key:'interview1', label:'一面',   dot:'#12294E', badge:'#12294E' },
-  { key:'interview2', label:'二面',   dot:'#1A3A6B', badge:'#1A3A6B' },
+  { key:'interview1', label:'一面',   dot:'#8B5CF6', badge:'#7B61FF' },
+  { key:'interview2', label:'二面',   dot:'#A78BFA', badge:'#8A6DFF' },
   { key:'hr',         label:'终面',   dot:'#0891B2', badge:'#0891B2' },
   { key:'failed',     label:'已挂',   dot:'#B45309', badge:'#B45309' },
   { key:'offer',      label:'Offer',  dot:'#356447', badge:'#356447' },
@@ -1124,6 +1179,28 @@ function getDateLabel(openingDate) {
   return '';
 }
 
+function getExploreUpdateLabel(j) {
+  const src = j.updatedAt || j.addedAt || j.openingDate || '';
+  if (!src) return '<span class="expl-dim">-</span>';
+  const m = String(src).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[2] + '-' + m[3];
+  return '<span class="expl-dim">-</span>';
+}
+function tagClass(t) {
+  if (!t) return 'chip-other';
+  if (t.indexOf('央企')>=0 || t.indexOf('国企')>=0 || t.indexOf('国央企')>=0) return 'chip-orange';
+  if (t.indexOf('民营')>=0 || t.indexOf('私企')>=0) return 'chip-purple';
+  if (t.indexOf('外企')>=0) return 'chip-blue';
+  if (t.indexOf('金融')>=0 || t.indexOf('银行')>=0) return 'chip-gold';
+  if (t.indexOf('游戏')>=0) return 'chip-pink';
+  if (t.indexOf('大厂')>=0) return 'chip-cyan';
+  return 'chip-other';
+}
+function heatBlocks(popular) {
+  if (popular) return '<span class="heat-block heat-high"></span><span class="heat-block heat-high"></span><span class="heat-block heat-high"></span>';
+  return '<span class="heat-block heat-low"></span><span class="heat-block heat-low"></span>';
+}
+
 function renderExplore() {
   const f = getExploreFilters();
   const tracked = getTrackedStarJobIds();
@@ -1195,7 +1272,7 @@ function renderExplore() {
   document.getElementById('exploreCount').textContent = totalAll;
   document.getElementById('trackCount').textContent = jobs.length;
 
-  // 渲染卡片
+  // 渲染深色数据表格
   const grid = document.getElementById('exploreGrid');
   const empty = document.getElementById('exploreEmpty');
   if (filtered.length === 0) {
@@ -1204,29 +1281,36 @@ function renderExplore() {
     empty.style.display = 'none';
     grid.innerHTML = filtered.map(j=>{
       const isTracked = (j.qiuzhiId ? tracked.has('q:'+j.qiuzhiId) : (j.starjobId ? tracked.has('s:'+j.starjobId) : false));
-      const posTags = (j.positionTypes||[]).slice(0,4).map(t=>`<span class="job-card-tag">${escapeHtml(t)}</span>`).join('');
-      const typeTags = j.companyType ? `<span class="job-card-tag type">${escapeHtml(j.companyType)}</span>` : '';
-      const industry = getIndustryFromJob(j);
-      const typeSet = new Set((j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean));
-      const industryDedup = industry ? industry.split(' / ').map(s=>s.trim()).filter(s=>!typeSet.has(s)).join(' / ') : '';
-      const industryTag = industryDedup ? `<span class="job-card-tag industry">${escapeHtml(industryDedup)}</span>` : '';
-      return `<div class="job-card${isTracked?' tracked':''}" onclick="openExploreDetail('${j.id}')">
-        <div class="job-card-header">
-          <div class="job-card-company">${escapeHtml(j.company)}${getDateLabel(j.openingDate)}</div>
-          ${isTracked ? '<span class="job-card-badge tracked">✓ 已加入</span>' : ''}
-        </div>
-        <div class="job-card-tags">${posTags}${typeTags}${industryTag}</div>
-        <div class="job-card-meta">
-          ${j.city ? `<span>📍 ${escapeHtml(j.city)}</span>` : ''}
-          ${j.url ? `<span>🔗 <a href="${escapeHtml(j.url)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--text-secondary)">详情</a></span>` : ''}
-        </div>
-        <div class="job-card-actions">
+      const industry = getIndustryFromJob(j) || '';
+      const upd = getExploreUpdateLabel(j);
+      const noticeHtml = j.noticeUrl ? `<a href="${escapeHtml(j.noticeUrl)}" target="_blank" class="expl-link" onclick="event.stopPropagation()">招聘公告</a>` : '<span class="expl-dim">-</span>';
+      const applyHtml = j.url ? `<a href="${escapeHtml(j.url)}" target="_blank" class="expl-link" onclick="event.stopPropagation()">投递官网</a>` : '<span class="expl-dim">-</span>';
+      const typeTags = (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean)
+        .map(t=>`<span class="tag-chip ${tagClass(t)}">${escapeHtml(t)}</span>`).join('') || '<span class="expl-dim">-</span>';
+      const typeText = (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean).join(' / ');
+      const posText = (j.positionTypes||[]).join('、') || '-';
+      const cityArr = (j.cities&&j.cities.length) ? j.cities : (j.city ? [j.city] : []);
+      const cityText = cityArr.length ? cityArr.join(' / ') : '-';
+      const heat = heatBlocks(!!j.popular);
+      return `<tr onclick="openExploreDetail('${j.id}')">
+        <td class="expl-check" onclick="event.stopPropagation()"><input type="checkbox"${isTracked?' checked':''}></td>
+        <td class="expl-update">${upd}</td>
+        <td><div class="expl-company"><span class="company-ico">${escapeHtml((j.company||'☰').charAt(0))}</span><span>${escapeHtml(j.company)}</span></div></td>
+        <td class="expl-link-cell">${noticeHtml}</td>
+        <td class="expl-link-cell">${applyHtml}</td>
+        <td>${escapeHtml(industry)||'<span class="expl-dim">-</span>'}</td>
+        <td class="expl-tags" title="${escapeHtml(typeText)}">${typeTags}</td>
+        <td>${escapeHtml(j.batch||'-')}</td>
+        <td>${heat}</td>
+        <td class="expl-pos" title="${escapeHtml(posText)}">${escapeHtml(posText)}</td>
+        <td class="expl-city" title="${escapeHtml(cityText)}">${escapeHtml(cityText)}</td>
+        <td class="expl-act">
           ${isTracked
-            ? `<button class="btn btn-xs" disabled>已加入投递</button>`
+            ? `<button class="btn btn-xs" disabled style="opacity:.5">✓ 已加入</button>`
             : `<button class="btn btn-success btn-xs" onclick="event.stopPropagation();addToTrack('${j.id}')">+ 加入投递</button>`
           }
-        </div>
-      </div>`;
+        </td>
+      </tr>`;
     }).join('');
   }
   // 延迟构建筛选面板（避免每次render都重建）
@@ -1704,16 +1788,16 @@ async function syncQiuzhiFangzhou() {
 
     const summary = document.getElementById('syncSummary');
     summary.innerHTML = `<div style="display:flex;gap:16px;margin-bottom:8px;">
-      <div style="flex:1;text-align:center;padding:12px;background:rgba(53,100,71,0.08);border-radius:8px;border:1px solid rgba(53,100,71,0.15)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
+      <div style="flex:1;text-align:center;padding:12px;background:rgba(74,222,128,0.10);border-radius:8px;border:1px solid rgba(74,222,128,0.22)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:24px;font-weight:700;color:var(--text-muted)">${skipCount}</div><div style="font-size:12px;color:var(--text-muted)">已存在</div></div>
-      <div style="flex:1;text-align:center;padding:12px;background:rgba(37,99,235,0.08);border-radius:8px;border:1px solid rgba(37,99,235,0.15)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
+      <div style="flex:1;text-align:center;padding:12px;background:rgba(96,165,250,0.10);border-radius:8px;border:1px solid rgba(96,165,250,0.22)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
     </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}</p>`;
 
     let listHtml = '';
     if (newCos.length>0) {
       listHtml += '<div style="font-weight:600;color:var(--green);margin-bottom:4px;">新增公司:</div>';
       listHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
-      newCos.slice(0,50).forEach(c=>{ listHtml+=`<span style="background:rgba(53,100,71,0.1);color:var(--green);padding:2px 8px;border-radius:4px;font-size:12px;">${c}</span>`; });
+      newCos.slice(0,50).forEach(c=>{ listHtml+=`<span style="background:rgba(74,222,128,0.14);color:var(--green);padding:2px 8px;border-radius:4px;font-size:12px;">${c}</span>`; });
       if (newCos.length>50) listHtml+=`<span style="font-size:12px;color:var(--text-muted)">等 ${newCos.length} 个</span>`;
       listHtml += '</div>';
     }
@@ -2290,7 +2374,7 @@ function renderPdfStatus(data) {
   const rawPdf = data.resumePdf;
   const pdfs = Array.isArray(rawPdf) ? rawPdf : (rawPdf && typeof rawPdf === 'object' && rawPdf.fileName ? [rawPdf] : []);
   let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
-    + '<div class="rps-title" style="margin-bottom:0;">📎 简历附件'+(pdfs.length?' <span style="font-weight:400;font-size:12px;color:#999;">('+pdfs.length+'份)</span>':'')+'</div>'
+    + '<div class="rps-title" style="margin-bottom:0;">📎 简历附件'+(pdfs.length?' <span style="font-weight:400;font-size:12px;color:var(--text-muted);">('+pdfs.length+'份)</span>':'')+'</div>'
     + '<a class="btn btn-outline btn-sm" href="https://www.qmjianli.com/my/cv" target="_blank" style="text-decoration:none;white-space:nowrap;">🔗 跳转全民简历</a>'
     + '</div>';
 
