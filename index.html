@@ -224,6 +224,13 @@ body {
 .explore-table tbody tr:last-child td { border-bottom:none; }
 .explore-table .expl-update { color:var(--text-muted); white-space:nowrap; font-variant-numeric:tabular-nums; }
 .explore-table .expl-company { display:flex; align-items:center; gap:8px; font-weight:700; color:var(--text); white-space:nowrap; }
+.expl-company-link { color:var(--accent); cursor:pointer; }
+.expl-company-link:hover { text-decoration:underline; }
+.tracked-badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; color:#fff; background:var(--green); margin-left:2px; white-space:nowrap; vertical-align:middle; }
+.company-link { color:var(--accent); cursor:pointer; }
+.company-link:hover { text-decoration:underline; }
+.expl-badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; color:var(--accent); background:rgba(138,109,255,.16); margin-left:6px; white-space:nowrap; vertical-align:middle; }
+.card-company { cursor:pointer; }
 .explore-table .expl-link-cell { white-space:nowrap; }
 .explore-table .expl-link { color:#8A6DFF; text-decoration:none; font-weight:500; }
 .explore-table .expl-link:hover { text-decoration:underline; color:#A58CFF; }
@@ -1234,6 +1241,28 @@ function heatBlocks(popular) {
   return '<span class="heat-block heat-low"></span><span class="heat-block heat-low"></span>';
 }
 
+// ==================== 企业关联：投递管理 <-> 岗位清单 ====================
+function getExploreCountByCompany(name) {
+  if (!name) return 0;
+  const n = String(name).trim().toLowerCase();
+  return jobList.filter(j=>j.company && String(j.company).trim().toLowerCase()===n).length;
+}
+function getTrackJobsByCompany(name) {
+  if (!name) return [];
+  const n = String(name).trim().toLowerCase();
+  return jobs.filter(j=>j.company && String(j.company).trim().toLowerCase()===n);
+}
+function gotoExploreCompany(name) {
+  switchTab('explore');
+  const s = document.getElementById('exploreSearch');
+  if (s) { s.value = name; renderExplore(); }
+}
+function gotoTrackCompany(name) {
+  switchTab('track');
+  const s = document.getElementById('trackSearch');
+  if (s) { s.value = name; renderTrack(); }
+}
+
 function renderExplore() {
   const f = getExploreFilters();
   const tracked = getTrackedStarJobIds();
@@ -1317,6 +1346,10 @@ function renderExplore() {
       const cityArr = (j.cities&&j.cities.length) ? j.cities : (j.city ? [j.city] : []);
       const cityText = cityArr.length ? cityArr.join(' / ') : '-';
       const heat = heatBlocks(!!j.popular);
+      const trkCnt = getTrackJobsByCompany(j.company).length;
+      const companyCell = trkCnt>0
+        ? `<div class="expl-company"><span class="expl-company-link" onclick="event.stopPropagation();gotoTrackCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span><span class="tracked-badge" title="该企业在投递管理中有 ${trkCnt} 条记录">投递中</span></div>`
+        : `<div class="expl-company"><span>${escapeHtml(j.company)}</span></div>`;
       return `<tr onclick="openExploreDetail('${j.id}')">
         <td class="expl-act">
           ${isTracked
@@ -1325,7 +1358,7 @@ function renderExplore() {
           }
         </td>
         <td class="expl-update">${upd}</td>
-        <td><div class="expl-company"><span>${escapeHtml(j.company)}</span></div></td>
+        <td>${companyCell}</td>
         <td class="expl-link-cell">${noticeHtml}</td>
         <td class="expl-link-cell">${applyHtml}</td>
         <td class="expl-industry" title="${escapeHtml(industry)}">${escapeHtml(industry)||'<span class="expl-dim">-</span>'}</td>
@@ -1487,12 +1520,16 @@ function renderCard(j) {
   const deadlineHtml = j.deadline ? getDeadlineTag(j.deadline) : '';
   const cityHtml = j.city ? `<span>📍 ${escapeHtml(j.city)}</span>` : '';
   const typeHtml = j.companyType ? `<span>🏢 ${escapeHtml(j.companyType)}</span>` : '';
+  const expCnt = getExploreCountByCompany(j.company);
+  const companyHtml = expCnt>0
+    ? `<div class="card-company" title="点击查看岗位清单在招岗位"><span class="company-link" onclick="event.stopPropagation();gotoExploreCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span><span class="expl-badge">在招 ${expCnt}</span></div>`
+    : `<div class="card-company">${escapeHtml(j.company)}</div>`;
   return `<div class="card" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${j.id}')" onclick="openDetail('${j.id}')" style="border-left-color:${getStatusDot(j.status)}">
     <div class="card-actions">
       <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openEditModal('${j.id}')" title="编辑">✎</button>
       <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteJob('${j.id}')" title="删除">✕</button>
     </div>
-    <div class="card-company">${escapeHtml(j.company)}</div>
+    ${companyHtml}
     <div class="card-position">${escapeHtml(j.position)}</div>
     <div class="card-meta">${typeHtml}${cityHtml}${deadlineHtml}${j.salary?`<span>💰 ${escapeHtml(j.salary)}</span>`:''}</div>
   </div>`;
@@ -1514,8 +1551,13 @@ function renderList() {
   if (filtered.length===0) { lv.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div>没有匹配的岗位</div>`; return; }
   lv.innerHTML = `<table class="list-table"><thead><tr>
     <th>公司</th><th>岗位</th><th>类型</th><th>城市</th><th>状态</th><th>投递日期</th><th>截止日期</th><th>笔/面试</th><th>薪资</th><th>操作</th>
-  </tr></thead><tbody>${filtered.map(j=>`<tr>
-    <td><strong>${escapeHtml(j.company)}</strong></td>
+  </tr></thead><tbody>${filtered.map(j=>{
+    const expCnt = getExploreCountByCompany(j.company);
+    const companyHtml = expCnt>0
+      ? `<span class="company-link" title="岗位清单在招 ${expCnt} 个岗位" onclick="gotoExploreCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span> <span class="expl-badge">在招 ${expCnt}</span>`
+      : escapeHtml(j.company);
+    return `<tr>
+    <td><strong>${companyHtml}</strong></td>
     <td>${escapeHtml(j.position)}</td>
     <td>${escapeHtml(j.companyType||'-')}</td>
     <td>${escapeHtml(j.city||'-')}</td>
@@ -1528,7 +1570,7 @@ function renderList() {
       <button class="btn btn-xs btn-outline" onclick="openEditModal('${j.id}')">✎</button>
       <button class="btn btn-xs btn-danger" onclick="deleteJob('${j.id}')">✕</button>
     </td>
-  </tr>`).join('')}</tbody></table>`;
+  </tr>`;}).join('')}</tbody></table>`;
 }
 
 function updateFilterOptions() {
@@ -1605,10 +1647,14 @@ function closeModal() { document.getElementById('jobModal').style.display = 'non
 function openDetail(id) {
   const j = jobs.find(j=>j.id===id); if (!j) return;
   detailJobId = id;
+  const expCnt = getExploreCountByCompany(j.company);
+  const expLink = expCnt>0
+    ? `<div>🏢 <a href="#" onclick="event.preventDefault();closeDetail();gotoExploreCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}" style="color:var(--accent);font-weight:600;">${escapeHtml(j.company)}</a>：岗位清单中还有 <span style="color:var(--accent);font-weight:700;">${expCnt}</span> 个在招岗位，点击查看</div>`
+    : `<div>🏢 公司类型: ${escapeHtml(j.companyType||'未填写')}</div>`;
   document.getElementById('detailTitle').textContent = j.company + ' - ' + j.position;
   document.getElementById('detailBody').innerHTML = `
     <div style="font-size:13px;color:var(--text-secondary);line-height:2;">
-      <div>🏢 公司类型: ${escapeHtml(j.companyType||'未填写')}</div>
+      ${expLink}
       <div>📍 城市: ${escapeHtml(j.city||'未填写')}</div>
       <div>📅 投递日期: ${j.applyDate||'未填写'}</div>
       <div>⏰ 截止日期: ${j.deadline||'未填写'}</div>
