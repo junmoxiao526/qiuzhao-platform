@@ -1010,6 +1010,8 @@ function mapCompanyTypes(types) {
 }
 
 function getIndustryFromJob(j) {
+  // 优先展示同步网站原始行业字段（招聘方舟 industry 原文，如"电子/半导体"）
+  if (j.industryRaw) return j.industryRaw;
   const raw = j.companyTypesRaw || [];
   // 直接从原始标签中过滤出行业类标签
   const direct = raw.filter(t => INDUSTRIES.includes(t));
@@ -1285,9 +1287,10 @@ function renderExplore() {
       const upd = getExploreUpdateLabel(j);
       const noticeHtml = j.noticeUrl ? `<a href="${escapeHtml(j.noticeUrl)}" target="_blank" class="expl-link" onclick="event.stopPropagation()">招聘公告</a>` : '<span class="expl-dim">-</span>';
       const applyHtml = j.url ? `<a href="${escapeHtml(j.url)}" target="_blank" class="expl-link" onclick="event.stopPropagation()">投递官网</a>` : '<span class="expl-dim">-</span>';
-      const typeTags = (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean)
-        .map(t=>`<span class="tag-chip ${tagClass(t)}">${escapeHtml(t)}</span>`).join('') || '<span class="expl-dim">-</span>';
-      const typeText = (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean).join(' / ');
+      const tagList = (j.typeTags && j.typeTags.length) ? j.typeTags
+        : (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean);
+      const typeTags = tagList.map(t=>`<span class="tag-chip ${tagClass(t)}">${escapeHtml(t)}</span>`).join('') || '<span class="expl-dim">-</span>';
+      const typeText = tagList.join(' / ');
       const posText = (j.positionTypes||[]).join('、') || '-';
       const cityArr = (j.cities&&j.cities.length) ? j.cities : (j.city ? [j.city] : []);
       const cityText = cityArr.length ? cityArr.join(' / ') : '-';
@@ -1680,6 +1683,7 @@ function qzTransformJobs(campusList) {
         id: d.id,
         company: d.company,
         positionTypes: qzSplitPositions(d.positions),
+        industryRaw: (d.industry||'').trim(),
         companyTypes: (d.industry||'').split(/[\/、]/).map(s=>s.trim()).filter(t=>SJ_COMPANY_TYPE_TAGS.includes(t)),
         typeTags: Array.isArray(d.typeTag) ? d.typeTag.map(s=>String(s).trim()).filter(Boolean) : [],
         cities: sjParseLocations(d.locations||''),
@@ -1709,6 +1713,8 @@ function mergeQiuzhiList() {
         if (newUrl !== oldUrl) existing.addedAt = now;
         existing.url = newUrl;
         existing.positionTypes = q.positionTypes || existing.positionTypes;
+        existing.industryRaw = q.industryRaw || existing.industryRaw;
+        existing.typeTags = q.typeTags || existing.typeTags;
         if (q.deadline) existing.deadline = q.deadline;
         if (q.batch) existing.batch = q.batch;
       }
@@ -1720,6 +1726,8 @@ function mergeQiuzhiList() {
       qiuzhiId: q.id,
       company: q.company,
       positionTypes: q.positionTypes || [],
+      industryRaw: q.industryRaw || '',
+      typeTags: q.typeTags || [],
       companyTypesRaw: [...new Set([...(q.companyTypes||[]), ...(q.typeTags||[])])],
       companyType: mapCompanyTypes(q.companyTypes) || q.typeTags.join(' / '),
       cities: q.cities || [],
