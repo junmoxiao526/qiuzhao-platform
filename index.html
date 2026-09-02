@@ -248,6 +248,7 @@ body {
 .expl-company-link { color:var(--accent); cursor:pointer; }
 .expl-company-link:hover { text-decoration:underline; }
 .tracked-badge { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; color:#fff; background:var(--green); margin-left:2px; white-space:nowrap; vertical-align:middle; }
+.tracked-badge-pending { background:var(--amber); }
 .company-link { color:var(--accent); cursor:pointer; }
 .company-link:hover { text-decoration:underline; }
 .card-company { cursor:pointer; }
@@ -1361,6 +1362,13 @@ function heatBlocks(popular) {
 }
 
 // ==================== 企业关联：投递管理 <-> 岗位清单 ====================
+// 公司简称 -> 全称 别名映射（用于双向关联匹配，可按需追加）
+const COMPANY_ALIASES = {
+  '卫龙': '卫龙美味',
+  '卫龙美味': '卫龙',
+  '华勤': '华勤技术',
+  '华勤技术': '华勤',
+};
 function getTrackJobsByCompany(name) {
   if (!name) return [];
   const n = String(name).trim().toLowerCase();
@@ -1370,7 +1378,11 @@ function companiesMatch(a, b) {
   const x = String(a).trim().toLowerCase();
   const y = String(b).trim().toLowerCase();
   if (!x || !y) return false;
-  return x === y || x.includes(y) || y.includes(x);
+  if (x === y) return true;
+  // 别名映射后比较（双向）
+  const ax = (COMPANY_ALIASES[x] || x).toLowerCase();
+  const ay = (COMPANY_ALIASES[y] || y).toLowerCase();
+  return ax === ay || ax === y || ay === x;
 }
 function gotoExploreCompany(name) {
   switchTab('explore');
@@ -1466,14 +1478,19 @@ function renderExplore() {
       const cityArr = (j.cities&&j.cities.length) ? j.cities : (j.city ? [j.city] : []);
       const cityText = cityArr.length ? cityArr.join(' / ') : '-';
       const heat = heatBlocks(j.popular);
-      const trkCnt = getTrackJobsByCompany(j.company).length;
+      const trackJobs = getTrackJobsByCompany(j.company);
+      const trkCnt = trackJobs.length;
+      const hasApplied = trackJobs.some(q=>q.status && q.status !== 'pending');
+      const badgeHtml = hasApplied
+        ? `<span class="tracked-badge" title="该企业有 ${trkCnt} 条投递记录，含已投递">已投递</span>`
+        : `<span class="tracked-badge tracked-badge-pending" title="该企业在投递管理中有 ${trkCnt} 条记录">已加入</span>`;
       const companyCell = trkCnt>0
-        ? `<div class="expl-company"><span class="expl-company-link" onclick="event.stopPropagation();gotoTrackCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span><span class="tracked-badge" title="该企业在投递管理中有 ${trkCnt} 条记录">已投递</span></div>`
+        ? `<div class="expl-company"><span class="expl-company-link" onclick="event.stopPropagation();gotoTrackCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span>${badgeHtml}</div>`
         : `<div class="expl-company"><span>${escapeHtml(j.company)}</span></div>`;
       return `<tr onclick="openExploreDetail('${j.id}')">
         <td class="expl-act">
           ${trkCnt>0
-            ? `<button class="btn btn-xs" disabled style="opacity:.5">✓ 已加入</button>`
+            ? `<button class="btn btn-xs" disabled style="opacity:.5">✓ ${hasApplied ? '已投递' : '已加入'}</button>`
             : `<button class="btn btn-success btn-xs" onclick="event.stopPropagation();addToTrack('${j.id}')">+ 加入投递</button>`
           }
         </td>
