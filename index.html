@@ -1374,6 +1374,12 @@ function getTrackJobsByCompany(name) {
   const n = String(name).trim().toLowerCase();
   return jobs.filter(j=>j.company && companiesMatch(j.company, n));
 }
+// 岗位清单中与该企业匹配的岗位（复用同套别名匹配）
+function getExploreJobsByCompany(name) {
+  if (!name) return [];
+  const n = String(name).trim().toLowerCase();
+  return jobList.filter(j=>j.company && companiesMatch(j.company, n));
+}
 function companiesMatch(a, b) {
   const x = String(a).trim().toLowerCase();
   const y = String(b).trim().toLowerCase();
@@ -1777,6 +1783,18 @@ function openDetail(id) {
   const j = jobs.find(j=>j.id===id); if (!j) return;
   detailJobId = id;
   document.getElementById('detailTitle').textContent = j.company + ' - ' + j.position;
+  // 优先取岗位清单中该企业的公告链接 / 投递链接
+  const explJobs = getExploreJobsByCompany(j.company);
+  const exp = explJobs.find(e=>e.noticeUrl || e.url) || explJobs[0];
+  let linkHtml;
+  if (exp && (exp.noticeUrl || exp.url)) {
+    const parts = [];
+    if (exp.noticeUrl) parts.push(`<a style="color:var(--accent);word-break:break-all;" href="${escapeHtml(exp.noticeUrl)}" target="_blank">📢 招聘公告：${escapeHtml(exp.noticeUrl)}</a>`);
+    if (exp.url) parts.push(`<a style="color:var(--accent);word-break:break-all;" href="${escapeHtml(exp.url)}" target="_blank">🚀 投递链接：${escapeHtml(exp.url)}</a>`);
+    linkHtml = `<div>🔗 链接: ${parts.join('<br>')}</div>`;
+  } else {
+    linkHtml = `<div>🔗 链接: ${j.link?`<a style="word-break:break-all;" href="${escapeHtml(j.link)}" target="_blank">${escapeHtml(j.link)}</a>`:'未填写'}</div>`;
+  }
   document.getElementById('detailBody').innerHTML = `
     <div style="font-size:13px;color:var(--text-secondary);line-height:2;">
       <div>🏢 公司类型: ${escapeHtml(j.companyType||'未填写')}</div>
@@ -1785,7 +1803,7 @@ function openDetail(id) {
       <div>⏰ 截止日期: ${j.deadline||'未填写'}</div>
       <div>📝 笔/面试: ${j.interviewDate||'未填写'}</div>
       <div>💰 薪资: ${escapeHtml(j.salary||'未填写')}</div>
-      <div>🔗 链接: ${j.link?`<a href="${escapeHtml(j.link)}" target="_blank">${escapeHtml(j.link)}</a>`:'未填写'}</div>
+      ${linkHtml}
       <div>📋 备注: ${escapeHtml(j.notes||'无')}</div>
     </div>
   `;
