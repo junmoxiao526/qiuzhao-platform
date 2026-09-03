@@ -897,7 +897,8 @@ body {
 const STATUSES = [
   { key:'pending',    label:'待投递', dot:'#9CA3AF', badge:'#9CA3AF' },
   { key:'applied',    label:'已投递', dot:'#2563EB', badge:'#2563EB' },
-  { key:'exam',       label:'笔试',   dot:'#8A4B16', badge:'#8A4B16' },
+  { key:'assessment', label:'待测评', dot:'#F59E0B', badge:'#F59E0B' },
+  { key:'exam',       label:'已测评', dot:'#8A4B16', badge:'#8A4B16' },
   { key:'interview1', label:'一面',   dot:'#8B5CF6', badge:'#7B61FF' },
   { key:'interview2', label:'二面',   dot:'#A78BFA', badge:'#8A6DFF' },
   { key:'hr',         label:'终面',   dot:'#0891B2', badge:'#0891B2' },
@@ -2059,6 +2060,7 @@ let starSelectedClusters = null;
 const STAGE_COLORS = {
   'pending':   '#94a3b8',
   'applied':   '#3b82f6',
+  'assessment':'#eab308',
   'exam':      '#f59e0b',
   'interview1':'#06b6d4',
   'interview2':'#8b5cf6',
