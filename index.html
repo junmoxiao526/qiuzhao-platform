@@ -824,7 +824,7 @@ body {
       </div>
       <div class="form-row">
         <div class="form-group"><label>测评截止日期</label><input type="date" id="formAssessDeadline"></div>
-        <div class="form-group"></div>
+        <div class="form-group"><label>AI面截止日期</label><input type="date" id="formAiDeadline"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>笔/面试日期</label><input type="date" id="formInterviewDate"></div>
@@ -905,6 +905,7 @@ const STATUSES = [
   { key:'applied',    label:'已投递', dot:'#2563EB', badge:'#2563EB' },
   { key:'assessment', label:'待测评', dot:'#F59E0B', badge:'#F59E0B' },
   { key:'exam',       label:'已测评', dot:'#8A4B16', badge:'#8A4B16' },
+  { key:'ai',         label:'AI面',   dot:'#C026D3', badge:'#C026D3' },
   { key:'interview1', label:'一面',   dot:'#8B5CF6', badge:'#7B61FF' },
   { key:'interview2', label:'二面',   dot:'#A78BFA', badge:'#8A6DFF' },
   { key:'hr',         label:'终面',   dot:'#0891B2', badge:'#0891B2' },
@@ -1540,6 +1541,7 @@ function addToTrack(listId) {
     applyDate: '',
     deadline: item.deadline || '',
     assessDeadline: '',
+    aiDeadline: '',
     interviewDate: '',
     link: item.url || '',
     salary: '',
@@ -1679,6 +1681,7 @@ function renderCard(j) {
     <div class="card-company">${escapeHtml(j.company)}</div>
     <div class="card-position">${escapeHtml(j.position)}</div>
     ${j.status==='assessment'?`<div class="assess-dl" onclick="event.stopPropagation();setAssessDeadline('${j.id}')" title="点击填写/修改测评截止日期">📅 测评截止: ${j.assessDeadline?getAssessTag(j.assessDeadline):'未设置'}</div>`:''}
+    ${j.status==='ai'?`<div class="assess-dl" onclick="event.stopPropagation();setAiDeadline('${j.id}')" title="点击填写/修改AI面截止日期">📅 AI面截止: ${j.aiDeadline?getAssessTag(j.aiDeadline):'未设置'}</div>`:''}
     <div class="card-meta">${typeHtml}${cityHtml}${deadlineHtml}${j.salary?`<span>💰 ${escapeHtml(j.salary)}</span>`:''}</div>
   </div>`;
 }
@@ -1708,6 +1711,17 @@ function setAssessDeadline(id) {
   if (!v2) { j.assessDeadline=''; saveJobs(); renderTrack(); return; }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v2)) { toast('日期格式应为 YYYY-MM-DD'); return; }
   j.assessDeadline = v2; saveJobs(); renderTrack();
+}
+
+function setAiDeadline(id) {
+  const j = jobs.find(x=>x.id===id); if (!j) return;
+  const cur = j.aiDeadline || '';
+  const v = prompt('AI面截止日期 (格式 YYYY-MM-DD，留空清除):', cur);
+  if (v===null) return;
+  const v2 = v.trim();
+  if (!v2) { j.aiDeadline=''; saveJobs(); renderTrack(); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v2)) { toast('日期格式应为 YYYY-MM-DD'); return; }
+  j.aiDeadline = v2; saveJobs(); renderTrack();
 }
 
 function renderList() {
@@ -1757,7 +1771,7 @@ function handleDrop(e, newStatus) {
 // ==================== 投递岗位 CRUD ====================
 function openAddModal() {
   document.getElementById('modalTitle').textContent = '添加岗位';
-  ['formEditId','formCompany','formPosition','formCompanyType','formCity','formApplyDate','formDeadline','formAssessDeadline','formInterviewDate','formSalary','formLink','formNotes'].forEach(id=>document.getElementById(id).value='');
+  ['formEditId','formCompany','formPosition','formCompanyType','formCity','formApplyDate','formDeadline','formAssessDeadline','formAiDeadline','formInterviewDate','formSalary','formLink','formNotes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('jobModal').style.display = 'flex';
 }
 
@@ -1772,6 +1786,7 @@ function openEditModal(id) {
   document.getElementById('formApplyDate').value = j.applyDate||'';
   document.getElementById('formDeadline').value = j.deadline||'';
   document.getElementById('formAssessDeadline').value = j.assessDeadline||'';
+  document.getElementById('formAiDeadline').value = j.aiDeadline||'';
   document.getElementById('formInterviewDate').value = j.interviewDate||'';
   document.getElementById('formSalary').value = j.salary||'';
   document.getElementById('formLink').value = j.link||'';
@@ -1789,6 +1804,7 @@ function saveJob() {
     applyDate: document.getElementById('formApplyDate').value,
     deadline: document.getElementById('formDeadline').value,
     assessDeadline: document.getElementById('formAssessDeadline').value,
+    aiDeadline: document.getElementById('formAiDeadline').value,
     interviewDate: document.getElementById('formInterviewDate').value,
     salary: document.getElementById('formSalary').value.trim(),
     link: document.getElementById('formLink').value.trim(),
@@ -2096,6 +2112,7 @@ const STAGE_COLORS = {
   'applied':   '#3b82f6',
   'assessment':'#eab308',
   'exam':      '#f59e0b',
+  'ai':        '#c026d3',
   'interview1':'#06b6d4',
   'interview2':'#8b5cf6',
   'hr':        '#ec4899',
