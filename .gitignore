@@ -1,0 +1,13 @@
+# 本地辅助脚本与临时文件（不入库）
+config.json
+mail_to_assessment.py
+starjob_data.js
+starjob_sync.py
+run_err.log
+
+# 旧平台文件名（主文件已统一为 index.html）
+秋招管理平台.html
+
+# Python 与系统临时产物
+__pycache__/
+*.pyc
