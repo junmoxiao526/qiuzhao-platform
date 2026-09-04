@@ -1652,11 +1652,20 @@ function setTrackView(view) {
   renderTrack();
 }
 
+// 按投递日期由新到旧（YYYY-MM-DD 字符串直接比较；无日期排最后）
+function byApplyDateDesc(a, b) {
+  const da = a.applyDate||'', db = b.applyDate||'';
+  if (!da && !db) return 0;
+  if (!da) return 1;
+  if (!db) return -1;
+  return da > db ? -1 : (da < db ? 1 : 0);
+}
+
 function renderBoard() {
   const board = document.getElementById('board');
   const filtered = getFilteredJobs();
   board.innerHTML = STATUSES.map(s=>{
-    const colJobs = filtered.filter(j=>j.status===s.key);
+    const colJobs = filtered.filter(j=>j.status===s.key).sort(byApplyDateDesc);
     return `<div class="column" data-status="${s.key}" ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 8px var(--accent-glow)';" ondragleave="this.style.borderColor='';this.style.boxShadow='';" ondrop="handleDrop(event,'${s.key}')">
       <div class="column-header">
         <div class="col-title"><span class="col-dot" style="background:${s.dot}"></span>${s.label}</div>
@@ -1731,7 +1740,8 @@ function renderList() {
   filtered.sort((a, b) => {
     const ta = isTail(a.status)?1:0, tb = isTail(b.status)?1:0;
     if (ta!==tb) return ta-tb;
-    return statusOrder.indexOf(b.status) - statusOrder.indexOf(a.status);
+    // 其余按投递日期由新到旧
+    return byApplyDateDesc(a, b) || (statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
   });
   const lv = document.getElementById('listView');
   if (filtered.length===0) { lv.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div>没有匹配的岗位</div>`; return; }
