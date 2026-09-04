@@ -320,6 +320,8 @@ body {
 .card-actions { float:right; display:flex; gap:3px; }
 .card-deadline { color:var(--danger); font-weight:600; }
 .card-deadline-soon { color:var(--amber); font-weight:600; }
+.assess-dl { cursor:pointer; }
+.assess-dl:hover { text-decoration:underline; }
 
 /* ═══════ List View ═══════ */
 .list-view { padding:0 28px 28px; }
@@ -819,6 +821,10 @@ body {
       <div class="form-row">
         <div class="form-group"><label>投递日期</label><input type="date" id="formApplyDate"></div>
         <div class="form-group"><label>截止日期</label><input type="date" id="formDeadline"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>测评截止日期</label><input type="date" id="formAssessDeadline"></div>
+        <div class="form-group"></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>笔/面试日期</label><input type="date" id="formInterviewDate"></div>
@@ -1533,6 +1539,7 @@ function addToTrack(listId) {
     companyType: item.companyType || '',
     applyDate: '',
     deadline: item.deadline || '',
+    assessDeadline: '',
     interviewDate: '',
     link: item.url || '',
     salary: '',
@@ -1671,6 +1678,7 @@ function renderCard(j) {
     </div>
     <div class="card-company">${escapeHtml(j.company)}</div>
     <div class="card-position">${escapeHtml(j.position)}</div>
+    ${j.status==='assessment'?`<div class="assess-dl" onclick="event.stopPropagation();setAssessDeadline('${j.id}')" title="点击填写/修改测评截止日期">📅 测评截止: ${j.assessDeadline?getAssessTag(j.assessDeadline):'未设置'}</div>`:''}
     <div class="card-meta">${typeHtml}${cityHtml}${deadlineHtml}${j.salary?`<span>💰 ${escapeHtml(j.salary)}</span>`:''}</div>
   </div>`;
 }
@@ -1681,6 +1689,25 @@ function getDeadlineTag(dateStr) {
   const diff = Math.ceil((d-today)/86400000);
   let cls = 'card-deadline'; if (diff<=3&&diff>=0) cls='card-deadline-soon';
   return `<span class="${cls}">⏰ ${dateStr}${diff<0?' (已过)':diff===0?' (今天)':diff<=3?' ('+diff+'天)':''}</span>`;
+}
+
+function getAssessTag(dateStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  const diff = Math.ceil((d-today)/86400000);
+  let cls = 'card-deadline'; if (diff<=3&&diff>=0) cls='card-deadline-soon';
+  return `<span class="${cls}">${dateStr}${diff<0?' (已过)':diff===0?' (今天)':diff<=3?' ('+diff+'天)':''}</span>`;
+}
+
+function setAssessDeadline(id) {
+  const j = jobs.find(x=>x.id===id); if (!j) return;
+  const cur = j.assessDeadline || '';
+  const v = prompt('测评截止日期 (格式 YYYY-MM-DD，留空清除):', cur);
+  if (v===null) return;
+  const v2 = v.trim();
+  if (!v2) { j.assessDeadline=''; saveJobs(); renderTrack(); return; }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v2)) { toast('日期格式应为 YYYY-MM-DD'); return; }
+  j.assessDeadline = v2; saveJobs(); renderTrack();
 }
 
 function renderList() {
@@ -1725,7 +1752,7 @@ function handleDrop(e, newStatus) {
 // ==================== 投递岗位 CRUD ====================
 function openAddModal() {
   document.getElementById('modalTitle').textContent = '添加岗位';
-  ['formEditId','formCompany','formPosition','formCompanyType','formCity','formApplyDate','formDeadline','formInterviewDate','formSalary','formLink','formNotes'].forEach(id=>document.getElementById(id).value='');
+  ['formEditId','formCompany','formPosition','formCompanyType','formCity','formApplyDate','formDeadline','formAssessDeadline','formInterviewDate','formSalary','formLink','formNotes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('jobModal').style.display = 'flex';
 }
 
@@ -1739,6 +1766,7 @@ function openEditModal(id) {
   document.getElementById('formCity').value = j.city||'';
   document.getElementById('formApplyDate').value = j.applyDate||'';
   document.getElementById('formDeadline').value = j.deadline||'';
+  document.getElementById('formAssessDeadline').value = j.assessDeadline||'';
   document.getElementById('formInterviewDate').value = j.interviewDate||'';
   document.getElementById('formSalary').value = j.salary||'';
   document.getElementById('formLink').value = j.link||'';
@@ -1755,6 +1783,7 @@ function saveJob() {
     city: document.getElementById('formCity').value.trim(),
     applyDate: document.getElementById('formApplyDate').value,
     deadline: document.getElementById('formDeadline').value,
+    assessDeadline: document.getElementById('formAssessDeadline').value,
     interviewDate: document.getElementById('formInterviewDate').value,
     salary: document.getElementById('formSalary').value.trim(),
     link: document.getElementById('formLink').value.trim(),
