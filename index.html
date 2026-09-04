@@ -1713,7 +1713,12 @@ function setAssessDeadline(id) {
 function renderList() {
   const filtered = getFilteredJobs();
   const statusOrder = STATUSES.map(s => s.key);
-  filtered.sort((a, b) => statusOrder.indexOf(b.status) - statusOrder.indexOf(a.status));
+  const isTail = s => (s==='failed'||s==='rejected');
+  filtered.sort((a, b) => {
+    const ta = isTail(a.status)?1:0, tb = isTail(b.status)?1:0;
+    if (ta!==tb) return ta-tb;
+    return statusOrder.indexOf(b.status) - statusOrder.indexOf(a.status);
+  });
   const lv = document.getElementById('listView');
   if (filtered.length===0) { lv.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div>没有匹配的岗位</div>`; return; }
   lv.innerHTML = `<table class="list-table"><thead><tr>
