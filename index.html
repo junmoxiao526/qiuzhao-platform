@@ -2097,6 +2097,19 @@ function closeSyncResultModal() { document.getElementById('syncResultModal').sty
 
 // ==================== Init ====================
 loadJobs();
+// 一次性迁移：已投递但缺投递日期的旧记录自动补为当天日期
+(function migrateAppliedDates(){
+  try {
+    const flag = 'applied_date_migrated_v1';
+    if (localStorage.getItem(flag)) return;
+    if (Array.isArray(jobs)) {
+      let changed = 0;
+      jobs.forEach(j=>{ if (j.status==='applied' && !j.applyDate) { j.applyDate = todayStr(); changed++; } });
+      if (changed > 0) { saveJobs(); console.log('已为 ' + changed + ' 条已投递记录补投递日期'); }
+    }
+    localStorage.setItem(flag, '1');
+  } catch(e) { console.warn('migrateAppliedDates', e); }
+})();
 const cleaned = cleanupStaleJobs();
 if (cleaned > 0) console.log('已清理 ' + cleaned + ' 条旧版自动同步数据');
 loadJobList();
