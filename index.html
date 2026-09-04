@@ -1761,11 +1761,19 @@ function updateFilterOptions() {
   sel.innerHTML = '<option value="">全部状态</option>' + STATUSES.map(s=>`<option value="${s.key}"${s.key===cur?' selected':''}>${s.label}</option>`).join('');
 }
 
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
 function handleDrop(e, newStatus) {
   e.preventDefault(); e.currentTarget.style.borderColor=''; e.currentTarget.style.boxShadow='';
   const id = e.dataTransfer.getData('text/plain');
   const j = jobs.find(j=>j.id===id);
-  if (j && j.status!==newStatus) { j.status=newStatus; saveJobs(); renderTrack(); toast(`状态已更新为「${getStatusLabel(newStatus)}」`); }
+  if (j && j.status!==newStatus) {
+    if (newStatus==='applied' && !j.applyDate) j.applyDate = todayStr();
+    j.status=newStatus; saveJobs(); renderTrack(); toast(`状态已更新为「${getStatusLabel(newStatus)}」`);
+  }
 }
 
 // ==================== 投递岗位 CRUD ====================
@@ -1870,7 +1878,10 @@ function changeStatus() {
   if (!detailJobId) return;
   const newStatus = document.getElementById('detailStatusSelect').value;
   const j = jobs.find(j=>j.id===detailJobId);
-  if (j) { j.status = newStatus; saveJobs(); renderTrack(); toast(`状态已更新为「${getStatusLabel(newStatus)}」`); }
+  if (j) {
+    if (newStatus==='applied' && !j.applyDate) j.applyDate = todayStr();
+    j.status = newStatus; saveJobs(); renderTrack(); toast(`状态已更新为「${getStatusLabel(newStatus)}」`);
+  }
 }
 
 function closeDetail() { document.getElementById('detailModal').style.display = 'none'; detailJobId = null; }
