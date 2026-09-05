@@ -1025,8 +1025,9 @@ function mergeById(localArr, remoteArr) {
     if (!it || it.id === undefined || it.id === null) { map.set('__noid_' + Math.random(), it); return; }
     const cur = map.get(it.id);
     if (!cur) { map.set(it.id, it); return; }
-    const t1 = cur.addedAt || 0, t2 = it.addedAt || 0;
-    if (t2 > t1) map.set(it.id, it);
+    const t1 = cur.addedAt, t2 = it.addedAt;
+    if (t1 && t2) { if (t2 > t1) map.set(it.id, it); }
+    else { map.set(it.id, it); }
   });
   return [...map.values()];
 }
