@@ -915,7 +915,7 @@ body {
     <div class="review-right" id="reviewRight">
       <div class="review-right-top">
         <button class="btn btn-primary btn-sm" onclick="document.getElementById('reviewRightFileInput').click()">📎 导入文件</button>
-        <span class="review-right-hint" id="reviewRightHint">导入图片 / PDF，直接预览后可编辑</span>
+        <span class="review-right-hint" id="reviewRightHint">导入图片 / PDF 直接预览</span>
         <input type="file" id="reviewRightFileInput" multiple accept="image/*,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx" style="display:none;" onchange="handleRightFiles(this.files)">
       </div>
 
@@ -929,16 +929,6 @@ body {
         <div class="review-preview-body" id="reviewRightPreviewBody"></div>
       </div>
 
-      <div class="review-edit-form">
-        <div class="form-group"><label>复盘要点 *</label><input type="text" id="reviewRightTitle" placeholder="一句话概括这次复盘，如: 一面算法题没答好"></div>
-        <div class="form-group"><label>详细复盘</label><textarea id="reviewRightContent" rows="4" placeholder="记录面经、笔试题目、表现反思、经验教训..."></textarea></div>
-        <div class="form-group"><label>下一步行动</label><textarea id="reviewRightNext" rows="2" placeholder="如: 复习二分查找模板、准备手撕 LRU..."></textarea></div>
-        <input type="hidden" id="reviewRightEditId">
-        <div class="review-edit-actions">
-          <button class="btn" onclick="clearRightWork()">清空</button>
-          <button class="btn btn-primary" onclick="saveRightReview()">保存复盘</button>
-        </div>
-      </div>
     </div>
 
   </div>
@@ -3403,13 +3393,9 @@ function saveReview() {
 /* ================= 右侧工作区：导入文件 -> 预览 -> 直接编辑 ================= */
 function loadReviewToRight(r, previewIdx) {
   if (!r) return;
-  document.getElementById('reviewRightEditId').value = r.id;
-  document.getElementById('reviewRightTitle').value = r.title || '';
-  document.getElementById('reviewRightContent').value = r.content || '';
-  document.getElementById('reviewRightNext').value = r.next || '';
   reviewRightFiles = (r.files || []).map(f => ({ ...f }));
   renderRightFiles();
-  setReviewRightHint('编辑中：' + (r.company || '未命名'));
+  setReviewRightHint('查看附件预览');
   if (previewIdx != null && reviewRightFiles[previewIdx]) {
     previewRightFile(previewIdx);
   } else if (reviewRightFiles.length) {
@@ -3418,17 +3404,6 @@ function loadReviewToRight(r, previewIdx) {
     closeRightPreview();
   }
   document.getElementById('reviewRight').scrollTop = 0;
-}
-
-function clearRightWork() {
-  reviewRightFiles = [];
-  document.getElementById('reviewRightEditId').value = '';
-  document.getElementById('reviewRightTitle').value = '';
-  document.getElementById('reviewRightContent').value = '';
-  document.getElementById('reviewRightNext').value = '';
-  renderRightFiles();
-  closeRightPreview();
-  setReviewRightHint('导入文件或直接填写，保存为新复盘');
 }
 
 function setReviewRightHint(t) { const el = document.getElementById('reviewRightHint'); if (el) el.textContent = t; }
@@ -3503,34 +3478,6 @@ function closeRightPreview() {
   if (area) area.style.display = 'none';
   const body = document.getElementById('reviewRightPreviewBody');
   if (body) body.innerHTML = '';
-}
-
-/* ---------- 右侧保存 ---------- */
-function saveRightReview() {
-  const title = document.getElementById('reviewRightTitle').value.trim();
-  if (!title) { toast('请填写复盘要点'); return; }
-  const editId = document.getElementById('reviewRightEditId').value;
-  const prev = editId ? reviews.find(x => x.id === editId) : null;
-  const data = {
-    company: '未命名复盘',
-    job: prev ? (prev.job || '') : '',
-    stage: prev ? (prev.stage || 'interview1') : 'interview1',
-    date: prev ? (prev.date || todayStr()) : todayStr(),
-    title,
-    content: document.getElementById('reviewRightContent').value.trim(),
-    next: document.getElementById('reviewRightNext').value.trim(),
-    files: reviewRightFiles,
-    updatedAt: new Date().toISOString(),
-  };
-  if (editId) {
-    const idx = reviews.findIndex(x => x.id === editId);
-    if (idx >= 0) reviews[idx] = { ...reviews[idx], ...data };
-  } else {
-    reviews.unshift({ id: genId(), ...data, createdAt: new Date().toISOString() });
-  }
-  saveReviews();
-  renderReviews();
-  toast(editId ? '复盘已更新' : '复盘已保存');
 }
 
 function editReview(id) {
