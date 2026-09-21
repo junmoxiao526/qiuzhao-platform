@@ -930,16 +930,6 @@ body {
       </div>
 
       <div class="review-edit-form">
-        <div class="form-row">
-          <div class="form-group"><label>企业名称 *</label>
-            <input type="text" id="reviewRightCompany" placeholder="如: 字节跳动">
-          </div>
-          <div class="form-group"><label>岗位</label><input type="text" id="reviewRightJob" placeholder="如: 后端开发工程师"></div>
-        </div>
-        <div class="form-row">
-          <div class="form-group"><label>阶段</label><select id="reviewRightStage"></select></div>
-          <div class="form-group"><label>复盘日期</label><input type="date" id="reviewRightDate"></div>
-        </div>
         <div class="form-group"><label>复盘要点 *</label><input type="text" id="reviewRightTitle" placeholder="一句话概括这次复盘，如: 一面算法题没答好"></div>
         <div class="form-group"><label>详细复盘</label><textarea id="reviewRightContent" rows="4" placeholder="记录面经、笔试题目、表现反思、经验教训..."></textarea></div>
         <div class="form-group"><label>下一步行动</label><textarea id="reviewRightNext" rows="2" placeholder="如: 复习二分查找模板、准备手撕 LRU..."></textarea></div>
@@ -3186,7 +3176,7 @@ function renderReviews() {
     const next = escapeHtml(r.next||'');
     return '<div class="review-card review-card-clickable" onclick="loadReviewToRight(findReview(\''+r.id+'\'))">'
       + '<div class="review-card-head">'
-      + '<span class="review-company">'+escapeHtml(r.company||'未知企业')+'</span>'
+      + '<span class="review-company">'+escapeHtml(r.company||'未命名复盘')+'</span>'
       + (r.job ? '<span class="review-job">'+escapeHtml(r.job)+'</span>' : '')
       + '<span class="review-stage-badge" style="background:'+sc+';">'+st+'</span>'
       + '<span class="review-date">'+escapeHtml(r.date||'')+'</span>'
@@ -3414,13 +3404,9 @@ function saveReview() {
 function loadReviewToRight(r, previewIdx) {
   if (!r) return;
   document.getElementById('reviewRightEditId').value = r.id;
-  document.getElementById('reviewRightCompany').value = r.company || '';
-  document.getElementById('reviewRightJob').value = r.job || '';
-  document.getElementById('reviewRightDate').value = r.date || todayStr();
   document.getElementById('reviewRightTitle').value = r.title || '';
   document.getElementById('reviewRightContent').value = r.content || '';
   document.getElementById('reviewRightNext').value = r.next || '';
-  fillReviewStageOptions(document.getElementById('reviewRightStage'), r.stage || 'interview1');
   reviewRightFiles = (r.files || []).map(f => ({ ...f }));
   renderRightFiles();
   setReviewRightHint('编辑中：' + (r.company || '未命名'));
@@ -3437,13 +3423,9 @@ function loadReviewToRight(r, previewIdx) {
 function clearRightWork() {
   reviewRightFiles = [];
   document.getElementById('reviewRightEditId').value = '';
-  document.getElementById('reviewRightCompany').value = '';
-  document.getElementById('reviewRightJob').value = '';
-  document.getElementById('reviewRightDate').value = todayStr();
   document.getElementById('reviewRightTitle').value = '';
   document.getElementById('reviewRightContent').value = '';
   document.getElementById('reviewRightNext').value = '';
-  fillReviewStageOptions(document.getElementById('reviewRightStage'), 'interview1');
   renderRightFiles();
   closeRightPreview();
   setReviewRightHint('导入文件或直接填写，保存为新复盘');
@@ -3525,16 +3507,15 @@ function closeRightPreview() {
 
 /* ---------- 右侧保存 ---------- */
 function saveRightReview() {
-  const company = document.getElementById('reviewRightCompany').value.trim();
   const title = document.getElementById('reviewRightTitle').value.trim();
-  if (!company) { toast('请填写企业名称'); return; }
   if (!title) { toast('请填写复盘要点'); return; }
   const editId = document.getElementById('reviewRightEditId').value;
+  const prev = editId ? reviews.find(x => x.id === editId) : null;
   const data = {
-    company,
-    job: document.getElementById('reviewRightJob').value.trim(),
-    stage: document.getElementById('reviewRightStage').value,
-    date: document.getElementById('reviewRightDate').value || todayStr(),
+    company: '未命名复盘',
+    job: prev ? (prev.job || '') : '',
+    stage: prev ? (prev.stage || 'interview1') : 'interview1',
+    date: prev ? (prev.date || todayStr()) : todayStr(),
     title,
     content: document.getElementById('reviewRightContent').value.trim(),
     next: document.getElementById('reviewRightNext').value.trim(),
