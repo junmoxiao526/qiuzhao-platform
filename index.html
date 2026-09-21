@@ -484,6 +484,43 @@ body {
 
 
 
+/* ==================== 板块4: 复盘 CSS ==================== */
+#sectionReview { display:none; }
+#sectionReview.active { display:block; }
+.review-list { padding:4px 16px 24px; display:flex; flex-direction:column; gap:10px; max-width:920px; }
+.review-empty {
+  margin:40px auto; max-width:420px; text-align:center; color:var(--text-muted);
+  background:var(--surface); border:1px dashed var(--border); border-radius:var(--radius);
+  padding:36px 24px; font-size:13px; line-height:1.8;
+}
+.review-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:14px 16px; transition:all var(--transition);
+}
+.review-card:hover { border-color:var(--border-strong); box-shadow:var(--shadow-md); }
+.review-card-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.review-company { font-weight:700; font-size:14px; letter-spacing:-0.2px; }
+.review-job { font-size:12px; color:var(--text-muted); }
+.review-stage-badge {
+  display:inline-block; padding:2px 10px; border-radius:12px; font-size:11px; font-weight:700;
+  color:#fff; letter-spacing:0.2px; white-space:nowrap;
+}
+.review-date { margin-left:auto; font-size:11.5px; color:var(--text-muted); white-space:nowrap; }
+.review-title { font-size:13px; font-weight:600; margin:8px 0 6px; color:var(--text); }
+.review-content {
+  font-size:12.5px; color:var(--text-secondary); line-height:1.7; white-space:pre-wrap;
+  word-break:break-word; margin-bottom:6px;
+}
+.review-content.collapsed { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.review-next {
+  font-size:12px; color:#B45309; background:rgba(180,83,9,0.08);
+  border-radius:6px; padding:6px 10px; margin-top:6px; line-height:1.6;
+}
+.review-next b { color:var(--text); font-weight:600; }
+.review-card-actions { display:flex; gap:8px; margin-top:10px; }
+.review-card-actions .btn { padding:4px 12px; font-size:12px; }
+.review-link-toggle { cursor:pointer; font-size:11.5px; color:var(--accent); background:none; border:none; padding:0; margin-left:2px; }
+
 /* ==================== 板块3: 简历管理 CSS ==================== */
 #sectionResume { display:none; flex-direction:row; flex:1; overflow:hidden; }
 #sectionResume.active { display:flex; }
@@ -653,6 +690,7 @@ body {
       <button class="tab-btn active" onclick="switchTab('explore')">🔍 岗位清单<span class="tab-count" id="exploreCount">0</span></button>
       <button class="tab-btn" onclick="switchTab('track')">📋 投递管理<span class="tab-count" id="trackCount">0</span></button>
           <button class="tab-btn" onclick="switchTab('resume')">📄 简历管理</button>
+          <button class="tab-btn" onclick="switchTab('review')">📝 复盘<span class="tab-count" id="reviewCount">0</span></button>
     </nav>
   </div>
   <div class="header-right">
@@ -802,6 +840,53 @@ body {
 </div>
 </section>
 
+<!-- ============ 板块4: 复盘 ============ -->
+<section class="view-section" id="sectionReview">
+  <div class="stats-bar" id="reviewStats"></div>
+  <div class="toolbar">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="reviewSearch" placeholder="搜索企业、岗位、要点..." oninput="renderReviews()">
+    </div>
+    <select class="filter-select" id="reviewStageFilter" onchange="renderReviews()">
+      <option value="">全部阶段</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="openReviewModal()">+ 添加复盘</button>
+  </div>
+  <div class="review-list" id="reviewList"></div>
+</section>
+
+<!-- Review Modal -->
+<div class="modal-overlay" id="reviewModal" style="display:none;">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="reviewModalTitle">添加复盘</h3>
+      <button class="modal-close" onclick="closeReviewModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>企业名称 *</label>
+          <input type="text" id="reviewFormCompany" list="reviewCompanyList" placeholder="如: 字节跳动">
+          <datalist id="reviewCompanyList"></datalist>
+        </div>
+        <div class="form-group"><label>岗位</label><input type="text" id="reviewFormJob" placeholder="如: 后端开发工程师"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>阶段</label><select id="reviewFormStage"></select></div>
+        <div class="form-group"><label>复盘日期</label><input type="date" id="reviewFormDate"></div>
+      </div>
+      <div class="form-group"><label>复盘要点 *</label><input type="text" id="reviewFormTitle" placeholder="一句话概括这次复盘，如: 一面算法题没答好"></div>
+      <div class="form-group"><label>详细复盘</label><textarea id="reviewFormContent" rows="5" placeholder="记录面经、笔试题目、表现反思、经验教训..."></textarea></div>
+      <div class="form-group"><label>下一步行动</label><textarea id="reviewFormNext" rows="2" placeholder="如: 复习二分查找模板、准备手撕 LRU..."></textarea></div>
+      <input type="hidden" id="reviewFormEditId">
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeReviewModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveReview()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add/Edit Modal -->
 <div class="modal-overlay" id="jobModal" style="display:none;">
   <div class="modal">
@@ -918,6 +1003,18 @@ const STORAGE_JOBS = 'campus_recruit_jobs';
 const STORAGE_JOBLIST = 'campus_job_list';
 const STORAGE_SUMMARY = 'campus_summary';
 const STORAGE_RESUME = 'campus_resume';
+const STORAGE_REVIEWS = 'campus_reviews';
+const REVIEW_STAGES = [
+  { key:'applied',   label:'已投递', color:'#3b82f6' },
+  { key:'exam',      label:'笔试',   color:'#8A4B16' },
+  { key:'ai',        label:'AI面',   color:'#C026D3' },
+  { key:'interview1',label:'一面',   color:'#8B5CF6' },
+  { key:'interview2',label:'二面',   color:'#A78BFA' },
+  { key:'hr',        label:'终面',   color:'#0891B2' },
+  { key:'offer',     label:'Offer',  color:'#356447' },
+  { key:'failed',    label:'已挂',   color:'#B45309' },
+  { key:'other',     label:'其他',   color:'#64748b' },
+];
 const SUPA_URL = 'https://dppxnheifyqenroqtusw.supabase.co';
 const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwcHhuaGVpZnlxZW5yb3F0dXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMDAzMjEsImV4cCI6MjEwMjU3NjMyMX0._Lli_AZ_qifLW9EI3W0qjevJkNrAwvMm4GcgcR-1mAI';
 const QIUZHI_META_KEY = 'qiuzhi_sync_meta';
@@ -978,6 +1075,7 @@ const INDUSTRIES = ['科技','互联网','金融','央国企','外企','游戏',
 
 let jobs = [];         // 投递管理中的岗位
 let jobList = [];      // 岗位清单（来自 starjob + 手动）
+let reviews = [];      // 复盘记录
 let trackView = 'board';
 let detailJobId = null;
 
@@ -1001,6 +1099,8 @@ function getStatusBadge(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).b
 // ==================== 数据持久化 ====================
 function loadJobs() { try { const r=localStorage.getItem(STORAGE_JOBS); jobs=r?JSON.parse(r):[]; } catch { jobs=[]; } }
 function saveJobs() { localStorage.setItem(STORAGE_JOBS,JSON.stringify(jobs)); cloudPush('jobs', jobs); }
+function loadReviews() { try { const r=localStorage.getItem(STORAGE_REVIEWS); reviews=r?JSON.parse(r):[]; } catch { reviews=[]; } }
+function saveReviews() { localStorage.setItem(STORAGE_REVIEWS,JSON.stringify(reviews)); cloudPush('reviews', reviews); }
 
 // ==================== Supabase 云同步 ====================
 let supabaseClient = null;
@@ -1051,8 +1151,11 @@ async function cloudSyncAll() {
       saveResumeData(merged);
       renderResume();
     }
+    const r5 = await cloudPull('reviews');
+    if (r5 && Array.isArray(r5.data)) { reviews = mergeById(reviews, r5.data); saveReviews(); }
     renderExplore();
     renderTrack();
+    renderReviews();
   } catch(e) { console.warn('[cloudSyncAll]', e); }
 }
 
@@ -1085,6 +1188,10 @@ function switchTab(tab) {
     document.querySelector('.tab-btn:nth-child(3)').classList.add('active');
     document.getElementById('sectionResume').classList.add('active');
     renderResume();
+  } else if (tab==='review') {
+    document.querySelector('.tab-btn:nth-child(4)').classList.add('active');
+    document.getElementById('sectionReview').classList.add('active');
+    renderReviews();
   }
 }
 
@@ -2154,6 +2261,7 @@ function fixAppliedDates() {
 const cleaned = cleanupStaleJobs();
 if (cleaned > 0) console.log('已清理 ' + cleaned + ' 条旧版自动同步数据');
 loadJobList();
+loadReviews();
 fixAppliedDates();
 // 清理历史 StarJob 来源岗位（已停用 StarJob 同步）
 {
@@ -2163,6 +2271,7 @@ fixAppliedDates();
 }
 saveJobList(); renderExplore();
 renderTrack();
+renderReviews();
 updateFilterOptions();
 cloudSyncAll().then(()=>{ fixAppliedDates(); renderTrack(); });
 
@@ -2879,6 +2988,154 @@ function downloadPdf(idx) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+}
+
+/* ═══════════ 板块4: 复盘 ═══════════ */
+function getReviewStageLabel(k) { return (REVIEW_STAGES.find(s=>s.key===k)||REVIEW_STAGES[REVIEW_STAGES.length-1]).label; }
+function getReviewStageColor(k) { return (REVIEW_STAGES.find(s=>s.key===k)||REVIEW_STAGES[REVIEW_STAGES.length-1]).color; }
+
+function fillReviewStageOptions(selectEl, selected) {
+  selectEl.innerHTML = REVIEW_STAGES.map(s => '<option value="'+s.key+'"'+(s.key===selected?' selected':'')+'>'+s.label+'</option>').join('');
+}
+
+function reviewCompanies() {
+  const set = new Set();
+  jobs.forEach(j => { if (j.company) set.add(j.company); });
+  jobList.forEach(j => { if (j.company) set.add(j.company); });
+  reviews.forEach(r => { if (r.company) set.add(r.company); });
+  return [...set];
+}
+
+function reviewCompanyDatalist() {
+  const dl = document.getElementById('reviewCompanyList');
+  if (dl) dl.innerHTML = reviewCompanies().map(c => '<option value="'+escapeHtml(c)+'">').join('');
+}
+
+function renderReviews() {
+  const q = (document.getElementById('reviewSearch').value || '').toLowerCase().trim();
+  const stage = document.getElementById('reviewStageFilter').value;
+  const list = reviews
+    .filter(r => !stage || r.stage === stage)
+    .filter(r => {
+      if (!q) return true;
+      return (r.company||'').toLowerCase().includes(q)
+        || (r.job||'').toLowerCase().includes(q)
+        || (r.title||'').toLowerCase().includes(q)
+        || (r.content||'').toLowerCase().includes(q)
+        || (r.next||'').toLowerCase().includes(q);
+    })
+    .sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+
+  document.getElementById('reviewCount').textContent = reviews.length;
+
+  // 统计条
+  const total = reviews.length;
+  const statsHtml = '<div class="stat-chip"><b>'+total+'</b> 条复盘</div>'
+    + REVIEW_STAGES.filter(s=>reviews.some(r=>r.stage===s.key)).map(s => {
+      const cnt = reviews.filter(r=>r.stage===s.key).length;
+      return '<div class="stat-chip"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+s.color+';margin-right:5px;"></span><b>'+cnt+'</b> '+s.label+'</div>';
+    }).join('');
+  document.getElementById('reviewStats').innerHTML = statsHtml;
+
+  // 阶段筛选下拉
+  const sel = document.getElementById('reviewStageFilter');
+  sel.innerHTML = '<option value="">全部阶段</option>'
+    + REVIEW_STAGES.map(s => '<option value="'+s.key+'"'+(s.key===stage?' selected':'')+'>'+s.label+'</option>').join('');
+
+  const box = document.getElementById('reviewList');
+  if (!list.length) {
+    box.innerHTML = '<div class="review-empty">还没有复盘记录。<br>每次笔试 / 面试结束后，点击右上角「+ 添加复盘」<br>把面经、反思和下一步行动沉淀下来。</div>';
+    return;
+  }
+  box.innerHTML = list.map(r => {
+    const st = getReviewStageLabel(r.stage);
+    const sc = getReviewStageColor(r.stage);
+    const content = escapeHtml(r.content||'');
+    const contentShort = content.length > 180;
+    const next = escapeHtml(r.next||'');
+    return '<div class="review-card">'
+      + '<div class="review-card-head">'
+      + '<span class="review-company">'+escapeHtml(r.company||'未知企业')+'</span>'
+      + (r.job ? '<span class="review-job">'+escapeHtml(r.job)+'</span>' : '')
+      + '<span class="review-stage-badge" style="background:'+sc+';">'+st+'</span>'
+      + '<span class="review-date">'+escapeHtml(r.date||'')+'</span>'
+      + '</div>'
+      + (r.title ? '<div class="review-title">'+escapeHtml(r.title)+'</div>' : '')
+      + (content ? '<div class="review-content'+(contentShort?' collapsed':'')+'" id="rc_'+r.id+'">'+content+'</div>' + (contentShort ? '<button class="review-link-toggle" onclick="toggleReviewContent(\''+r.id+'\',this)">展开</button>' : '') : '')
+      + (next ? '<div class="review-next"><b>下一步:</b> '+next+'</div>' : '')
+      + '<div class="review-card-actions">'
+      + '<button class="btn btn-outline btn-sm" onclick="editReview(\''+r.id+'\')">✏️ 编辑</button>'
+      + '<button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.25);" onclick="deleteReview(\''+r.id+'\')">🗑 删除</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function toggleReviewContent(id, btn) {
+  const el = document.getElementById('rc_'+id);
+  if (!el) return;
+  const collapsed = el.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '展开' : '收起';
+}
+
+function openReviewModal(r) {
+  fillReviewStageOptions(document.getElementById('reviewFormStage'), r ? r.stage : 'interview1');
+  reviewCompanyDatalist();
+  document.getElementById('reviewFormCompany').value = r ? (r.company||'') : '';
+  document.getElementById('reviewFormJob').value = r ? (r.job||'') : '';
+  document.getElementById('reviewFormDate').value = r ? (r.date||'') : todayStr();
+  document.getElementById('reviewFormTitle').value = r ? (r.title||'') : '';
+  document.getElementById('reviewFormContent').value = r ? (r.content||'') : '';
+  document.getElementById('reviewFormNext').value = r ? (r.next||'') : '';
+  document.getElementById('reviewFormEditId').value = r ? r.id : '';
+  document.getElementById('reviewModalTitle').textContent = r ? '编辑复盘' : '添加复盘';
+  document.getElementById('reviewModal').style.display = 'flex';
+}
+
+function closeReviewModal() { document.getElementById('reviewModal').style.display = 'none'; }
+
+function saveReview() {
+  const company = document.getElementById('reviewFormCompany').value.trim();
+  const title = document.getElementById('reviewFormTitle').value.trim();
+  if (!company) { toast('请填写企业名称'); return; }
+  if (!title) { toast('请填写复盘要点'); return; }
+  const editId = document.getElementById('reviewFormEditId').value;
+  const data = {
+    company,
+    job: document.getElementById('reviewFormJob').value.trim(),
+    stage: document.getElementById('reviewFormStage').value,
+    date: document.getElementById('reviewFormDate').value || todayStr(),
+    title,
+    content: document.getElementById('reviewFormContent').value.trim(),
+    next: document.getElementById('reviewFormNext').value.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  if (editId) {
+    const idx = reviews.findIndex(x => x.id === editId);
+    if (idx >= 0) reviews[idx] = { ...reviews[idx], ...data };
+  } else {
+    reviews.unshift({ id: genId(), ...data, createdAt: new Date().toISOString() });
+  }
+  saveReviews();
+  closeReviewModal();
+  renderReviews();
+  toast(editId ? '复盘已更新' : '复盘已保存');
+}
+
+function editReview(id) {
+  const r = reviews.find(x => x.id === id);
+  if (!r) return;
+  openReviewModal(r);
+}
+
+function deleteReview(id) {
+  const r = reviews.find(x => x.id === id);
+  if (!r) return;
+  if (!confirm('确认删除这条复盘记录？\n'+ (r.company||'') + (r.title ? ' · '+r.title : ''))) return;
+  reviews = reviews.filter(x => x.id !== id);
+  saveReviews();
+  renderReviews();
+  toast('复盘已删除');
 }
 
 </script>
