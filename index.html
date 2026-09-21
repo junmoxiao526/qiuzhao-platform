@@ -520,6 +520,34 @@ body {
 .review-card-actions { display:flex; gap:8px; margin-top:10px; }
 .review-card-actions .btn { padding:4px 12px; font-size:12px; }
 .review-link-toggle { cursor:pointer; font-size:11.5px; color:var(--accent); background:none; border:none; padding:0; margin-left:2px; }
+.review-upload-zone {
+  border:1px dashed var(--border); border-radius:var(--radius-xs); padding:14px 16px;
+  display:flex; align-items:center; gap:10px; cursor:pointer; background:var(--surface-2);
+  transition:border-color var(--transition); margin-bottom:8px;
+}
+.review-upload-zone:hover { border-color:var(--accent); }
+.ruz-icon { font-size:18px; }
+.ruz-text { font-size:12.5px; color:var(--text-muted); }
+.review-file-list { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
+.review-file-chip {
+  display:flex; align-items:center; gap:8px; background:var(--surface-2);
+  border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-size:12px;
+  cursor:pointer; transition:all var(--transition);
+}
+.review-file-chip:hover { border-color:var(--accent); }
+.rfc-icon { font-size:15px; flex-shrink:0; }
+.rfc-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+.rfc-size { font-size:11px; color:var(--text-muted); flex-shrink:0; }
+.rfc-preview { color:var(--accent); font-size:11.5px; flex-shrink:0; }
+.rfc-remove { color:var(--danger); font-size:12px; flex-shrink:0; padding:0 2px; }
+.rfc-remove:hover { opacity:0.7; }
+.review-files { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.review-files .review-file-chip { padding:5px 10px; font-size:11.5px; }
+.modal-preview { max-width:820px; width:94%; }
+.review-preview-body { display:flex; flex-direction:column; align-items:center; gap:12px; min-height:200px; }
+.review-preview-body img { max-width:100%; max-height:62vh; border-radius:8px; }
+.review-preview-body iframe { width:100%; height:62vh; border:1px solid var(--border); border-radius:8px; background:#fff; }
+.review-preview-dl { color:var(--text-muted); font-size:13px; }
 
 /* ==================== 板块3: 简历管理 CSS ==================== */
 #sectionResume { display:none; flex-direction:row; flex:1; overflow:hidden; }
@@ -878,11 +906,34 @@ body {
       <div class="form-group"><label>复盘要点 *</label><input type="text" id="reviewFormTitle" placeholder="一句话概括这次复盘，如: 一面算法题没答好"></div>
       <div class="form-group"><label>详细复盘</label><textarea id="reviewFormContent" rows="5" placeholder="记录面经、笔试题目、表现反思、经验教训..."></textarea></div>
       <div class="form-group"><label>下一步行动</label><textarea id="reviewFormNext" rows="2" placeholder="如: 复习二分查找模板、准备手撕 LRU..."></textarea></div>
+      <div class="form-group"><label>附件（图片 / PDF，点击可预览）</label>
+        <div class="review-upload-zone" onclick="document.getElementById('reviewFileInput').click()">
+          <div class="ruz-icon">📎</div>
+          <div class="ruz-text">点击选择文件（可多选，单个不超过 10MB）</div>
+          <input type="file" id="reviewFileInput" multiple accept="image/*,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx" style="display:none;" onchange="handleReviewFiles(this.files)">
+        </div>
+        <div class="review-file-list" id="reviewPendingList"></div>
+        <div class="review-file-list" id="reviewExistingList"></div>
+      </div>
       <input type="hidden" id="reviewFormEditId">
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeReviewModal()">取消</button>
       <button class="btn btn-primary" onclick="saveReview()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Review Preview Modal -->
+<div class="modal-overlay" id="reviewPreviewModal" style="display:none;">
+  <div class="modal modal-preview">
+    <div class="modal-header">
+      <h3 id="reviewPreviewTitle">预览</h3>
+      <button class="modal-close" onclick="closeReviewPreview()">×</button>
+    </div>
+    <div class="modal-body review-preview-body" id="reviewPreviewBody"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeReviewPreview()">关闭</button>
     </div>
   </div>
 </div>
@@ -1076,6 +1127,7 @@ const INDUSTRIES = ['科技','互联网','金融','央国企','外企','游戏',
 let jobs = [];         // 投递管理中的岗位
 let jobList = [];      // 岗位清单（来自 starjob + 手动）
 let reviews = [];      // 复盘记录
+let reviewPendingFiles = [];  // 待保存的复盘附件
 let trackView = 'board';
 let detailJobId = null;
 
@@ -1100,7 +1152,15 @@ function getStatusBadge(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).b
 function loadJobs() { try { const r=localStorage.getItem(STORAGE_JOBS); jobs=r?JSON.parse(r):[]; } catch { jobs=[]; } }
 function saveJobs() { localStorage.setItem(STORAGE_JOBS,JSON.stringify(jobs)); cloudPush('jobs', jobs); }
 function loadReviews() { try { const r=localStorage.getItem(STORAGE_REVIEWS); reviews=r?JSON.parse(r):[]; } catch { reviews=[]; } }
-function saveReviews() { localStorage.setItem(STORAGE_REVIEWS,JSON.stringify(reviews)); cloudPush('reviews', reviews); }
+function saveReviews() {
+  localStorage.setItem(STORAGE_REVIEWS, JSON.stringify(reviews));
+  let pushData = reviews;
+  if (JSON.stringify(reviews).length > 4 * 1024 * 1024) {
+    // 云同步超过大小限制时剥离附件（仅保留文件名占位），本地数据不受影响
+    pushData = reviews.map(r => (r.files && r.files.length) ? { ...r, files: r.files.map(f=>({ name:f.name, type:f.type, size:f.size, skipped:true })) } : r);
+  }
+  cloudPush('reviews', pushData);
+}
 
 // ==================== Supabase 云同步 ====================
 let supabaseClient = null;
@@ -3063,6 +3123,15 @@ function renderReviews() {
       + (r.title ? '<div class="review-title">'+escapeHtml(r.title)+'</div>' : '')
       + (content ? '<div class="review-content'+(contentShort?' collapsed':'')+'" id="rc_'+r.id+'">'+content+'</div>' + (contentShort ? '<button class="review-link-toggle" onclick="toggleReviewContent(\''+r.id+'\',this)">展开</button>' : '') : '')
       + (next ? '<div class="review-next"><b>下一步:</b> '+next+'</div>' : '')
+      + ((r.files && r.files.length) ? '<div class="review-files">'+r.files.map((f,fi)=> {
+          const canPrev = f && f.base64 && (!f.skipped);
+          return '<span class="review-file-chip" onclick="previewReviewFile(\''+r.id+'\','+fi+')">'
+            + '<span class="rfc-icon">'+fileIcon(f.name)+'</span>'
+            + '<span class="rfc-name">'+escapeHtml(f.name||'附件')+'</span>'
+            + (f.size ? '<span class="rfc-size">'+formatFileSize(f.size)+'</span>' : '')
+            + (canPrev ? '<span class="rfc-preview">预览</span>' : '<span class="rfc-size">仅本机</span>')
+            + '</span>';
+        }).join('')+'</div>' : '')
       + '<div class="review-card-actions">'
       + '<button class="btn btn-outline btn-sm" onclick="editReview(\''+r.id+'\')">✏️ 编辑</button>'
       + '<button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.25);" onclick="deleteReview(\''+r.id+'\')">🗑 删除</button>'
@@ -3089,10 +3158,120 @@ function openReviewModal(r) {
   document.getElementById('reviewFormNext').value = r ? (r.next||'') : '';
   document.getElementById('reviewFormEditId').value = r ? r.id : '';
   document.getElementById('reviewModalTitle').textContent = r ? '编辑复盘' : '添加复盘';
+  reviewPendingFiles = [];
+  renderReviewPendingFiles();
+  renderReviewExistingFiles(r ? (r.files||[]) : []);
   document.getElementById('reviewModal').style.display = 'flex';
 }
 
-function closeReviewModal() { document.getElementById('reviewModal').style.display = 'none'; }
+function closeReviewModal() {
+  document.getElementById('reviewModal').style.display = 'none';
+  reviewPendingFiles = [];
+  const inp = document.getElementById('reviewFileInput'); if (inp) inp.value = '';
+}
+
+/* ---------- 复盘附件 ---------- */
+function formatFileSize(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1024/1024).toFixed(1) + ' MB';
+}
+function fileIcon(name) {
+  const n = String(name||'').toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/.test(n)) return '🖼';
+  if (/\.pdf$/.test(n)) return '📕';
+  if (/\.(doc|docx)$/.test(n)) return '📘';
+  if (/\.(xls|xlsx|csv)$/.test(n)) return '📗';
+  if (/\.(ppt|pptx)$/.test(n)) return '📙';
+  if (/\.(txt|md)$/.test(n)) return '📄';
+  return '📎';
+}
+function handleReviewFiles(files) {
+  const MAX = 10 * 1024 * 1024;
+  for (const file of files) {
+    if (file.size > MAX) { toast('「'+file.name+'」超过 10MB，已跳过'); continue; }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      reviewPendingFiles.push({
+        name: file.name,
+        type: file.type || '',
+        size: file.size,
+        base64: e.target.result,
+        uploadedAt: new Date().toISOString(),
+      });
+      renderReviewPendingFiles();
+    };
+    reader.readAsDataURL(file);
+  }
+}
+function renderReviewPendingFiles() {
+  const box = document.getElementById('reviewPendingList');
+  if (!box) return;
+  box.innerHTML = reviewPendingFiles.map((f,i) => {
+    const canPrev = !!(f.base64 && /^data:image\//.test(f.base64));
+    return '<div class="review-file-chip">'
+      + '<span class="rfc-icon">'+fileIcon(f.name)+'</span>'
+      + '<span class="rfc-name">'+escapeHtml(f.name)+'</span>'
+      + '<span class="rfc-size">'+formatFileSize(f.size)+'</span>'
+      + (canPrev ? '<span class="rfc-preview" onclick="previewReviewFileData('+i+',event)">预览</span>' : '')
+      + '<span class="rfc-remove" onclick="removeReviewPending('+i+')">✕</span>'
+      + '</div>';
+  }).join('');
+}
+function renderReviewExistingFiles(files) {
+  const box = document.getElementById('reviewExistingList');
+  if (!box) return;
+  box.innerHTML = files.map((f,i) => {
+    const canPrev = f && f.base64 && !f.skipped;
+    return '<div class="review-file-chip">'
+      + '<span class="rfc-icon">'+fileIcon(f.name)+'</span>'
+      + '<span class="rfc-name">'+escapeHtml(f.name||'附件')+'</span>'
+      + '<span class="rfc-size">'+(f.size?formatFileSize(f.size):'')+(f.skipped?' · 云同步已剥离':'')+'</span>'
+      + (canPrev ? '<span class="rfc-preview" onclick="previewReviewFileData(-2,'+i+',event)">预览</span>' : '')
+      + '<span class="rfc-remove" onclick="removeReviewExisting('+i+')">✕</span>'
+      + '</div>';
+  }).join('');
+}
+function removeReviewPending(i) {
+  reviewPendingFiles.splice(i, 1);
+  renderReviewPendingFiles();
+}
+function removeReviewExisting(i) {
+  const editId = document.getElementById('reviewFormEditId').value;
+  const r = reviews.find(x => x.id === editId);
+  if (!r) return;
+  r.files = (r.files||[]).filter((_,fi)=>fi!==i);
+  renderReviewExistingFiles(r.files||[]);
+}
+function previewReviewFileData(idx, ev) {
+  // pending 列表预览（需要读取内存中的 base64）
+  if (idx >= 0 && reviewPendingFiles[idx]) {
+    openReviewPreview(reviewPendingFiles[idx].name, reviewPendingFiles[idx].base64, reviewPendingFiles[idx].type);
+  }
+}
+function previewReviewFile(reviewId, fi) {
+  const r = reviews.find(x => x.id === reviewId);
+  if (!r || !r.files || !r.files[fi]) return;
+  const f = r.files[fi];
+  if (!f.base64 || f.skipped) { toast('该附件仅保存在本机，云端未同步'); return; }
+  openReviewPreview(f.name, f.base64, f.type);
+}
+function openReviewPreview(name, base64, type) {
+  document.getElementById('reviewPreviewTitle').textContent = '预览 · ' + name;
+  const body = document.getElementById('reviewPreviewBody');
+  if (/^data:image\//.test(base64)) {
+    body.innerHTML = '<img src="'+base64+'" alt="'+escapeHtml(name)+'">'
+      + '<div class="review-preview-dl"><a href="'+base64+'" download="'+escapeHtml(name)+'">⬇ 下载原图</a></div>';
+  } else if (/^data:application\/pdf/.test(base64) || /\.pdf$/i.test(name)) {
+    body.innerHTML = '<iframe src="'+base64+'"></iframe>'
+      + '<div class="review-preview-dl"><a href="'+base64+'" download="'+escapeHtml(name)+'">⬇ 下载 PDF</a></div>';
+  } else {
+    body.innerHTML = '<div class="review-empty" style="margin:20px auto;">该文件类型暂不支持在线预览<br><a href="'+base64+'" download="'+escapeHtml(name)+'">⬇ 点击下载</a></div>';
+  }
+  document.getElementById('reviewPreviewModal').style.display = 'flex';
+}
+function closeReviewPreview() { document.getElementById('reviewPreviewModal').style.display = 'none'; }
 
 function saveReview() {
   const company = document.getElementById('reviewFormCompany').value.trim();
@@ -3115,6 +3294,15 @@ function saveReview() {
     if (idx >= 0) reviews[idx] = { ...reviews[idx], ...data };
   } else {
     reviews.unshift({ id: genId(), ...data, createdAt: new Date().toISOString() });
+  }
+  if (reviewPendingFiles.length) {
+    if (editId) {
+      const idx = reviews.findIndex(x => x.id === editId);
+      if (idx >= 0) reviews[idx].files = [...(reviews[idx].files||[]), ...reviewPendingFiles];
+    } else {
+      reviews[0].files = [...reviewPendingFiles];
+    }
+    reviewPendingFiles = [];
   }
   saveReviews();
   closeReviewModal();
