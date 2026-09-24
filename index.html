@@ -738,6 +738,38 @@ body {
 }
 
 </style>
+
+/* ==================== 板块5: AI 推荐 CSS ==================== */
+#sectionAiRecommend { display:none; flex-direction:column; flex:1; overflow-y:auto; padding-bottom:24px; }
+#sectionAiRecommend.active { display:flex; }
+.ai-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border); }
+.ai-last-time { font-size:12px; color:var(--text-muted); }
+.ai-status { margin:12px 16px 0; padding:10px 14px; border-radius:var(--radius-sm); font-size:13px; line-height:1.6; }
+.ai-status.info { background:var(--accent-glow); color:var(--text); border:1px solid rgba(123,97,255,.35); }
+.ai-status.err { background:var(--danger-glow); color:var(--text); border:1px solid rgba(248,113,113,.4); }
+.ai-status.ok { background:var(--green-glow); color:var(--text); border:1px solid rgba(74,222,128,.35); }
+.ai-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px; padding:16px; }
+.ai-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; display:flex; flex-direction:column; gap:8px; transition:var(--transition); }
+.ai-card:hover { border-color:var(--border-strong); box-shadow:var(--shadow-md); }
+.ai-card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.ai-score { flex-shrink:0; width:54px; height:54px; border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--accent-glow); border:1px solid rgba(123,97,255,.4); color:var(--accent); font-weight:700; }
+.ai-score b { font-size:18px; line-height:1.1; }
+.ai-score span { font-size:10px; color:var(--text-muted); font-weight:400; }
+.ai-card-title { font-size:15px; font-weight:600; color:var(--text); line-height:1.35; }
+.ai-card-meta { display:flex; flex-wrap:wrap; gap:6px; }
+.ai-meta-chip { font-size:11px; padding:2px 8px; border-radius:999px; background:var(--surface-3); color:var(--text-secondary); }
+.ai-card-reason { font-size:13px; color:var(--text-secondary); line-height:1.6; background:var(--surface-2); border-radius:var(--radius-sm); padding:8px 10px; }
+.ai-card-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:2px; }
+.ai-card-link { font-size:12px; color:var(--accent); text-decoration:none; }
+.ai-card-link:hover { text-decoration:underline; }
+.ai-settings { margin:0 16px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); }
+.ai-settings summary { cursor:pointer; padding:10px 14px; font-size:13px; color:var(--text-secondary); user-select:none; }
+.ai-settings-body { padding:12px 14px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:10px; }
+.ai-settings-body .form-group { display:flex; flex-direction:column; gap:4px; }
+.ai-settings-body label { font-size:12px; color:var(--text-muted); }
+.ai-settings-body input { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-xs); color:var(--text); padding:7px 10px; font-size:13px; }
+.ai-empty { padding:60px 20px; text-align:center; color:var(--text-muted); font-size:14px; }
+@media (max-width:768px) { .ai-list { grid-template-columns:1fr; } }
 </head>
 <body>
 
@@ -751,6 +783,7 @@ body {
       <button class="tab-btn" onclick="switchTab('track')">📋 投递管理<span class="tab-count" id="trackCount">0</span></button>
           <button class="tab-btn" onclick="switchTab('resume')">📄 简历管理</button>
           <button class="tab-btn" onclick="switchTab('review')">📝 复盘<span class="tab-count" id="reviewCount">0</span></button>
+      <button class="tab-btn" onclick="switchTab('aiRecommend')">🤖 AI 推荐</button>
     </nav>
   </div>
   <div class="header-right">
@@ -942,6 +975,28 @@ body {
     </div>
 
   </div>
+</section>
+
+<!-- ============ 板块5: AI 推荐 ============ -->
+<section class="view-section" id="sectionAiRecommend">
+  <div class="ai-toolbar">
+    <button class="btn btn-primary" onclick="startAiAnalysis()">🚀 开始分析</button>
+    <button class="btn btn-outline" onclick="aiResetAnalysis()" id="aiResetBtn" style="display:none;">🔄 重新分析</button>
+    <span class="ai-last-time" id="aiLastTime"></span>
+  </div>
+  <div class="ai-status info" id="aiStatus" style="display:none;"></div>
+  <div class="ai-list" id="aiList"></div>
+  <details class="ai-settings">
+    <summary>⚙️ 分析设置</summary>
+    <div class="ai-settings-body">
+      <div class="form-group"><label>DeepSeek API Key（默认已内置，可替换后保存）</label><input type="text" id="aiApiKey" placeholder="sk-..."></div>
+      <div class="form-group"><label>模型</label><input type="text" id="aiModel" placeholder="deepseek-chat"></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="aiSaveSettings()">💾 保存设置</button>
+        <button class="btn btn-outline btn-sm" onclick="aiClearCache()">🧹 清空本地缓存</button>
+      </div>
+    </div>
+  </details>
 </section>
 
 <!-- Review Modal -->
@@ -1338,6 +1393,10 @@ function switchTab(tab) {
     document.querySelector('.tab-btn:nth-child(4)').classList.add('active');
     document.getElementById('sectionReview').classList.add('active');
     renderReviews();
+  } else if (tab==='aiRecommend') {
+    document.querySelector('.tab-btn:nth-child(5)').classList.add('active');
+    document.getElementById('sectionAiRecommend').classList.add('active');
+    renderAiRecommend();
   }
 }
 
@@ -2218,6 +2277,7 @@ function qzTransformJobs(campusList) {
       out.push({
         id: d.id,
         company: d.company,
+        positionRaw: d.positions ? String(d.positions) : '',
         positionTypes: qzSplitPositions(d.positions),
         industryRaw: (d.industry||'').trim(),
         companyTypes: (d.industry||'').split(/[\/、]/).map(s=>s.trim()).filter(t=>SJ_COMPANY_TYPE_TAGS.includes(t)),
@@ -2248,6 +2308,7 @@ function mergeQiuzhiList() {
         const newUrl = q.url || '';
         if (newUrl !== oldUrl) existing.addedAt = now;
         existing.url = newUrl;
+        existing.positionRaw = q.positionRaw || existing.positionRaw;
         existing.positionTypes = q.positionTypes || existing.positionTypes;
         existing.industryRaw = q.industryRaw || existing.industryRaw;
         existing.typeTags = q.typeTags || existing.typeTags;
@@ -2262,6 +2323,7 @@ function mergeQiuzhiList() {
       id: genId(),
       qiuzhiId: q.id,
       company: q.company,
+      positionRaw: q.positionRaw || '',
       positionTypes: q.positionTypes || [],
       industryRaw: q.industryRaw || '',
       typeTags: q.typeTags || [],
@@ -3586,6 +3648,306 @@ function deleteReview(id) {
   saveReviews();
   renderReviews();
   toast('复盘已删除');
+}
+
+/* ==================== 板块5: AI 岗位推荐 ==================== */
+const AI_REC_CACHE_KEY = 'ai_recommend_cache';
+const AI_REC_SETTINGS_KEY = 'ai_recommend_settings';
+const AI_REC_DEFAULT_KEY = 'sk-069a570620684d839377512558f85d47';
+const AI_REC_DEFAULT_MODEL = 'deepseek-chat';
+const AI_REC_BATCH = 50;
+const AI_REC_TIMEOUT = 60000;
+
+function aiGetJobName(j) {
+  if (!j) return '';
+  if (j.positionRaw && String(j.positionRaw).trim()) return String(j.positionRaw).trim();
+  if (j.position && String(j.position).trim()) return String(j.position).trim();
+  if (Array.isArray(j.positionTypes) && j.positionTypes.length) return j.positionTypes.join(' / ');
+  return '';
+}
+function aiJobCity(j) {
+  if (Array.isArray(j.cities) && j.cities.length) return j.cities.join(' / ');
+  return j.city || '';
+}
+function aiArrText(arr) {
+  if (!Array.isArray(arr)) return '';
+  const parts = [];
+  arr.forEach(function(it, i) {
+    if (!it) return;
+    if (typeof it === 'string') { if (it.trim()) parts.push(String(i+1) + '. ' + it.trim()); return; }
+    try {
+      const kv = Object.keys(it).map(function(k){ const v=it[k]; return (v!==undefined && v!==null && v!=='' && typeof v!=='object') ? k+': '+v : ''; }).filter(Boolean);
+      const s = kv.join('；');
+      if (s) parts.push(String(i+1) + '. ' + s);
+    } catch(e){}
+  });
+  return parts.join('\n');
+}
+function aiBuildResumeText(resume) {
+  const r = resume || defaultResumeData();
+  const b = r.basicInfo || {};
+  const lines = [];
+  if (b.name) lines.push('姓名：' + b.name);
+  if (b.workYears !== undefined && b.workYears !== null && Number(b.workYears) >= 0) lines.push('工作年限：' + b.workYears + ' 年');
+  if (b.birthday) lines.push('出生日期：' + b.birthday);
+  if (b.email) lines.push('邮箱：' + b.email);
+  if (b.mobile) lines.push('手机：' + b.mobile);
+  if (b.inShort) lines.push('个人简介：' + b.inShort);
+  if (r.coreStrength && r.coreStrength.content) lines.push('核心优势：' + r.coreStrength.content);
+  if (r.jobIntent && r.jobIntent.content) lines.push('求职意向：' + r.jobIntent.content);
+  const edu = aiArrText(r.education);
+  if (edu) lines.push('教育经历：\n' + edu);
+  const inter = aiArrText(r.internship);
+  if (inter) lines.push('实习经历：\n' + inter);
+  const proj = aiArrText(r.campusProject);
+  if (proj) lines.push('校园项目：\n' + proj);
+  if (r.academic && r.academic.content) lines.push('学术成果：' + r.academic.content);
+  if (r.skillsHonors && r.skillsHonors.content) lines.push('技能与荣誉：' + r.skillsHonors.content);
+  return lines.join('\n');
+}
+function aiResumeEmpty(resume) {
+  const r = resume || defaultResumeData();
+  const b = r.basicInfo || {};
+  const hasBasic = !!(b.name || b.email || b.mobile || b.inShort || (b.workYears !== undefined && b.workYears !== null && Number(b.workYears) >= 0));
+  const hasArr = !!((Array.isArray(r.education) && r.education.length) || (Array.isArray(r.internship) && r.internship.length) || (Array.isArray(r.campusProject) && r.campusProject.length));
+  const hasText = !!((r.coreStrength && r.coreStrength.content) || (r.jobIntent && r.jobIntent.content) || (r.skillsHonors && r.skillsHonors.content) || (r.academic && r.academic.content));
+  return !(hasBasic || hasArr || hasText);
+}
+function aiBuildJobsText(batch) {
+  const lines = [];
+  batch.forEach(function(j, i) {
+    const name = aiGetJobName(j);
+    if (!name) return;
+    lines.push('[' + i + '] id=' + j.id
+      + '；公司=' + (j.company||'')
+      + '；岗位=' + name
+      + '；行业=' + (j.industryRaw || j.companyType || '')
+      + '；职位类型=' + (Array.isArray(j.typeTags) && j.typeTags.length ? j.typeTags.join('/') : '')
+      + '；城市=' + aiJobCity(j)
+      + '；批次=' + (j.batch||'')
+      + '；截止=' + (j.deadline||'')
+      + '；开放=' + (j.openingDate||'')
+      + '；投递链接=' + (j.url||''));
+  });
+  return lines.join('\n');
+}
+function aiBuildFingerprint(resume, jobList) {
+  let s = '';
+  try { s += JSON.stringify(resume); } catch(e){}
+  s += '||' + (jobList||[]).map(function(j){ return j.id + ':' + (j.company||'') + ':' + aiGetJobName(j) + ':' + (j.url||''); }).join(',');
+  let h = 0;
+  for (let i=0;i<s.length;i++){ h = ((h<<5)-h) + s.charCodeAt(i); h |= 0; }
+  return String(h);
+}
+function aiParseJsonResponse(text) {
+  if (!text) return null;
+  let t = String(text).trim();
+  t = t.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+  const start = t.indexOf('{');
+  const end = t.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return null;
+  const candidate = t.slice(start, end + 1);
+  try {
+    const obj = JSON.parse(candidate);
+    if (obj && Array.isArray(obj.recommendations)) return obj;
+  } catch(e){}
+  try {
+    const cleaned = candidate.replace(/,\s*}/g, '}').replace(/\/\/[^\n]*/g, '');
+    const obj = JSON.parse(cleaned);
+    if (obj && Array.isArray(obj.recommendations)) return obj;
+  } catch(e){}
+  return null;
+}
+function aiReadSettings() {
+  let key = AI_REC_DEFAULT_KEY, model = AI_REC_DEFAULT_MODEL;
+  try { const s = JSON.parse(localStorage.getItem(AI_REC_SETTINGS_KEY) || '{}'); if (s.key) key = s.key; if (s.model) model = s.model; } catch(e){}
+  return { key: key, model: model };
+}
+function aiSaveSettings() {
+  const key = (document.getElementById('aiApiKey') && document.getElementById('aiApiKey').value.trim()) || AI_REC_DEFAULT_KEY;
+  const model = (document.getElementById('aiModel') && document.getElementById('aiModel').value.trim()) || AI_REC_DEFAULT_MODEL;
+  try { localStorage.setItem(AI_REC_SETTINGS_KEY, JSON.stringify({ key: key, model: model })); } catch(e){}
+  toast('分析设置已保存');
+}
+function aiReadCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(AI_REC_CACHE_KEY) || 'null');
+    if (c && c.ts && Array.isArray(c.items)) return c;
+  } catch(e){}
+  return null;
+}
+function aiIsTracked(j) {
+  if (!j) return false;
+  const tracked = getTrackedStarJobIds();
+  const k = j.qiuzhiId ? 'q:'+j.qiuzhiId : (j.starjobId ? 's:'+j.starjobId : '');
+  return k ? tracked.has(k) : false;
+}
+function renderAiRecommend() {
+  const section = document.getElementById('sectionAiRecommend');
+  if (!section) return;
+  const listEl = document.getElementById('aiList');
+  const statusEl = document.getElementById('aiStatus');
+  const timeEl = document.getElementById('aiLastTime');
+  const resetBtn = document.getElementById('aiResetBtn');
+  if (listEl) listEl.innerHTML = '<div class="ai-empty">🤖 点击「开始分析」，AI 将对照你的简历与岗位清单，推荐 Top 20 最适合你的具体岗位</div>';
+  if (statusEl) { statusEl.style.display = 'none'; statusEl.className = 'ai-status info'; }
+  if (timeEl) timeEl.textContent = '';
+  if (resetBtn) resetBtn.style.display = 'none';
+  const keyEl = document.getElementById('aiApiKey'), modelEl = document.getElementById('aiModel');
+  const st = aiReadSettings();
+  if (keyEl && !keyEl.value) keyEl.value = st.key;
+  if (modelEl && !modelEl.value) modelEl.value = st.model;
+  const cache = aiReadCache();
+  if (cache && Array.isArray(cache.items) && cache.items.length) {
+    const fp = aiBuildFingerprint(loadResumeData(), jobList);
+    if (cache.fingerprint === fp) {
+      if (timeEl) timeEl.textContent = '上次分析：' + new Date(cache.ts).toLocaleString('zh-CN') + '（已缓存）';
+      if (resetBtn) resetBtn.style.display = '';
+      aiRenderCards(cache.items);
+    }
+  }
+}
+function aiShowStatus(kind, msg) {
+  const el = document.getElementById('aiStatus');
+  if (!el) return;
+  el.className = 'ai-status ' + kind;
+  el.style.display = 'block';
+  el.textContent = msg;
+}
+function aiRenderCards(items) {
+  const listEl = document.getElementById('aiList');
+  if (!listEl) return;
+  const top = (items || []).slice().sort(function(a,b){ return (b.score||0)-(a.score||0); }).slice(0,20);
+  if (!top.length) { listEl.innerHTML = '<div class="ai-empty">没有可展示的推荐结果</div>'; return; }
+  listEl.innerHTML = top.map(function(r) {
+    const j = jobList.find(function(x){ return x.id === r.jobId; });
+    if (!j) return '';
+    const name = aiGetJobName(j);
+    const score = Math.max(0, Math.min(100, Math.round(r.score || 0)));
+    const city = aiJobCity(j);
+    const tracked = aiIsTracked(j);
+    const linkHtml = j.url ? '<a class="ai-card-link" href="'+escapeHtml(j.url)+'" target="_blank" rel="noopener">🔗 投递链接</a>' : '<span class="ai-card-link" style="color:var(--text-muted)">无链接</span>';
+    const btnHtml = tracked
+      ? '<button class="btn btn-xs" disabled style="opacity:.5">✓ 已加入</button>'
+      : '<button class="btn btn-success btn-xs" onclick="aiAddToTrack(\''+j.id+'\')">+ 加入投递</button>';
+    const typeTags = (Array.isArray(j.typeTags) && j.typeTags.length) ? j.typeTags : ((j.companyType||'').split(' / ').map(function(s){return s.trim();}).filter(Boolean));
+    const chips = [];
+    if (j.company) chips.push('<span class="ai-meta-chip">🏢 '+escapeHtml(j.company)+'</span>');
+    typeTags.forEach(function(t){ if (t) chips.push('<span class="ai-meta-chip">'+escapeHtml(t)+'</span>'); });
+    if (city) chips.push('<span class="ai-meta-chip">📍 '+escapeHtml(city)+'</span>');
+    if (j.batch) chips.push('<span class="ai-meta-chip">📅 '+escapeHtml(j.batch)+'</span>');
+    return '<div class="ai-card">'
+      + '<div class="ai-card-head"><div class="ai-card-title">'+escapeHtml(name)+'</div><div class="ai-score"><b>'+score+'</b><span>匹配度</span></div></div>'
+      + '<div class="ai-card-meta">'+chips.join('')+'</div>'
+      + '<div class="ai-card-reason">💡 '+escapeHtml(r.reason || '')+'</div>'
+      + '<div class="ai-card-foot">'+linkHtml+btnHtml+'</div>'
+      + '</div>';
+  }).join('');
+}
+async function startAiAnalysis() {
+  const resume = loadResumeData();
+  const jobs = (jobList || []).filter(function(j){ return aiGetJobName(j); });
+  const listEl = document.getElementById('aiList');
+  const resetBtn = document.getElementById('aiResetBtn');
+  if (aiResumeEmpty(resume)) { aiShowStatus('err', '请先在简历管理完善简历（填写求职意向、教育、实习或项目经历）'); return; }
+  if (!jobs.length) { aiShowStatus('err', '岗位池为空，请先同步招聘方舟或手动添加岗位'); return; }
+  const settings = aiReadSettings();
+  if (!settings.key) { aiShowStatus('err', '未配置 DeepSeek API Key，请在下方设置区填写'); return; }
+  const fp = aiBuildFingerprint(resume, jobList);
+  const cache = aiReadCache();
+  if (cache && cache.fingerprint === fp && Array.isArray(cache.items) && cache.items.length) {
+    const timeEl = document.getElementById('aiLastTime');
+    if (timeEl) timeEl.textContent = '上次分析：' + new Date(cache.ts).toLocaleString('zh-CN') + '（数据未变化，直接使用缓存）';
+    if (resetBtn) resetBtn.style.display = '';
+    aiShowStatus('info', '简历与岗位数据未变化，已直接使用上次的本地缓存结果；如需重新分析请点「重新分析」');
+    aiRenderCards(cache.items);
+    return;
+  }
+  const missing = jobs.filter(function(j){ return !j.positionRaw; });
+  if (missing.length) aiShowStatus('info', '部分存量岗位缺少完整岗位名（positionRaw），建议先点右上角「同步招聘方舟」重新同步一次以补全，推荐会更精准；当前继续用已有数据分析…');
+  else aiShowStatus('info', '正在调用 DeepSeek 分析 ' + jobs.length + ' 个岗位，分批请求中（每批最多 ' + AI_REC_BATCH + ' 条）…');
+  if (listEl) listEl.innerHTML = '<div class="ai-empty">⏳ AI 正在逐批分析岗位匹配度，请稍候…</div>';
+  const btn = document.getElementById('aiStartBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 分析中…'; }
+  try {
+    const resumeText = aiBuildResumeText(resume);
+    const results = await aiCallDeepSeek(resumeText, jobs, settings.key, settings.model, function(done, total) {
+      aiShowStatus('info', 'AI 分析进度：' + done + ' / ' + total + ' 个岗位');
+    });
+    if (!results.length) throw new Error('AI 未返回任何有效推荐');
+    results.forEach(function(r){ r.score = Math.max(0, Math.min(100, Math.round(Number(r.score) || 0))); });
+    results.sort(function(a,b){ return b.score - a.score; });
+    const top20 = results.slice(0,20);
+    try { localStorage.setItem(AI_REC_CACHE_KEY, JSON.stringify({ ts: Date.now(), fingerprint: fp, items: top20 })); } catch(e){}
+    const timeEl = document.getElementById('aiLastTime');
+    if (timeEl) timeEl.textContent = '上次分析：' + new Date().toLocaleString('zh-CN');
+    if (resetBtn) resetBtn.style.display = '';
+    aiShowStatus('ok', '分析完成：共评估 ' + jobs.length + ' 个岗位，为你推荐 Top ' + top20.length + '');
+    aiRenderCards(top20);
+  } catch(e) {
+    console.error('[aiRecommend]', e);
+    aiShowStatus('err', 'AI 分析失败：' + (e && e.message ? e.message : String(e)) + '。请检查 API Key 是否有效、余额是否充足、网络是否正常，然后重试');
+    if (listEl) listEl.innerHTML = '';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🚀 开始分析'; }
+  }
+}
+async function aiCallDeepSeek(resumeText, jobList2, apiKey, model, onProgress) {
+  const results = [];
+  const total = jobList2.length;
+  const sys = '你是一位资深的校招 HR 与职业规划师。用户会提供一份简历文本和若干招聘岗位。请逐条评估每个岗位与该简历的匹配度，综合六个维度：求职意向匹配、专业/学历匹配、经历相关度、技能匹配、城市匹配、批次时效。对每个岗位输出 0-100 的匹配分（整数）与 2-3 句中文推荐理由。必须只输出严格 JSON：{"recommendations":[{"jobId":"...","score":92,"reason":"..."}]}，不要输出任何多余内容。';
+  for (let i = 0; i < total; i += AI_REC_BATCH) {
+    const batch = jobList2.slice(i, i + AI_REC_BATCH);
+    const jobText = aiBuildJobsText(batch);
+    const user = '【我的简历】\n' + resumeText + '\n\n【可投递岗位】\n' + jobText + '\n\n请返回严格 JSON。';
+    let data = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(function(){ ctrl.abort(); }, AI_REC_TIMEOUT);
+        let resp;
+        try {
+          resp = await fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+            body: JSON.stringify({ model: model || AI_REC_DEFAULT_MODEL, messages: [ { role: 'system', content: sys }, { role: 'user', content: user } ], temperature: 0.3, max_tokens: 4096 })
+          });
+        } finally { clearTimeout(timer); }
+        if (!resp.ok) {
+          let errMsg = 'API 返回 ' + resp.status;
+          try { const ej = await resp.json(); if (ej && ej.error && ej.error.message) errMsg = String(ej.error.message); } catch(e){}
+          throw new Error(errMsg);
+        }
+        const j = await resp.json();
+        const content = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+        const parsed = aiParseJsonResponse(content);
+        if (parsed && Array.isArray(parsed.recommendations)) { data = parsed; break; }
+        throw new Error('JSON 解析失败');
+      } catch(e) {
+        if (attempt === 1) throw e;
+        await new Promise(function(res){ setTimeout(res, 600); });
+      }
+    }
+    if (data && Array.isArray(data.recommendations)) {
+      data.recommendations.forEach(function(r){ if (r && r.jobId !== undefined && r.jobId !== null) results.push(r); });
+    }
+    if (onProgress) { try { onProgress(Math.min(i + batch.length, total), total); } catch(e){} }
+  }
+  return results;
+}
+function aiAddToTrack(jobId) { addToTrack(jobId); }
+async function aiResetAnalysis() {
+  try { localStorage.removeItem(AI_REC_CACHE_KEY); } catch(e){}
+  const timeEl = document.getElementById('aiLastTime'); if (timeEl) timeEl.textContent = '';
+  const resetBtn = document.getElementById('aiResetBtn'); if (resetBtn) resetBtn.style.display = 'none';
+  await startAiAnalysis();
+}
+function aiClearCache() {
+  try { localStorage.removeItem(AI_REC_CACHE_KEY); } catch(e){}
+  const timeEl = document.getElementById('aiLastTime'); if (timeEl) timeEl.textContent = '';
+  const resetBtn = document.getElementById('aiResetBtn'); if (resetBtn) resetBtn.style.display = 'none';
+  const listEl = document.getElementById('aiList'); if (listEl) listEl.innerHTML = '<div class="ai-empty">🤖 缓存已清空，点击「开始分析」重新生成推荐</div>';
+  aiShowStatus('info', '本地缓存已清空（推荐结果仅存本地，不进云端）');
 }
 
 </script>
