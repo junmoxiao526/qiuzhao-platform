@@ -980,7 +980,9 @@ body {
 <!-- ============ 板块5: AI 推荐 ============ -->
 <section class="view-section" id="sectionAiRecommend">
   <div class="ai-toolbar">
-    <button class="btn btn-primary" onclick="startAiAnalysis()">🚀 开始分析</button>
+    <button class="btn btn-primary" id="aiStartBtn" onclick="startAiAnalysis()">🚀 开始分析</button>
+    <button class="btn btn-outline" id="aiUploadResumeBtn" onclick="document.getElementById('aiResumeFileInput').click()">📄 上传简历</button>
+    <input type="file" id="aiResumeFileInput" accept=".pdf,.docx,.txt" style="display:none;" onchange="aiHandleResumeUpload(this.files)">
     <button class="btn btn-outline" onclick="aiResetAnalysis()" id="aiResetBtn" style="display:none;">🔄 重新分析</button>
     <span class="ai-last-time" id="aiLastTime"></span>
   </div>
@@ -3979,6 +3981,205 @@ function aiClearCache() {
   const resetBtn = document.getElementById('aiResetBtn'); if (resetBtn) resetBtn.style.display = 'none';
   const listEl = document.getElementById('aiList'); if (listEl) listEl.innerHTML = '<div class="ai-empty">🤖 缓存已清空，点击「开始分析」重新生成推荐</div>';
   aiShowStatus('info', '本地缓存已清空（推荐结果仅存本地，不进云端）');
+}
+
+
+/* ========== AI 推荐页：上传简历 PDF/DOCX/TXT 并覆盖写入简历管理 ========== */
+const AI_RESUME_MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
+function aiHandleResumeUpload(files) {
+  const input = document.getElementById('aiResumeFileInput');
+  const btn = document.getElementById('aiUploadResumeBtn');
+  if (!files || !files.length) return;
+  const file = files[0];
+  const lower = String(file.name || '').toLowerCase();
+  if (!lower.endsWith('.pdf') && !lower.endsWith('.docx') && !lower.endsWith('.txt')) {
+    toast('仅支持 .pdf / .docx / .txt 简历文件');
+    if (input) input.value = '';
+    return;
+  }
+  if (file.size > AI_RESUME_MAX_SIZE) {
+    toast('简历文件超过 10MB，请压缩后重试');
+    if (input) input.value = '';
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 解析中…'; }
+  aiShowStatus('info', '正在解析简历文件「' + file.name + '」，请稍候…');
+  (async function(){
+    try {
+      const text = await aiExtractResumeText(file);
+      if (!text || !String(text).trim()) throw new Error('未能从文件中提取到文字（扫描版 PDF 可能无文字层，请改用 .docx / .txt）');
+      const settings = aiReadSettings();
+      if (!settings.key) throw new Error('未配置 DeepSeek API Key，请在下方设置区填写后重试');
+      aiShowStatus('info', '正在调用 DeepSeek 将简历文本转为结构化数据…');
+      const structured = await aiResumeToStructured(String(text).trim(), settings.key, settings.model);
+      const cur = loadResumeData() || defaultResumeData();
+      const merged = Object.assign({}, defaultResumeData(), cur);
+      Object.keys(structured).forEach(function(k){
+        if (k === 'settings' || k === 'resumePdf') return;
+        if (structured[k] !== undefined) merged[k] = structured[k];
+      });
+      if (lower.endsWith('.pdf')) {
+        const dataUrl = await aiFileToDataUrl(file);
+        merged.resumePdf = [{ fileName: file.name, base64: dataUrl, uploadedAt: new Date().toISOString() }];
+      } else {
+        merged.resumePdf = (Array.isArray(cur.resumePdf) ? cur.resumePdf : []);
+      }
+      saveResumeData(merged);
+      try { localStorage.removeItem(AI_REC_CACHE_KEY); } catch(e){}
+      const timeEl = document.getElementById('aiLastTime'); if (timeEl) timeEl.textContent = '';
+      const resetBtn = document.getElementById('aiResetBtn'); if (resetBtn) resetBtn.style.display = 'none';
+      renderResume();
+      toast('简历已更新，可开始 AI 分析');
+      aiShowStatus('info', '简历已更新（来源：' + file.name + '），可点击「开始分析」基于最新简历匹配岗位');
+    } catch(err) {
+      let msg = String((err && err.message) || err);
+      if (/abort/i.test(msg)) msg = '请求超时，请重试';
+      aiShowStatus('err', '简历上传失败：' + msg + '（原简历未做任何改动）');
+      toast('简历解析失败，原简历未改动');
+    } finally {
+      if (input) input.value = '';
+      if (btn) { btn.disabled = false; btn.textContent = '📄 上传简历'; }
+    }
+  })();
+}
+
+function aiExtractResumeText(file) {
+  const lower = String(file.name || '').toLowerCase();
+  if (lower.endsWith('.txt')) {
+    return file.text().then(function(t){ return t; });
+  }
+  if (lower.endsWith('.docx')) {
+    return file.arrayBuffer().then(function(buf){
+      return mammoth.convertToHtml({ arrayBuffer: buf }).then(function(result){
+        return aiHtmlToText((result && result.value) || '');
+      });
+    });
+  }
+  return file.arrayBuffer().then(function(buf){
+    return aiEnsurePdfJs().then(function(pdfjsLib){
+      return pdfjsLib.getDocument({ data: buf }).promise.then(function(pdf){
+        const pages = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+          pages.push(pdf.getPage(i).then(function(page){
+            return page.getTextContent().then(function(tc){
+              return (tc.items || []).map(function(it){ return it.str || ''; }).join(' ');
+            });
+          }));
+        }
+        return Promise.all(pages).then(function(parts){ return parts.join('\n'); });
+      });
+    });
+  });
+}
+
+function aiFileToDataUrl(file) {
+  return new Promise(function(resolve, reject){
+    const fr = new FileReader();
+    fr.onload = function(e){ resolve(e.target.result); };
+    fr.onerror = function(){ reject(new Error('读取文件失败')); };
+    fr.readAsDataURL(file);
+  });
+}
+
+function aiEnsurePdfJs() {
+  return new Promise(function(resolve, reject){
+    if (window.pdfjsLib && window.pdfjsLib.getDocument) {
+      try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch(e){}
+      resolve(window.pdfjsLib);
+      return;
+    }
+    const urls = [
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+      'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js'
+    ];
+    let idx = 0;
+    function tryNext() {
+      if (idx >= urls.length) { reject(new Error('PDF 解析库加载失败，请检查网络后重试，或改用 .docx / .txt 简历')); return; }
+      const sc = document.createElement('script');
+      sc.src = urls[idx++];
+      sc.onload = function(){
+        if (window.pdfjsLib && window.pdfjsLib.getDocument) {
+          try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = urls[idx-1].replace('pdf.min.js', 'pdf.worker.min.js'); } catch(e){}
+          resolve(window.pdfjsLib);
+        } else { tryNext(); }
+      };
+      sc.onerror = function(){ if (sc && sc.parentNode) sc.parentNode.removeChild(sc); tryNext(); };
+      document.head.appendChild(sc);
+    }
+    tryNext();
+  });
+}
+
+function aiHtmlToText(html) {
+  const d = document.createElement('div');
+  d.innerHTML = html || '';
+  const t = (d.textContent || d.innerText || '') .replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n');
+  return t.trim();
+}
+
+function aiResumeParseJsonResponse(text) {
+  if (!text) return null;
+  let t = String(text).trim();
+  t = t.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+  const start = t.indexOf('{');
+  const end = t.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return null;
+  const candidate = t.slice(start, end + 1);
+  const coreKeys = ['basicInfo','coreStrength','education','academic','internship','campusProject','skillsHonors','jobIntent'];
+  function hasCore(o) { return coreKeys.some(function(k){ return o && o[k] !== undefined; }); }
+  try { const o = JSON.parse(candidate); if (hasCore(o)) return o; } catch(e){}
+  try {
+    const cleaned = candidate.replace(/,\s*}/g, '}').replace(/\/\/[^\n]*/g, '');
+    const o = JSON.parse(cleaned); if (hasCore(o)) return o;
+  } catch(e){}
+  return null;
+}
+
+function aiFetchWithTimeout(url, opts, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(function(){ ctrl.abort(); }, ms || 60000);
+  return fetch(url, Object.assign({}, opts, { signal: ctrl.signal })).finally(function(){ clearTimeout(timer); });
+}
+
+function aiBuildResumeStructPrompt() {
+  const schema = {
+    basicInfo: { name:'', sex:1, birthday:'', email:'', mobile:'', workYears:-1, photo:'', photoShow:false, minzu:'', zhengzhi:'', jiguan:'', hunyin:0, height:'', weight:'', inShort:'' },
+    coreStrength: { content:'' },
+    education: [{ school:'', major:'', degree:'', start:'', end:'' }],
+    academic: { content:'' },
+    internship: [{ company:'', position:'', start:'', end:'', content:'' }],
+    campusProject: [{ name:'', role:'', start:'', end:'', content:'' }],
+    skillsHonors: { content:'' },
+    jobIntent: { content:'' }
+  };
+  return '你是一位资深简历结构化解析专家。请把用户提供的简历文本解析为严格的 JSON 对象，字段结构如下：\n'
+    + JSON.stringify(schema) + '\n'
+    + '字段说明：basicInfo 为基本信息（sex: 1 男 / 0 女；workYears 工作年限，无则 -1）；education 教育经历数组；internship 实习经历数组；campusProject 校园项目数组；coreStrength 核心优势；academic 学术成果；skillsHonors 技能与荣誉；jobIntent 求职意向。数组中每个元素对应一段经历，start/end 为起止时间（如 2021-09、2021-09~2024-06），无法确定的字段一律用空字符串，不要编造。\n'
+    + '必须只输出严格 JSON 对象，不要输出任何解释、注释或多余内容。';
+}
+
+function aiResumeToStructured(resumeText, apiKey, model) {
+  const sys = aiBuildResumeStructPrompt();
+  const user = '【简历文本】\n' + resumeText + '\n\n请返回严格 JSON。';
+  return aiFetchWithTimeout('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    body: JSON.stringify({ model: model || 'deepseek-chat', messages: [ { role: 'system', content: sys }, { role: 'user', content: user } ], temperature: 0.2, max_tokens: 4096 })
+  }, 60000).then(function(resp){
+    if (!resp.ok) {
+      return resp.json().catch(function(){ return {}; }).then(function(ej){
+        throw new Error('DeepSeek 返回 ' + resp.status + (ej && ej.error && ej.error.message ? '：' + ej.error.message : ''));
+      });
+    }
+    return resp.json();
+  }).then(function(j){
+    const content = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+    const parsed = aiResumeParseJsonResponse(content);
+    if (!parsed) throw new Error('AI 返回内容解析失败，请重试');
+    return parsed;
+  });
 }
 
 </script>
