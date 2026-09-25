@@ -9,7 +9,7 @@ try {
 section('A 关键全局函数');
 [
   'escapeHtml','safeId','safeDataUrl','sanitizeJob','sanitizeReview','sanitizeJobList','mergeById',
-  'exportData','importData','buildBackup','toggleCloudSync','isCloudSyncOn','cloudSyncLabel',
+  'exportData','importData','buildBackup','pullJobPool','pushJobPool','mergeJobPool','renderPoolStatus',
   'recruitSeasonYear','sjParseStartDate','debounce','debouncedRenderExplore','runAction',
   'renderExplore','renderTrack','renderReviews','renderBoard','renderCard','startAiAnalysis',
   'previewPdf','removePdf','aiAddToTrack','findReview','deleteReview','openDetail','openEditModal',
@@ -69,7 +69,6 @@ chk('08.15 动态取年份', sjParseStartDate('08.15') === (recruitSeasonYear() 
 chk('完整日期原样返回', sjParseStartDate('2026-09-01') === '2026-09-01', sjParseStartDate('2026-09-01'));
 
 section('F 安全');
-chk('云同步默认关闭', isCloudSyncOn() === false);
 chk('已移除内置 API Key', AI_REC_DEFAULT_KEY === '', JSON.stringify(AI_REC_DEFAULT_KEY));
 // 不把完整 Key 字面量写进仓库，用前缀缩短的方式判断是否残留
 chk('页面源码不含内置 sk- Key', document.documentElement.outerHTML.indexOf('sk-' + '069a570620684d83') === -1);
@@ -117,18 +116,77 @@ chk('备份含 resume', !!b.resume && typeof b.resume === 'object');
 chk('备份含 summary', typeof b.summary === 'string');
 chk('备份可序列化', typeof JSON.stringify(b) === 'string');
 
-section('I 云同步关闭时不写云端');
-// 只观察，不真的调用 saveJobs()：本页是线上站点，若误开云同步会把真实数据推到线上存储。
-// 改为校验守卫函数与「关闭状态」这两个前提条件本身。
-chk('云同步为关闭状态', isCloudSyncOn() === false);
-var cloudPushSrc = String(window.cloudPush);
-chk('cloudPush 内存在开关守卫', cloudPushSrc.indexOf('isCloudSyncOn()') !== -1);
-var cloudPullSrc = String(window.cloudPull);
-chk('cloudPull 内存在开关守卫', cloudPullSrc.indexOf('isCloudSyncOn()') !== -1);
-var cloudSyncAllSrc = String(window.cloudSyncAll);
-chk('cloudSyncAll 内存在开关守卫', cloudSyncAllSrc.indexOf('isCloudSyncOn()') !== -1);
-chk('开启函数会先要求确认', String(window.toggleCloudSync).indexOf('confirm') !== -1);
-chk('本页 localStorage 无同步开关残留', (function(){ try { return localStorage.getItem('qiuzhao_cloud_sync_enabled') === null; } catch(e){ return false; } })());
+section('I 岗位池字段映射');
+var row = jobToPoolRow({
+  qiuzhiId: 'qz_map_1', company: '映射测试', positionRaw: '岗位A / 岗位B',
+  positionTypes: ['岗位A', '岗位B'], industryRaw: '互联网', typeTags: ['互联网'],
+  companyTypesRaw: ['互联网'], cities: ['上海', '北京'], batch: '2026秋招',
+  deadline: '2026-11-01', openingDate: '2026-09-01', url: 'https://example.com/a',
+  noticeUrl: 'https://example.com/n', referralCode: 'REF1', popular: 3
+});
+chk('映射使用 qiuzhi_id 作为主键', row.qiuzhi_id === 'qz_map_1', row.qiuzhi_id);
+chk('映射 position_types 为数组', Array.isArray(row.position_types) && row.position_types.length === 2, JSON.stringify(row.position_types));
+chk('映射 cities 为数组', Array.isArray(row.cities) && row.cities.length === 2, JSON.stringify(row.cities));
+chk('映射 popular 为数字', row.popular === 3, row.popular);
+chk('映射带 updated_at', typeof row.updated_at === 'string' && row.updated_at.length > 10);
+var back = poolRowToJob(row);
+chk('回读保留 qiuzhiId', back.qiuzhiId === 'qz_map_1', back.qiuzhiId);
+chk('回读生成新的本地 id', /^job_/.test(back.id), back.id);
+chk('回读合并城市为 city', back.city === '上海 / 北京', back.city);
+chk('回读保留投递链接', back.url === 'https://example.com/a', back.url);
+
+section('J 共享池合并语义');
+var localA = [{ id: 'L1', qiuzhiId: 'p1', company: '本地公司', deadline: '旧', addedAt: '2026-01-01T00:00:00Z' }];
+var remoteA = [
+  { id: 'R1', qiuzhiId: 'p1', company: '远端公司', deadline: '新', addedAt: '2026-09-01T00:00:00Z' },
+  { id: 'R2', qiuzhiId: 'p2', company: '新增公司', addedAt: '2026-09-01T00:00:00Z' }
+];
+var merged = mergeJobPool(localA, remoteA);
+chk('合并后不重复（p1 只一条）', merged.filter(j => j.qiuzhiId === 'p1').length === 1, merged.length);
+chk('合并保留本地 id', merged.filter(j => j.qiuzhiId === 'p1')[0].id === 'L1', merged.filter(j => j.qiuzhiId === 'p1')[0].id);
+chk('合并采用远端时效字段', merged.filter(j => j.qiuzhiId === 'p1')[0].deadline === '新');
+chk('合并保留本地加入时间', merged.filter(j => j.qiuzhiId === 'p1')[0].addedAt === '2026-01-01T00:00:00Z');
+chk('合并纳入新岗位', !!merged.filter(j => j.qiuzhiId === 'p2')[0]);
+chk('合并结果数量为 2', merged.length === 2, merged.length);
+
+section('K 个人数据绝不外传（关键架构约束）');
+var supaHits = [];
+var origFetch = window.fetch;
+window.fetch = function (u) { var s = String(u); if (s.indexOf('supabase') !== -1) supaHits.push(s); return origFetch.apply(this, arguments); };
+saveJobs();
+saveReviews();
+saveSummary();
+saveResumeData(loadResumeData());
+window.fetch = origFetch;
+chk('保存个人数据未发起任何 supabase 请求', supaHits.length === 0, 'hits=' + supaHits.length + ' ' + supaHits.slice(0, 3).join(' | '));
+// 源码层面确认个人数据没有任何上传路径
+var bigScript = null;
+for (var si2 = 0; si2 < document.scripts.length; si2++) {
+  if ((document.scripts[si2].textContent || '').length > 100000) bigScript = document.scripts[si2];
+}
+chk('能取到主脚本', !!bigScript);
+if (bigScript) {
+  var src = bigScript.textContent;
+  chk('源码不再引用 sync_data 表', src.indexOf("from('sync_data')") === -1 && src.indexOf('"sync_data"') === -1);
+  chk('岗位池表名已切换', src.indexOf("JOB_POOL_TABLE = 'job_pool'") !== -1);
+  chk('saveJobs 内无上传调用', (function () {
+    var m = src.match(/function saveJobs\(\)[\s\S]{0,400}?\n\}/);
+    return !!m && m[0].indexOf('supabase') === -1;
+  })());
+  chk('saveReviews 内无上传调用', (function () {
+    var m = src.match(/function saveReviews\(\)[\s\S]{0,400}?\n\}/);
+    return !!m && m[0].indexOf('supabase') === -1;
+  })());
+  chk('saveResumeData 内无上传调用', (function () {
+    var m = src.match(/function saveResumeData\([\s\S]{0,300}?\n\}/);
+    return !!m && m[0].indexOf('supabase') === -1;
+  })());
+  chk('简历字段不出现在池映射中', String(window.jobToPoolRow).indexOf('basicInfo') === -1);
+  chk('池映射不含手机号字段', String(window.jobToPoolRow).indexOf('mobile') === -1);
+}
+chk('页面无云同步开关残留', !document.getElementById('cloudToggleBtn'));
+chk('岗位池状态区已渲染', !!document.getElementById('poolInfo'));
+
 
 section('J 搜索防抖');
 chk('debouncedRenderExplore 已定义', typeof debouncedRenderExplore === 'function', typeof debouncedRenderExplore);

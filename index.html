@@ -813,8 +813,10 @@ body {
 .cloud-box .cloud-title { font-size:13px; color:var(--text-secondary); }
 .cloud-box .cloud-state { font-size:12px; color:var(--text-muted); }
 .cloud-box .cloud-state.on { color:var(--green); }
-.cloud-box .cloud-warn { font-size:12px; line-height:1.7; color:var(--amber); margin:0; }
-.cloud-box .cloud-warn strong { color:var(--danger); }
+.cloud-box .cloud-warn { font-size:12px; line-height:1.7; color:var(--text-muted); margin:0; }
+.cloud-box .cloud-warn strong, .cloud-box .cloud-warn b { color:var(--text-secondary); }
+.cloud-box .cloud-info { font-size:12px; line-height:1.7; color:var(--text-muted); margin:0; }
+.cloud-box .cloud-info b { color:var(--accent); }
 </style>
 </head>
 <body>
@@ -940,17 +942,18 @@ body {
     </div>
   </div>
 
-  <!-- 云同步开关（默认关闭） -->
+  <!-- 岗位池共享状态 -->
   <div class="cloud-box" id="cloudBox">
     <div class="cloud-row">
-      <span class="cloud-title">☁️ 云同步（跨设备同步投递记录 / 复盘 / 简历）</span>
+      <span class="cloud-title">🌐 共享岗位池（所有使用者共用一份，人人可贡献）</span>
       <span style="display:flex;align-items:center;gap:10px;">
-        <span class="cloud-state" id="cloudState">已关闭</span>
-        <button class="btn btn-outline btn-sm" id="cloudToggleBtn" onclick="toggleCloudSync()">开启云同步</button>
+        <button class="btn btn-outline btn-sm" id="poolPullBtn" onclick="pullJobPool(true)">⬇ 获取共享岗位</button>
       </span>
     </div>
-    <p class="cloud-warn" id="cloudWarn">
-      ⚠️ 当前云同步后端<b>未开启行级权限（RLS）</b>，一旦开启，你的投递记录、复盘内容和简历资料会被<b>上传到公网可读的存储中，任何拿到本站源码的人都能读取</b>。在你完成 Supabase 的 Auth + RLS 配置前，请保持关闭；不开启也能正常使用本站全部功能（数据只存在本机浏览器）。
+    <p class="cloud-info" id="poolInfo">正在读取岗位池状态…</p>
+    <p class="cloud-warn">
+      🔒 <b>你的投递记录、复盘面经、简历资料只保存在本机浏览器，不会上传到任何服务器</b>，其他人看不到。
+      共享池里只有公开招聘信息（公司、岗位、城市、投递链接），不含任何个人数据。
     </p>
   </div>
 
@@ -1461,74 +1464,166 @@ function sanitizeJobList(items) {
 
 // ==================== 数据持久化 ====================
 function loadJobs() { try { const r=lsGet(STORAGE_JOBS); jobs=(Array.isArray(r)?r:[]).map(sanitizeJob).filter(Boolean); } catch { jobs=[]; } }
+// 投递记录是个人隐私，只写本机 localStorage，没有任何上传路径
 function saveJobs() {
   if (!lsSet(STORAGE_JOBS, jobs)) { try { alert('投递记录本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
-  cloudPush('jobs', jobs);
 }
 function loadReviews() { try { const r=lsGet(STORAGE_REVIEWS); reviews=(Array.isArray(r)?r:[]).map(sanitizeReview).filter(Boolean); } catch { reviews=[]; } }
+// 复盘（含面经与附件）同样是个人隐私，只存本机
 function saveReviews() {
   if (!lsSet(STORAGE_REVIEWS, reviews)) { try { alert('复盘数据本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
-  let pushData = reviews;
-  if (JSON.stringify(reviews).length > 4 * 1024 * 1024) {
-    // 云同步超过大小限制时剥离附件（仅保留文件名占位），本地数据不受影响
-    pushData = reviews.map(r => (r.files && r.files.length) ? { ...r, files: r.files.map(f=>({ name:f.name, type:f.type, size:f.size, skipped:true })) } : r);
-  }
-  cloudPush('reviews', pushData);
 }
 
-// ==================== Supabase 云同步（默认关闭，需用户显式开启） ====================
-// 安全说明：anon key 必然随前端源码公开，真正的访问控制只能由服务端 RLS 提供。
-// 因此在后端补齐 Auth + RLS 之前，客户端默认不推送任何数据。
-const CLOUD_SYNC_KEY = 'qiuzhao_cloud_sync_enabled';
+// ==================== Supabase 共享岗位池 ====================
+// 架构说明：
+//   job_pool  —— 岗位池，全站共用一份，匿名可读可写（岗位是公开招聘信息，非隐私）
+//   个人数据   —— 投递/复盘/简历/总结，只存本机 localStorage，永不上传，无需登录
+// 因此本文件里不存在任何"把个人数据推到云端"的代码路径。
+const JOB_POOL_TABLE = 'job_pool';
+const POOL_BATCH = 200;   // 分批 upsert，避免单请求体过大
+const LAST_POOL_PULL_KEY = 'qiuzhao_pool_last_pull';
+const LAST_POOL_PUSH_KEY = 'qiuzhao_pool_last_push';
+
 let supabaseClient = null;
 try { if (window.supabase) supabaseClient = supabase.createClient(SUPA_URL, SUPA_ANON_KEY); } catch(e) {}
-function isCloudSyncOn() { try { return localStorage.getItem(CLOUD_SYNC_KEY) === '1'; } catch(e) { return false; } }
 function nowIso() { return new Date().toISOString(); }
-async function cloudPush(key, data) {
-  try {
-    if (!supabaseClient || !isCloudSyncOn()) return;
-    await supabaseClient.from('sync_data').upsert({ key, payload: { data, updatedAt: nowIso() } }, { onConflict: 'key' });
-  } catch(e) { console.warn('[cloudPush]', key, e); }
+function isPoolAvailable() { return !!supabaseClient; }
+
+// 岗位对象 → 数据库行
+function jobToPoolRow(j) {
+  return {
+    qiuzhi_id:      String(j.qiuzhiId),
+    company:        String(j.company || ''),
+    position_raw:   j.positionRaw || (Array.isArray(j.positionTypes) ? j.positionTypes.join(' / ') : '') || '',
+    position_types: Array.isArray(j.positionTypes) ? j.positionTypes : [],
+    industry_raw:   j.industryRaw || '',
+    type_tags:      Array.isArray(j.typeTags) ? j.typeTags : [],
+    company_types:  Array.isArray(j.companyTypesRaw) ? j.companyTypesRaw : (Array.isArray(j.companyTypes) ? j.companyTypes : []),
+    cities:         Array.isArray(j.cities) ? j.cities : [],
+    batch:          j.batch || '',
+    deadline:       j.deadline || '',
+    opening_date:   j.openingDate || '',
+    url:            j.url || '',
+    notice_url:     j.noticeUrl || '',
+    referral_code:  j.referralCode || '',
+    popular:        Number(j.popular) || 0,
+    updated_at:     nowIso(),
+  };
 }
-async function cloudPull(key) {
-  try {
-    if (!supabaseClient || !isCloudSyncOn()) return null;
-    const { data } = await supabaseClient.from('sync_data').select('payload').eq('key', key).maybeSingle();
-    return data ? data.payload : null;
-  } catch(e) { console.warn('[cloudPull]', key, e); return null; }
+// 数据库行 → 岗位对象（复用现有 sanitizeJobList 兜底消毒）
+function poolRowToJob(r) {
+  return {
+    id: genId(),
+    qiuzhiId: r.qiuzhi_id,
+    company: r.company,
+    positionRaw: r.position_raw || '',
+    positionTypes: r.position_types || [],
+    industryRaw: r.industry_raw || '',
+    typeTags: r.type_tags || [],
+    companyTypesRaw: r.company_types || [],
+    companyType: mapCompanyTypes(r.company_types || []) || (r.type_tags || []).join(' / '),
+    cities: r.cities || [],
+    city: (r.cities || []).join(' / '),
+    batch: r.batch || '',
+    deadline: r.deadline || '',
+    openingDate: r.opening_date || '',
+    url: r.url || '',
+    noticeUrl: r.notice_url || '',
+    referralCode: r.referral_code || '',
+    popular: Number(r.popular) || 0,
+    addedAt: r.first_seen_at || nowIso(),
+  };
 }
-function cloudSyncLabel() {
-  const state = document.getElementById('cloudState');
-  const btn = document.getElementById('cloudToggleBtn');
-  const warn = document.getElementById('cloudWarn');
-  if (!state || !btn) return;
-  if (isCloudSyncOn()) {
-    state.textContent = '已开启'; state.classList.add('on');
-    btn.textContent = '关闭云同步'; btn.classList.remove('btn-outline'); btn.classList.add('btn-danger');
-    if (warn) warn.innerHTML = '⚠️ 云同步已开启，投递记录 / 复盘 / 简历正在同步到 Supabase。'
-      + '若你<b>尚未在 Supabase 配置 Auth + RLS</b>，这些数据对任何拿到本站源码的人都是<b>可读且可篡改</b>的，建议立即关闭并清理云端数据。';
-  } else {
-    state.textContent = '已关闭'; state.classList.remove('on');
-    btn.textContent = '开启云同步'; btn.classList.add('btn-outline'); btn.classList.remove('btn-danger');
-    if (warn) warn.innerHTML = '⚠️ 当前云同步后端<b>未开启行级权限（RLS）</b>，一旦开启，你的投递记录、复盘内容和简历资料会被'
-      + '<b>上传到公网可读的存储中，任何拿到本站源码的人都能读取</b>。在你完成 Supabase 的 Auth + RLS 配置前，请保持关闭；'
-      + '不开启也能正常使用本站全部功能（数据只存在本机浏览器）。';
+
+// 拉取共享池；返回 true 表示成功
+async function pullJobPool(showToast) {
+  if (!isPoolAvailable()) { if (showToast) toast('共享岗位池不可用（Supabase 未加载）'); return false; }
+  try {
+    const { data, error } = await supabaseClient
+      .from(JOB_POOL_TABLE)
+      .select('*')
+      .order('updated_at', { ascending: false })
+      .limit(5000);
+    if (error) throw error;
+    const rows = data || [];
+    if (rows.length === 0) {
+      if (showToast) toast('共享岗位池暂无数据，点「同步招聘方舟」抓取后会自动共享');
+      return true;
+    }
+    const remote = sanitizeJobList(rows.map(poolRowToJob));
+    const before = jobList.length;
+    jobList = mergeJobPool(jobList, remote);
+    saveJobList();
+    try { localStorage.setItem(LAST_POOL_PULL_KEY, nowIso()); } catch(e) {}
+    renderExplore();
+    if (showToast) {
+      const added = jobList.length - before;
+      toast(added > 0 ? `已从共享池获取 ${added} 个新岗位` : '共享池已是最新');
+    }
+    return true;
+  } catch(e) {
+    console.warn('[pullJobPool]', e);
+    if (showToast) toast('获取共享岗位失败：' + (e.message || e));
+    return false;
   }
 }
-function toggleCloudSync() {
-  const on = !isCloudSyncOn();
-  if (on) {
-    const ok = window.confirm('确认开启云同步？\n\n当前后端未配置 RLS，开启后你的投递记录、复盘内容、简历资料会上传到公网可读的存储，任何拿到本站源码的人都能读取和篡改。\n\n确定要继续吗？');
-    if (!ok) return;
-    try { localStorage.setItem(CLOUD_SYNC_KEY, '1'); } catch(e) {}
-    toast('云同步已开启，正在同步…');
-    cloudSyncAll().then(() => { cloudSyncLabel(); });
-  } else {
-    try { localStorage.removeItem(CLOUD_SYNC_KEY); } catch(e) {}
-    toast('云同步已关闭，数据只保留在本机');
-  }
-  cloudSyncLabel();
+// 合并规则：按 qiuzhiId 去重；两边都有时以远端的时效字段为准，但保留本地已加入时间
+function mergeJobPool(localArr, remoteArr) {
+  const byId = new Map();
+  (localArr || []).forEach(j => { if (j && j.qiuzhiId) byId.set(String(j.qiuzhiId), { ...j }); });
+  (remoteArr || []).forEach(j => {
+    if (!j || !j.qiuzhiId) return;
+    const k = String(j.qiuzhiId);
+    const cur = byId.get(k);
+    if (!cur) { byId.set(k, j); return; }
+    byId.set(k, {
+      ...cur,
+      ...j,
+      id: cur.id,                       // 保持本地 id，避免投递记录里的引用失效
+      addedAt: cur.addedAt || j.addedAt, // 保留本地加入时间
+    });
+  });
+  return [...byId.values()];
 }
+
+// 把本地岗位池推送到共享池（分批 upsert）
+async function pushJobPool(rows, showToast) {
+  if (!isPoolAvailable()) return false;
+  if (!rows.length) { if (showToast) toast('没有需要共享的新岗位'); return true; }
+  try {
+    for (let i = 0; i < rows.length; i += POOL_BATCH) {
+      const batch = rows.slice(i, i + POOL_BATCH);
+      const { error } = await supabaseClient
+        .from(JOB_POOL_TABLE)
+        .upsert(batch, { onConflict: 'qiuzhi_id' });
+      if (error) throw error;
+    }
+    try { localStorage.setItem(LAST_POOL_PUSH_KEY, nowIso()); } catch(e) {}
+    if (showToast) toast(`已向共享池贡献 ${rows.length} 个岗位`);
+    return true;
+  } catch(e) {
+    console.warn('[pushJobPool]', e);
+    if (showToast) toast('共享失败：' + (e.message || e));
+    return false;
+  }
+}
+function poolLastSyncText() {
+  let pullAt = '', pushAt = '';
+  try { pullAt = localStorage.getItem(LAST_POOL_PULL_KEY) || ''; pushAt = localStorage.getItem(LAST_POOL_PUSH_KEY) || ''; } catch(e) {}
+  const fmt = t => { if (!t) return '从未'; try { return new Date(t).toLocaleString('zh-CN'); } catch(e) { return '从未'; } };
+  return { pull: fmt(pullAt), push: fmt(pushAt) };
+}
+function renderPoolStatus() {
+  const info = document.getElementById('poolInfo');
+  if (!info) return;
+  const t = poolLastSyncText();
+  const shared = jobList.filter(j => j.qiuzhiId).length;
+  const manual = jobList.length - shared;
+  info.innerHTML =
+    `本机岗位：<b>${jobList.length}</b> 个（其中共享池来源 <b>${shared}</b>，手动添加 <b>${manual}</b>）`
+    + `　·　上次获取共享池：${escapeHtml(t.pull)}　·　上次贡献：${escapeHtml(t.push)}`;
+}
+// 同步流程见 syncQiuzhiFangzhou()：抓取 → 本地合并 → 仅把新增岗位推送到共享池
 
 function mergeById(localArr, remoteArr, sanitize) {
   const fn = typeof sanitize === 'function' ? sanitize : (x => x);
@@ -1547,34 +1642,6 @@ function mergeById(localArr, remoteArr, sanitize) {
   });
   return [...map.values()];
 }
-async function cloudSyncAll() {
-  try {
-    if (!supabaseClient || !isCloudSyncOn()) return;
-    const r1 = await cloudPull('jobList');
-    if (r1 && Array.isArray(r1.data)) { jobList = mergeById(jobList, r1.data, null); saveJobList(); }
-    const r2 = await cloudPull('jobs');
-    if (r2 && Array.isArray(r2.data)) { jobs = mergeById(jobs, r2.data, sanitizeJob); saveJobs(); }
-    const r3 = await cloudPull('summary');
-    if (r3 && typeof r3.data === 'string' && r3.data) {
-      lsSet(STORAGE_SUMMARY, r3.data);
-      const el = document.getElementById('summaryText'); if (el) el.value = r3.data;
-    }
-    const r4 = await cloudPull('resume');
-    if (r4 && typeof r4.data === 'object' && r4.data) {
-      const local = loadResumeData();
-      const merged = { ...r4.data };
-      if (!merged.resumePdf && local.resumePdf) merged.resumePdf = local.resumePdf;
-      saveResumeData(merged);
-      renderResume();
-    }
-    const r5 = await cloudPull('reviews');
-    if (r5 && Array.isArray(r5.data)) { reviews = mergeById(reviews, r5.data, sanitizeReview); saveReviews(); }
-    renderExplore();
-    renderTrack();
-    renderReviews();
-  } catch(e) { console.warn('[cloudSyncAll]', e); }
-}
-
 function cleanupStaleJobs() {
   const before = jobs.length;
   jobs = jobs.filter(j => {
@@ -1586,9 +1653,9 @@ function cleanupStaleJobs() {
   return 0;
 }
 function loadJobList() { try { const r=lsGet(STORAGE_JOBLIST); jobList=sanitizeJobList(r); } catch { jobList=[]; } }
+// 岗位池同时写本机缓存；共享池的推送由 pullJobPool / syncJobPool 显式触发
 function saveJobList() {
   if (!lsSet(STORAGE_JOBLIST, jobList)) { try { alert('岗位清单本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
-  cloudPush('jobList', jobList);
 }
 
 // ==================== Tab 切换 ====================
@@ -2643,8 +2710,7 @@ function saveSummary() {
   const v = document.getElementById('summaryText').value;
   // 与其它数据统一走压缩层，避免原始 JSON 覆盖压缩内容导致读取不一致
   lsSet(STORAGE_SUMMARY, v);
-  cloudPush('summary', v);
-  toast('总结已保存');
+  toast('总结已保存（仅本机）');
 }
 function loadSummary() {
   const v = lsGet(STORAGE_SUMMARY);
@@ -2776,12 +2842,14 @@ async function syncQiuzhiFangzhou() {
     const existingQiuzhiIds = new Set(jobList.map(j=>(j.qiuzhiId||null)).filter(Boolean));
     let newCount=0, skipCount=0;
     const newCos=[];
+    const newItems=[];   // 本次新增的岗位，稍后单向推送到共享池
     for (const q of data) {
       if (existingQiuzhiIds.has(q.id)) { skipCount++; continue; }
       meta.syncedIds = meta.syncedIds||[];
       meta.syncedIds.push(q.id);
       newCount++;
       newCos.push(q.company);
+      newItems.push(q);
     }
     meta.lastSyncAt = new Date().toISOString();
     meta.totalRemote = data.length;
@@ -2790,18 +2858,36 @@ async function syncQiuzhiFangzhou() {
     mergeQiuzhiList(); saveJobList();
     renderExplore();
 
+    // 把本次新增的岗位贡献到共享岗位池（只增，不覆盖他人可能已更新的记录）
+    let pushedText = '';
+    if (newItems.length) {
+      const rows = newItems.map(q => jobToPoolRow({
+        qiuzhiId: q.id, company: q.company, positionRaw: q.positionRaw,
+        positionTypes: q.positionTypes, industryRaw: q.industryRaw,
+        typeTags: q.typeTags, companyTypes: q.companyTypes, cities: q.cities,
+        batch: q.batch, deadline: q.deadline, openingDate: q.openingDate,
+        url: q.url, noticeUrl: q.noticeUrl, referralCode: q.referralCode,
+        popular: q.popular,
+      }));
+      const ok = await pushJobPool(rows, false);
+      pushedText = ok
+        ? `<p style="color:var(--green);font-size:12px;">✅ 已向共享池贡献 ${rows.length} 个岗位，其他使用者可直接获取</p>`
+        : `<p style="color:var(--amber);font-size:12px;">⚠️ 岗位已存本机，但共享失败（共享池未建或网络异常）</p>`;
+      renderPoolStatus();
+    }
+
     const summary = document.getElementById('syncSummary');
     summary.innerHTML = `<div style="display:flex;gap:16px;margin-bottom:8px;">
       <div style="flex:1;text-align:center;padding:12px;background:rgba(74,222,128,0.10);border-radius:8px;border:1px solid rgba(74,222,128,0.22)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:24px;font-weight:700;color:var(--text-muted)">${skipCount}</div><div style="font-size:12px;color:var(--text-muted)">已存在</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:rgba(96,165,250,0.10);border-radius:8px;border:1px solid rgba(96,165,250,0.22)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
-    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}</p>`;
+    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}</p>${pushedText}`;
 
     let listHtml = '';
     if (newCos.length>0) {
       listHtml += '<div style="font-weight:600;color:var(--green);margin-bottom:4px;">新增公司:</div>';
       listHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
-      newCos.slice(0,50).forEach(c=>{ listHtml+=`<span style="background:rgba(74,222,128,0.14);color:var(--green);padding:2px 8px;border-radius:4px;font-size:12px;">${c}</span>`; });
+      newCos.slice(0,50).forEach(c=>{ listHtml+=`<span style="background:rgba(74,222,128,0.14);color:var(--green);padding:2px 8px;border-radius:4px;font-size:12px;">${escapeHtml(c)}</span>`; });
       if (newCos.length>50) listHtml+=`<span style="font-size:12px;color:var(--text-muted)">等 ${newCos.length} 个</span>`;
       listHtml += '</div>';
     }
@@ -2879,14 +2965,12 @@ saveJobList(); renderExplore();
 renderTrack();
 renderReviews();
 updateFilterOptions();
-cloudSyncLabel();
-// 云同步默认关闭：仅在用户显式开启后才拉取云端数据
-if (isCloudSyncOn()) {
-  if (supabaseClient) {
-    cloudSyncAll().then(()=>{ fixAppliedDates(); renderTrack(); cloudSyncLabel(); });
-  }
+renderPoolStatus();
+// 启动时自动拉取一次共享岗位池（岗位是公开数据，不涉及任何个人隐私）
+if (isPoolAvailable()) {
+  pullJobPool(false).then(() => { fixAppliedDates(); renderTrack(); renderPoolStatus(); });
 } else {
-  console.log('[云同步] 未开启，数据仅保存在本机浏览器。开启方式：投递管理页 → 云同步开关。');
+  console.log('[岗位池] Supabase 未加载，本次仅使用本机数据');
 }
 
 /* ═══════════ 星图渲染（3D 球体 · 右面板布局） ═══════════ */
@@ -3412,14 +3496,9 @@ function loadResumeData() {
   catch { return defaultResumeData(); }
 }
 
+// 简历含姓名/手机/邮箱等隐私，只写本机 localStorage，没有上传路径
 function saveResumeData(data) {
   if (!lsSet(STORAGE_RESUME, data)) { try { alert('简历本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
-  let pushData = data;
-  if (JSON.stringify(data).length > 4 * 1024 * 1024) {
-    pushData = { ...data };
-    delete pushData.resumePdf;
-  }
-  cloudPush('resume', pushData);
 }
 
 /* ========== RENDER ========== */
