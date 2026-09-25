@@ -1889,25 +1889,29 @@ function renderExplore() {
   }
 
   // 统计
-  // 「岗位总数」= 本机清单条数 = 历次「同步招聘方舟」累积去重后的数量。
-  // 同步是只增不减的：本次抓到的 30 天窗口里，新岗位会加入，而此前同步过、
-  // 如今已滑出窗口的岗位仍会保留（避免还没截止的岗位凭空消失）。
-  // 因此这个数字只会随时间增大，且 ≥ 单次同步抓到的窗口条数。
-  // 「已加入投递」直接等于投递管理的记录总数（见下）。
-  // 注：岗位清单表格里每行的「已投递/已加入」徽章是另一套判定（按公司名匹配），
-  // 所以当同一公司在池中有多个岗位时，带徽章的行数可能多于此处计数——这是设计如此。
-  const totalAll = jobList.length;
+  // 「公司数」= 去重后的公司数量，与下方表格的行数一致（表格一行就是一家公司）。
+  // 「岗位条数」= 清单里的记录条数：同一家公司发布多个岗位会占多条，
+  //   所以它通常略大于公司数（实测 4215 条 / 4008 家）。
+  // 两者都是"历次「同步招聘方舟」累积去重"后的结果：新岗位会加入，
+  //   此前同步过、如今已滑出抓取窗口的岗位仍保留，避免还没截止的岗位凭空消失。
+  // 「已加入投递」直接等于投递管理的记录总数。
+  // 注：表格里每行的「已投递/已加入」徽章按公司名匹配，
+  //   同一公司在池中有多个岗位时带徽章的行会多于此处的公司数——这是设计如此。
+  const companySet = new Set();
+  jobList.forEach(j => { const c = (j.company || '').trim(); if (c) companySet.add(c); });
+  const companyCount = companySet.size;
+  const openingCount = jobList.length;
   const trackedAll = jobs.length;
   const dateRange = (function () {
     const ds = jobList.map(j => j.openingDate).filter(Boolean).sort();
     return ds.length ? (ds[0] + ' ~ ' + ds[ds.length - 1]) : '';
   })();
   document.getElementById('exploreStats').innerHTML = `
-    <div class="stat-card" title="本机清单条数：历次同步累积去重后的数量，只会随时间增大"><div class="stat-label">岗位总数</div><div class="stat-value" style="color:var(--accent)">${totalAll}</div>${dateRange?`<div class="stat-sub">开放日期 ${escapeHtml(dateRange)}</div>`:''}</div>
+    <div class="stat-card" title="去重后的公司数量，与下方表格行数一致（表格一行即一家公司）"><div class="stat-label">公司数</div><div class="stat-value" style="color:var(--accent)">${companyCount}</div>${openingCount!==companyCount?`<div class="stat-sub">共 ${openingCount} 条岗位记录</div>`:''}${dateRange?`<div class="stat-sub">开放日期 ${escapeHtml(dateRange)}</div>`:''}</div>
     <div class="stat-card" title="与「投递管理」中的记录总数一致"><div class="stat-label">已加入投递</div><div class="stat-value" style="color:var(--green)">${trackedAll}</div></div>
-    <div class="stat-card" title="应用搜索与筛选条件后的岗位数"><div class="stat-label">当前筛选</div><div class="stat-value" style="color:var(--amber)">${filtered.length}</div></div>
+    <div class="stat-card" title="应用搜索与筛选条件后的记录条数"><div class="stat-label">当前筛选</div><div class="stat-value" style="color:var(--amber)">${filtered.length}</div></div>
   `;
-  document.getElementById('exploreCount').textContent = totalAll;
+  document.getElementById('exploreCount').textContent = openingCount;
   document.getElementById('trackCount').textContent = jobs.length;
 
   // 渲染深色数据表格
