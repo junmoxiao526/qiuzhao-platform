@@ -1385,6 +1385,17 @@ function safeDataUrl(v) {
   if (!/^data:(image\/(png|jpe?g|gif|webp|bmp)|application\/pdf)[;,]/.test(s)) return '';
   return s;
 }
+// 链接白名单：岗位池是共享且匿名可写的，任何人塞进来的 url 都可能带 javascript: 等协议，
+// 点一下就在受害者浏览器里执行脚本。escapeHtml 只挡引号尖括号，挡不住协议，必须单独校验。
+const SAFE_HREF_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:'];
+function safeHref(v) {
+  if (v === undefined || v === null) return '';
+  const s = String(v).trim();
+  if (!s) return '';
+  let u;
+  try { u = new URL(s); } catch (e) { return ''; }   // 相对路径、畸形 URL 一律拒绝
+  return SAFE_HREF_PROTOCOLS.indexOf(u.protocol) !== -1 ? s : '';
+}
 function toast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
 // 搜索框防抖：岗位池可达数千条，逐字符全量重排会明显卡顿
 function debounce(fn, wait) {
@@ -1408,6 +1419,8 @@ function sanitizeJob(raw) {
   const j = { ...raw };
   j.id = safeId(j.id);
   ['company','position','city','companyType','salary','link'].forEach(k => { if (typeof j[k] !== 'string') j[k] = j[k] == null ? '' : String(j[k]); });
+  // link 会被渲染成 href，存进来时就先过一遍协议白名单
+  j.link = safeHref(j.link);
   ['applyDate','deadline','assessDeadline','aiDeadline','interviewDate'].forEach(k => {
     const v = (typeof j[k] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(j[k])) ? j[k] : '';
     j[k] = v;
@@ -2000,8 +2013,10 @@ function renderExplore() {
       const isTracked = (j.qiuzhiId ? tracked.has('q:'+j.qiuzhiId) : (j.starjobId ? tracked.has('s:'+j.starjobId) : false));
       const industry = getIndustryFromJob(j) || '';
       const upd = getExploreUpdateLabel(j);
-      const noticeHtml = j.noticeUrl ? `<a href="${escapeHtml(j.noticeUrl)}" target="_blank" class="expl-link" onclick="event.stopPropagation()">招聘公告</a>` : '<span class="expl-dim">-</span>';
-      const applyHtml = j.url ? `<a href="${escapeHtml(j.url)}" target="_blank" class="expl-link" onclick="event.stopPropagation()">投递官网</a>` : '<span class="expl-dim">-</span>';
+      const noticeHref = safeHref(j.noticeUrl);
+      const applyLinkHref = safeHref(j.url);
+      const noticeHtml = noticeHref ? `<a href="${escapeHtml(noticeHref)}" target="_blank" rel="noopener noreferrer" class="expl-link">招聘公告</a>` : '<span class="expl-dim">-</span>';
+      const applyHtml = applyLinkHref ? `<a href="${escapeHtml(applyLinkHref)}" target="_blank" rel="noopener noreferrer" class="expl-link">投递官网</a>` : '<span class="expl-dim">-</span>';
       const tagList = (j.typeTags && j.typeTags.length) ? j.typeTags
         : (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean);
       const typeTags = tagList.map(t=>`<span class="tag-chip ${tagClass(t)}">${escapeHtml(t)}</span>`).join('') || '<span class="expl-dim">-</span>';
@@ -2087,7 +2102,7 @@ function openExploreDetail(listId) {
       <div>🏢 公司类型: ${escapeHtml(item.companyType||'未标注')}</div>
       <div>🏭 所在行业: ${escapeHtml(getIndustryFromJob(item)||'未标注')}</div>
       <div>📍 城市: ${escapeHtml(item.city||'未标注')}</div>
-      ${item.url ? `<div>🔗 <a href="${escapeHtml(item.url)}" target="_blank">查看详情</a></div>` : ''}
+      ${safeHref(item.url) ? `<div>🔗 <a href="${escapeHtml(safeHref(item.url))}" target="_blank" rel="noopener noreferrer">查看详情</a></div>` : ''}
       ${trackedJob ? `<div style="margin-top:8px;color:var(--green);">✓ 已在投递管理中 (${getStatusLabel(trackedJob.status)})</div>` : ''}
     </div>
   `;
@@ -2495,19 +2510,22 @@ function openDetail(id) {
   let linkHtml;
   if (exp && (exp.noticeUrl || exp.url)) {
     const parts = [];
-    if (exp.noticeUrl) parts.push(`<a style="color:var(--accent);word-break:break-all;" href="${escapeHtml(exp.noticeUrl)}" target="_blank">📢 招聘公告：${escapeHtml(exp.noticeUrl)}</a>`);
-    if (exp.url) parts.push(`<a style="color:var(--accent);word-break:break-all;" href="${escapeHtml(exp.url)}" target="_blank">🚀 投递链接：${escapeHtml(exp.url)}</a>`);
-    linkHtml = `<div>🔗 链接: ${parts.join('<br>')}</div>`;
+    const nHref = safeHref(exp.noticeUrl);
+    const aHref = safeHref(exp.url);
+    if (nHref) parts.push(`<a style="color:var(--accent);word-break:break-all;" href="${escapeHtml(nHref)}" target="_blank" rel="noopener noreferrer">📢 招聘公告：${escapeHtml(nHref)}</a>`);
+    if (aHref) parts.push(`<a style="color:var(--accent);word-break:break-all;" href="${escapeHtml(aHref)}" target="_blank" rel="noopener noreferrer">🚀 投递链接：${escapeHtml(aHref)}</a>`);
+    linkHtml = parts.length ? `<div>🔗 链接: ${parts.join('<br>')}</div>` : '<div>🔗 链接: 未填写</div>';
   } else {
-    linkHtml = `<div>🔗 链接: ${j.link?`<a style="word-break:break-all;" href="${escapeHtml(j.link)}" target="_blank">${escapeHtml(j.link)}</a>`:'未填写'}</div>`;
+    const jHref = safeHref(j.link);
+    linkHtml = `<div>🔗 链接: ${jHref?`<a style="word-break:break-all;" href="${escapeHtml(jHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(jHref)}</a>`:'未填写'}</div>`;
   }
   document.getElementById('detailBody').innerHTML = `
     <div style="font-size:13px;color:var(--text-secondary);line-height:2;">
       <div>🏢 公司类型: ${escapeHtml(j.companyType||'未填写')}</div>
       <div>📍 城市: ${escapeHtml(j.city||'未填写')}</div>
-      <div>📅 投递日期: ${j.applyDate||'未填写'}</div>
-      <div>⏰ 截止日期: ${j.deadline||'未填写'}</div>
-      <div>📝 笔/面试: ${j.interviewDate||'未填写'}</div>
+      <div>📅 投递日期: ${escapeHtml(j.applyDate||'未填写')}</div>
+      <div>⏰ 截止日期: ${escapeHtml(j.deadline||'未填写')}</div>
+      <div>📝 笔/面试: ${escapeHtml(j.interviewDate||'未填写')}</div>
       <div>💰 薪资: ${escapeHtml(j.salary||'未填写')}</div>
       ${linkHtml}
       <div>📋 备注: ${escapeHtml(j.notes||'无')}</div>
@@ -3350,18 +3368,18 @@ function openStarPanel(job) {
 
   panel.innerHTML =
     '<div class="sp-header">' +
-      '<div class="sp-company">' + job.company + '</div>' +
-      '<div class="sp-position">' + (job.position || '未填写岗位') + '</div>' +
+      '<div class="sp-company">' + escapeHtml(job.company) + '</div>' +
+      '<div class="sp-position">' + escapeHtml(job.position || '未填写岗位') + '</div>' +
     '</div>' +
     '<div class="sp-body">' +
-      '<div class="sp-row"><span class="sp-label">当前轨道</span><span class="sp-val">' + statusLabel + '</span></div>' +
-      '<div class="sp-row"><span class="sp-label">地点</span><span class="sp-val">' + (job.city || '-') + '</span></div>' +
-      '<div class="sp-row"><span class="sp-label">行业</span><span class="sp-val">' + industry + '</span></div>' +
-      '<div class="sp-row"><span class="sp-label">最近更新</span><span class="sp-val">' + updated + '</span></div>' +
-      (job.link ? '<div class="sp-row"><span class="sp-label">投递链接</span><span class="sp-val"><a href="' + job.link + '" target="_blank" style="color:var(--accent);text-decoration:none;">打开链接 →</a></span></div>' : '') +
+      '<div class="sp-row"><span class="sp-label">当前轨道</span><span class="sp-val">' + escapeHtml(statusLabel) + '</span></div>' +
+      '<div class="sp-row"><span class="sp-label">地点</span><span class="sp-val">' + escapeHtml(job.city || '-') + '</span></div>' +
+      '<div class="sp-row"><span class="sp-label">行业</span><span class="sp-val">' + escapeHtml(industry) + '</span></div>' +
+      '<div class="sp-row"><span class="sp-label">最近更新</span><span class="sp-val">' + escapeHtml(updated) + '</span></div>' +
+      (safeHref(job.link) ? '<div class="sp-row"><span class="sp-label">投递链接</span><span class="sp-val"><a href="' + escapeHtml(safeHref(job.link)) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;">打开链接 →</a></span></div>' : '') +
     '</div>' +
     '<div class="sp-actions">' +
-      '<button class="sp-btn primary" onclick="openEditModal(\'' + job.id + '\')">查看/修改进度</button>' +
+      '<button type="button" class="sp-btn primary" data-act="edit" data-id="' + escapeHtml(job.id) + '">查看/修改进度</button>' +
     '</div>';
 }
 
@@ -4226,7 +4244,8 @@ function aiRenderCards(items) {
     const score = Math.max(0, Math.min(100, Math.round(r.score || 0)));
     const city = aiJobCity(j);
     const tracked = aiIsTracked(j);
-    const linkHtml = j.url ? '<a class="ai-card-link" href="'+escapeHtml(j.url)+'" target="_blank" rel="noopener">🔗 投递链接</a>' : '<span class="ai-card-link" style="color:var(--text-muted)">无链接</span>';
+    const aiHref = safeHref(j.url);
+    const linkHtml = aiHref ? '<a class="ai-card-link" href="'+escapeHtml(aiHref)+'" target="_blank" rel="noopener noreferrer">🔗 投递链接</a>' : '<span class="ai-card-link" style="color:var(--text-muted)">无链接</span>';
     const btnHtml = tracked
       ? '<button type="button" class="btn btn-xs" disabled style="opacity:.5">✓ 已加入</button>'
       : '<button type="button" class="btn btn-success btn-xs" data-act="ai-add-to-track" data-id="'+escapeHtml(j.id)+'">+ 加入投递</button>';
