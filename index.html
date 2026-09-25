@@ -2113,12 +2113,18 @@ function renderExplore() {
   }
 
   // 统计
+  // 「已加入投递」直接等于投递管理的记录总数。
+  // 早先这里用 qiuzhiId 去岗位池里反查，只有"岗位 id 仍在池中"的记录才被计入，
+  // 于是与投递管理页对不上（手动添加的、以及岗位被重新发布后 id 变化的记录都会漏掉）。
+  // 现在与「投递管理」页签上的计数同源，两个数字必然一致。
+  // 注：岗位清单表格里每行的「已投递/已加入」徽章是另一套判定（按公司名匹配），
+  // 所以当同一公司在池中有多个岗位时，带徽章的行数可能多于此处计数——这是设计如此。
   const totalAll = jobList.length;
-  const trackedAll = jobList.filter(j=>{ const k = j.qiuzhiId ? 'q:'+j.qiuzhiId : (j.starjobId ? 's:'+j.starjobId : ''); return k ? tracked.has(k) : false; }).length;
+  const trackedAll = jobs.length;
   document.getElementById('exploreStats').innerHTML = `
     <div class="stat-card"><div class="stat-label">岗位总数</div><div class="stat-value" style="color:var(--accent)">${totalAll}</div></div>
-    <div class="stat-card"><div class="stat-label">已加入投递</div><div class="stat-value" style="color:var(--green)">${trackedAll}</div></div>
-    <div class="stat-card"><div class="stat-label">当前筛选</div><div class="stat-value" style="color:var(--amber)">${filtered.length}</div></div>
+    <div class="stat-card" title="与「投递管理」中的记录总数一致"><div class="stat-label">已加入投递</div><div class="stat-value" style="color:var(--green)">${trackedAll}</div></div>
+    <div class="stat-card" title="应用搜索与筛选条件后的岗位数"><div class="stat-label">当前筛选</div><div class="stat-value" style="color:var(--amber)">${filtered.length}</div></div>
   `;
   document.getElementById('exploreCount').textContent = totalAll;
   document.getElementById('trackCount').textContent = jobs.length;
