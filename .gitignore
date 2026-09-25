@@ -11,3 +11,29 @@ run_err.log
 # Python 与系统临时产物
 __pycache__/
 *.pyc
+
+# ── 本地校验/测试台产物（不入库）──
+# 说明：.check-syntax.js / .cdp-run.js / .probe-body.js 是有价值的测试工具，保留入库；
+# 下面这些是一次性产物与基线快照，不入库。
+*.orig-backup
+baseline-original.html
+.probe.html
+probe-*.html
+.served.html
+.probe-dump.html
+.probe-out.txt
+.baseline-out.txt
+.probename.txt
+.state.js
+.mini.js
+.nav.js
+.diag.js
+.inspect.js
+.grab-script.js
+.probe-diag.js
+.probe-baseline-check.js
+.probe-export.js
+.make-probe.js
+.shot.js
+shot-*.png
+minitest/

@@ -125,6 +125,7 @@ body {
   padding:12px 18px; cursor:pointer; transition:all var(--transition);
   min-width:90px; text-align:center; position:relative; overflow:hidden;
   box-shadow:var(--shadow-sm);
+  font-family:inherit; color:inherit; line-height:1.4; -webkit-appearance:none; appearance:none;
 }
 .stat-card:hover { transform:translateY(-2px); border-color:var(--border-strong); box-shadow:var(--shadow-md); }
 .stat-dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px; box-shadow:0 0 6px currentColor; }
@@ -766,8 +767,23 @@ body {
 .ai-settings-body .form-group { display:flex; flex-direction:column; gap:4px; }
 .ai-settings-body label { font-size:12px; color:var(--text-muted); }
 .ai-settings-body input { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-xs); color:var(--text); padding:7px 10px; font-size:13px; }
+.ai-settings-hint { margin:0; font-size:12px; line-height:1.7; color:var(--text-muted); }
+.ai-settings-hint a { color:var(--accent); }
+.ai-settings-hint code { background:var(--surface-2); border:1px solid var(--border); border-radius:3px; padding:1px 4px; font-size:11px; }
 .ai-empty { padding:60px 20px; text-align:center; color:var(--text-muted); font-size:14px; }
 @media (max-width:768px) { .ai-list { grid-template-columns:1fr; } }
+/* 键盘可达焦点环：仅键盘导航时出现，不干扰鼠标用户 */
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+.expl-row:focus-visible, .list-row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+/* 云同步开关 */
+.cloud-box { display:flex; flex-direction:column; gap:8px; margin:0 16px 14px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); }
+.cloud-box .cloud-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.cloud-box .cloud-title { font-size:13px; color:var(--text-secondary); }
+.cloud-box .cloud-state { font-size:12px; color:var(--text-muted); }
+.cloud-box .cloud-state.on { color:var(--green); }
+.cloud-box .cloud-warn { font-size:12px; line-height:1.7; color:var(--amber); margin:0; }
+.cloud-box .cloud-warn strong { color:var(--danger); }
 </style>
 </head>
 <body>
@@ -797,7 +813,7 @@ body {
   <div class="toolbar">
     <div class="search-box">
       <span class="search-icon">🔍</span>
-      <input type="text" id="exploreSearch" placeholder="搜索公司名称..." oninput="renderExplore()">
+      <input type="text" id="exploreSearch" placeholder="搜索公司名称..." oninput="debouncedRenderExplore()">
     </div>
     <span class="filter-toggle" onclick="toggleFilterPanel()">⚙ 筛选<span class="filter-count" id="filterCount" style="display:none;">0</span></span>
     <button class="btn btn-sm btn-outline" onclick="clearAllFilters()" style="color:var(--danger);border-color:rgba(239,68,68,0.25);display:none;" id="btnClearFilters">✕ 清空</button>
@@ -865,7 +881,7 @@ body {
   <div class="toolbar">
     <div class="search-box">
       <span class="search-icon">🔍</span>
-      <input type="text" id="trackSearch" placeholder="搜索公司、岗位、城市、类型..." oninput="renderTrack()">
+      <input type="text" id="trackSearch" placeholder="搜索公司、岗位、城市、类型..." oninput="debouncedRenderTrack()">
     </div>
     <div class="view-toggle" style="display:flex;gap:4px;">
       <button id="btnBoard" class="btn btn-sm active" onclick="setTrackView('board')">看板</button>
@@ -891,6 +907,20 @@ body {
       <button class="btn btn-sm" onclick="loadSummary()">📂 加载</button>
       <button class="btn btn-primary btn-sm" onclick="saveSummary()">💾 保存</button>
     </div>
+  </div>
+
+  <!-- 云同步开关（默认关闭） -->
+  <div class="cloud-box" id="cloudBox">
+    <div class="cloud-row">
+      <span class="cloud-title">☁️ 云同步（跨设备同步投递记录 / 复盘 / 简历）</span>
+      <span style="display:flex;align-items:center;gap:10px;">
+        <span class="cloud-state" id="cloudState">已关闭</span>
+        <button class="btn btn-outline btn-sm" id="cloudToggleBtn" onclick="toggleCloudSync()">开启云同步</button>
+      </span>
+    </div>
+    <p class="cloud-warn" id="cloudWarn">
+      ⚠️ 当前云同步后端<b>未开启行级权限（RLS）</b>，一旦开启，你的投递记录、复盘内容和简历资料会被<b>上传到公网可读的存储中，任何拿到本站源码的人都能读取</b>。在你完成 Supabase 的 Auth + RLS 配置前，请保持关闭；不开启也能正常使用本站全部功能（数据只存在本机浏览器）。
+    </p>
   </div>
 
   <!-- Board View -->
@@ -942,7 +972,7 @@ body {
       <div class="toolbar">
         <div class="search-box">
           <span class="search-icon">🔍</span>
-          <input type="text" id="reviewSearch" placeholder="搜索企业、岗位、要点..." oninput="renderReviews()">
+          <input type="text" id="reviewSearch" placeholder="搜索企业、岗位、要点..." oninput="debouncedRenderReviews()">
         </div>
         <select class="filter-select" id="reviewStageFilter" onchange="renderReviews()">
           <option value="">全部阶段</option>
@@ -986,18 +1016,19 @@ body {
     <span class="ai-last-time" id="aiLastTime"></span>
   </div>
   <div class="ai-status info" id="aiStatus" style="display:none;"></div>
-  <div class="ai-list" id="aiList"></div>
-  <details class="ai-settings">
+  <details class="ai-settings" id="aiSettings">
     <summary>⚙️ 分析设置</summary>
     <div class="ai-settings-body">
-      <div class="form-group"><label>DeepSeek API Key（默认已内置，可替换后保存）</label><input type="text" id="aiApiKey" placeholder="sk-..."></div>
-      <div class="form-group"><label>模型</label><input type="text" id="aiModel" placeholder="deepseek-chat"></div>
+      <div class="form-group"><label for="aiApiKey">DeepSeek API Key（仅保存在你自己的浏览器，不会上传）</label><input type="password" id="aiApiKey" placeholder="sk-..." autocomplete="off" spellcheck="false"></div>
+      <div class="form-group"><label for="aiModel">模型</label><input type="text" id="aiModel" placeholder="deepseek-chat"></div>
+      <p class="ai-settings-hint">在 <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">platform.deepseek.com</a> 创建 Key 后粘贴到这里并点「保存设置」。Key 只存于本机 <code>localStorage</code>，请求直连 DeepSeek 官方接口，不经过本站服务器。</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn btn-outline btn-sm" onclick="aiSaveSettings()">💾 保存设置</button>
-        <button class="btn btn-outline btn-sm" onclick="aiClearCache()">🧹 清空本地缓存</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="aiSaveSettings()">💾 保存设置</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="aiClearCache()">🧹 清空本地缓存</button>
       </div>
     </div>
   </details>
+  <div class="ai-list" id="aiList"></div>
 </section>
 
 <!-- Review Modal -->
@@ -1237,11 +1268,16 @@ const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const QIUZHI_META_KEY = 'qiuzhi_sync_meta';
 const SJ_COMPANY_TYPE_TAGS = ['科技','互联网','央国企','金融','外企','游戏','在线教育','快消','其他','制造业'];
 
+// 招聘季年份：秋招季按"当年 7 月"为界，1-6 月仍属于上一年开启的那一届
+function recruitSeasonYear(d) {
+  const t = d || new Date();
+  return (t.getMonth() + 1) < 7 ? t.getFullYear() - 1 : t.getFullYear();
+}
 function sjParseStartDate(raw) {
   if (!raw) return '';
   raw = String(raw).trim();
   const m = raw.match(/^(\d{1,2})\.(\d{1,2})$/);
-  if (m) return `2026-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+  if (m) return `${recruitSeasonYear()}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0,10);
   return '';
 }
@@ -1309,19 +1345,83 @@ let exploreFilters = {
 
 // ==================== 工具函数 ====================
 function genId() { return 'job_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+// id 白名单：id 会被拼进 onclick/data-* 属性，来自导入文件或云端的数据一律不可信
+const SAFE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+function safeId(v) { const s = (v === undefined || v === null) ? '' : String(v); return SAFE_ID_RE.test(s) ? s : genId(); }
+// 只保留安全的 data: 图片/PDF 前缀，避免 data:text/html、data:image/svg+xml 被执行
+function safeDataUrl(v) {
+  const s = (v === undefined || v === null) ? '' : String(v);
+  if (!/^data:(image\/(png|jpe?g|gif|webp|bmp)|application\/pdf)[;,]/.test(s)) return '';
+  return s;
+}
 function toast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2000); }
+// 搜索框防抖：岗位池可达数千条，逐字符全量重排会明显卡顿
+function debounce(fn, wait) {
+  let timer = null;
+  return function() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function(){ timer = null; fn(); }, wait || 150);
+  };
+}
+const debouncedRenderExplore = debounce(renderExplore, 150);
+const debouncedRenderTrack = debounce(renderTrack, 150);
+const debouncedRenderReviews = debounce(renderReviews, 150);
 function escapeHtml(s) { if(!s) return ''; const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}; return String(s).replace(/[&<>"']/g,c=>m[c]); }
 function getStatusLabel(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).label; }
 function getStatusDot(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).dot; }
 function getStatusBadge(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).badge; }
 
+// 记录级规范化：所有来自 localStorage 清洗、导入文件、云端同步的数据都必须过一遍
+function sanitizeJob(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const j = { ...raw };
+  j.id = safeId(j.id);
+  ['company','position','city','companyType','salary','link'].forEach(k => { if (typeof j[k] !== 'string') j[k] = j[k] == null ? '' : String(j[k]); });
+  ['applyDate','deadline','assessDeadline','aiDeadline','interviewDate'].forEach(k => {
+    const v = (typeof j[k] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(j[k])) ? j[k] : '';
+    j[k] = v;
+  });
+  const st = STATUSES.find(s => s.key === j.status);
+  j.status = st ? st.key : 'pending';
+  if (typeof j.notes !== 'string') j.notes = '';
+  return j;
+}
+function sanitizeReview(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = { ...raw };
+  r.id = safeId(r.id);
+  ['company','job','title','content','next','date'].forEach(k => { if (typeof r[k] !== 'string') r[k] = r[k] == null ? '' : String(r[k]); });
+  const stageOk = REVIEW_STAGES.some(s => s.key === r.stage);
+  r.stage = stageOk ? r.stage : 'other';
+  r.files = Array.isArray(r.files) ? r.files.filter(f => f && typeof f === 'object').map(f => {
+    const safe = { name: String(f.name || ''), type: String(f.type || ''), size: Number(f.size) || 0 };
+    if (f.skipped) safe.skipped = true;
+    const d = safeDataUrl(f.base64);
+    if (d) safe.base64 = d;
+    return safe;
+  }) : [];
+  return r;
+}
+function sanitizeJobList(items) {
+  if (!Array.isArray(items)) return [];
+  return items.filter(it => it && typeof it === 'object').map(it => {
+    const o = { ...it };
+    o.id = safeId(o.id);
+    ['company','city','batch','url','noticeUrl','companyType','industryRaw','positionRaw','deadline','openingDate'].forEach(k => {
+      if (o[k] != null && typeof o[k] !== 'string') o[k] = String(o[k]);
+    });
+    ['typeTags','positionTypes','cities'].forEach(k => { if (!Array.isArray(o[k])) o[k] = []; });
+    return o;
+  });
+}
+
 // ==================== 数据持久化 ====================
-function loadJobs() { try { const r=lsGet(STORAGE_JOBS); jobs=Array.isArray(r)?r:[]; } catch { jobs=[]; } }
+function loadJobs() { try { const r=lsGet(STORAGE_JOBS); jobs=(Array.isArray(r)?r:[]).map(sanitizeJob).filter(Boolean); } catch { jobs=[]; } }
 function saveJobs() {
   if (!lsSet(STORAGE_JOBS, jobs)) { try { alert('投递记录本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
   cloudPush('jobs', jobs);
 }
-function loadReviews() { try { const r=lsGet(STORAGE_REVIEWS); reviews=Array.isArray(r)?r:[]; } catch { reviews=[]; } }
+function loadReviews() { try { const r=lsGet(STORAGE_REVIEWS); reviews=(Array.isArray(r)?r:[]).map(sanitizeReview).filter(Boolean); } catch { reviews=[]; } }
 function saveReviews() {
   if (!lsSet(STORAGE_REVIEWS, reviews)) { try { alert('复盘数据本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
   let pushData = reviews;
@@ -1332,45 +1432,87 @@ function saveReviews() {
   cloudPush('reviews', pushData);
 }
 
-// ==================== Supabase 云同步 ====================
+// ==================== Supabase 云同步（默认关闭，需用户显式开启） ====================
+// 安全说明：anon key 必然随前端源码公开，真正的访问控制只能由服务端 RLS 提供。
+// 因此在后端补齐 Auth + RLS 之前，客户端默认不推送任何数据。
+const CLOUD_SYNC_KEY = 'qiuzhao_cloud_sync_enabled';
 let supabaseClient = null;
 try { if (window.supabase) supabaseClient = supabase.createClient(SUPA_URL, SUPA_ANON_KEY); } catch(e) {}
+function isCloudSyncOn() { try { return localStorage.getItem(CLOUD_SYNC_KEY) === '1'; } catch(e) { return false; } }
 function nowIso() { return new Date().toISOString(); }
 async function cloudPush(key, data) {
   try {
-    if (!supabaseClient) return;
+    if (!supabaseClient || !isCloudSyncOn()) return;
     await supabaseClient.from('sync_data').upsert({ key, payload: { data, updatedAt: nowIso() } }, { onConflict: 'key' });
   } catch(e) { console.warn('[cloudPush]', key, e); }
 }
 async function cloudPull(key) {
   try {
-    if (!supabaseClient) return null;
+    if (!supabaseClient || !isCloudSyncOn()) return null;
     const { data } = await supabaseClient.from('sync_data').select('payload').eq('key', key).maybeSingle();
     return data ? data.payload : null;
   } catch(e) { console.warn('[cloudPull]', key, e); return null; }
 }
-function mergeById(localArr, remoteArr) {
+function cloudSyncLabel() {
+  const state = document.getElementById('cloudState');
+  const btn = document.getElementById('cloudToggleBtn');
+  const warn = document.getElementById('cloudWarn');
+  if (!state || !btn) return;
+  if (isCloudSyncOn()) {
+    state.textContent = '已开启'; state.classList.add('on');
+    btn.textContent = '关闭云同步'; btn.classList.remove('btn-outline'); btn.classList.add('btn-danger');
+    if (warn) warn.innerHTML = '⚠️ 云同步已开启，投递记录 / 复盘 / 简历正在同步到 Supabase。'
+      + '若你<b>尚未在 Supabase 配置 Auth + RLS</b>，这些数据对任何拿到本站源码的人都是<b>可读且可篡改</b>的，建议立即关闭并清理云端数据。';
+  } else {
+    state.textContent = '已关闭'; state.classList.remove('on');
+    btn.textContent = '开启云同步'; btn.classList.add('btn-outline'); btn.classList.remove('btn-danger');
+    if (warn) warn.innerHTML = '⚠️ 当前云同步后端<b>未开启行级权限（RLS）</b>，一旦开启，你的投递记录、复盘内容和简历资料会被'
+      + '<b>上传到公网可读的存储中，任何拿到本站源码的人都能读取</b>。在你完成 Supabase 的 Auth + RLS 配置前，请保持关闭；'
+      + '不开启也能正常使用本站全部功能（数据只存在本机浏览器）。';
+  }
+}
+function toggleCloudSync() {
+  const on = !isCloudSyncOn();
+  if (on) {
+    const ok = window.confirm('确认开启云同步？\n\n当前后端未配置 RLS，开启后你的投递记录、复盘内容、简历资料会上传到公网可读的存储，任何拿到本站源码的人都能读取和篡改。\n\n确定要继续吗？');
+    if (!ok) return;
+    try { localStorage.setItem(CLOUD_SYNC_KEY, '1'); } catch(e) {}
+    toast('云同步已开启，正在同步…');
+    cloudSyncAll().then(() => { cloudSyncLabel(); });
+  } else {
+    try { localStorage.removeItem(CLOUD_SYNC_KEY); } catch(e) {}
+    toast('云同步已关闭，数据只保留在本机');
+  }
+  cloudSyncLabel();
+}
+
+function mergeById(localArr, remoteArr, sanitize) {
+  const fn = typeof sanitize === 'function' ? sanitize : (x => x);
   const map = new Map();
-  [...(localArr||[]), ...(remoteArr||[])].forEach(it => {
-    if (!it || it.id === undefined || it.id === null) { map.set('__noid_' + Math.random(), it); return; }
-    const cur = map.get(it.id);
-    if (!cur) { map.set(it.id, it); return; }
-    const t1 = cur.addedAt, t2 = it.addedAt;
-    if (t1 && t2) { if (t2 > t1) map.set(it.id, it); }
-    else { map.set(it.id, it); }
+  const key = it => (it && it.id !== undefined && it.id !== null) ? String(it.id) : null;
+  (localArr||[]).concat(remoteArr||[]).forEach(raw => {
+    const it = fn(raw);
+    if (!it) return;
+    const k = key(it);
+    if (k === null) return;
+    const cur = map.get(k);
+    if (!cur) { map.set(k, it); return; }
+    // 记录级 LWW：优先 updatedAt，其次 addedAt，最后以远端/后出现者为准
+    const stamp = o => o.updatedAt || o.addedAt || o.createdAt || '';
+    if (stamp(it) >= stamp(cur)) map.set(k, it);
   });
   return [...map.values()];
 }
 async function cloudSyncAll() {
   try {
-    if (!supabaseClient) return;
+    if (!supabaseClient || !isCloudSyncOn()) return;
     const r1 = await cloudPull('jobList');
-    if (r1 && Array.isArray(r1.data)) { jobList = mergeById(jobList, r1.data); saveJobList(); }
+    if (r1 && Array.isArray(r1.data)) { jobList = mergeById(jobList, r1.data, null); saveJobList(); }
     const r2 = await cloudPull('jobs');
-    if (r2 && Array.isArray(r2.data)) { jobs = mergeById(jobs, r2.data); saveJobs(); }
+    if (r2 && Array.isArray(r2.data)) { jobs = mergeById(jobs, r2.data, sanitizeJob); saveJobs(); }
     const r3 = await cloudPull('summary');
     if (r3 && typeof r3.data === 'string' && r3.data) {
-      localStorage.setItem(STORAGE_SUMMARY, r3.data);
+      lsSet(STORAGE_SUMMARY, r3.data);
       const el = document.getElementById('summaryText'); if (el) el.value = r3.data;
     }
     const r4 = await cloudPull('resume');
@@ -1382,7 +1524,7 @@ async function cloudSyncAll() {
       renderResume();
     }
     const r5 = await cloudPull('reviews');
-    if (r5 && Array.isArray(r5.data)) { reviews = mergeById(reviews, r5.data); saveReviews(); }
+    if (r5 && Array.isArray(r5.data)) { reviews = mergeById(reviews, r5.data, sanitizeReview); saveReviews(); }
     renderExplore();
     renderTrack();
     renderReviews();
@@ -1399,7 +1541,7 @@ function cleanupStaleJobs() {
   if (removed > 0) { saveJobs(); return removed; }
   return 0;
 }
-function loadJobList() { try { const r=lsGet(STORAGE_JOBLIST); jobList=Array.isArray(r)?r:[]; } catch { jobList=[]; } }
+function loadJobList() { try { const r=lsGet(STORAGE_JOBLIST); jobList=sanitizeJobList(r); } catch { jobList=[]; } }
 function saveJobList() {
   if (!lsSet(STORAGE_JOBLIST, jobList)) { try { alert('岗位清单本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
   cloudPush('jobList', jobList);
@@ -1844,13 +1986,13 @@ function renderExplore() {
         ? `<span class="tracked-badge" title="该企业有 ${trkCnt} 条投递记录，含已投递">已投递</span>`
         : `<span class="tracked-badge tracked-badge-pending" title="该企业在投递管理中有 ${trkCnt} 条记录">已加入</span>`;
       const companyCell = trkCnt>0
-        ? `<div class="expl-company"><span class="expl-company-link" onclick="event.stopPropagation();gotoTrackCompany(this.dataset.c)" data-c="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span>${badgeHtml}</div>`
+        ? `<div class="expl-company"><span class="expl-company-link" role="link" tabindex="0" data-act="goto-track-company" data-company="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span>${badgeHtml}</div>`
         : `<div class="expl-company"><span>${escapeHtml(j.company)}</span></div>`;
-      return `<tr onclick="openExploreDetail('${j.id}')">
+      return `<tr class="expl-row" data-act="open-explore" data-id="${escapeHtml(j.id)}" tabindex="0">
         <td class="expl-act">
           ${trkCnt>0
-            ? `<button class="btn btn-xs" disabled style="opacity:.5">✓ ${hasApplied ? '已投递' : '已加入'}</button>`
-            : `<button class="btn btn-success btn-xs" onclick="event.stopPropagation();addToTrack('${j.id}')">+ 加入投递</button>`
+            ? `<button type="button" class="btn btn-xs" disabled style="opacity:.5">✓ ${hasApplied ? '已投递' : '已加入'}</button>`
+            : `<button type="button" class="btn btn-success btn-xs" data-act="add-to-track" data-id="${escapeHtml(j.id)}">+ 加入投递</button>`
           }
         </td>
         <td class="expl-update">${upd}</td>
@@ -1969,15 +2111,15 @@ function renderTrackStats() {
   const pendingCount = jobs.filter(j=>j.status==='pending').length;
   bar.innerHTML = STATUSES.map(s=>{
     const count = s.key === 'applied' ? jobs.filter(j=>j.status!=='pending').length : jobs.filter(j=>j.status===s.key).length;
-    return `<div class="stat-card" onclick="filterByStatus('${s.key}')">
+    return `<button type="button" class="stat-card" data-filter-status="${s.key}" aria-label="筛选状态：${escapeHtml(s.label)}">
       <div class="stat-dot" style="background:${s.dot}"></div>
-      <div class="stat-label">${s.label}</div>
+      <div class="stat-label">${escapeHtml(s.label)}</div>
       <div class="stat-value" style="color:${s.badge}">${count}</div>
-    </div>`;
-  }).join('') + `<div class="stat-card" onclick="filterByStatus('')">
+    </button>`;
+  }).join('') + `<button type="button" class="stat-card" data-filter-status="" aria-label="显示全部状态">
     <div class="stat-label" style="font-size:12px;color:var(--text-secondary)">总计</div>
     <div class="stat-value" style="color:var(--accent)">${jobs.length}</div>
-  </div>`;
+  </button>`;
   document.getElementById('trackCount').textContent = jobs.length;
 }
 
@@ -2011,9 +2153,9 @@ function renderBoard() {
   const filtered = getFilteredJobs();
   board.innerHTML = STATUSES.map(s=>{
     const colJobs = filtered.filter(j=>j.status===s.key).sort(byApplyDateDesc);
-    return `<div class="column" data-status="${s.key}" ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 8px var(--accent-glow)';" ondragleave="this.style.borderColor='';this.style.boxShadow='';" ondrop="handleDrop(event,'${s.key}')">
+    return `<div class="column" data-drop-status="${s.key}">
       <div class="column-header">
-        <div class="col-title"><span class="col-dot" style="background:${s.dot}"></span>${s.label}</div>
+        <div class="col-title"><span class="col-dot" style="background:${s.dot}"></span>${escapeHtml(s.label)}</div>
         <div class="col-count">${colJobs.length}</div>
       </div>
       <div class="column-body">
@@ -2027,15 +2169,19 @@ function renderCard(j) {
   const deadlineHtml = j.deadline ? getDeadlineTag(j.deadline) : '';
   const cityHtml = j.city ? `<span>📍 ${escapeHtml(j.city)}</span>` : '';
   const typeHtml = j.companyType ? `<span>🏢 ${escapeHtml(j.companyType)}</span>` : '';
-  return `<div class="card" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${j.id}')" onclick="openDetail('${j.id}')" style="border-left-color:${getStatusDot(j.status)}">
+  const assessHtml = j.status==='assessment'
+    ? `<div class="assess-dl" data-act="assess-deadline" data-id="${escapeHtml(j.id)}" title="点击填写/修改测评截止日期">📅 测评截止: ${j.assessDeadline?getAssessTag(j.assessDeadline):'未设置'}</div>` : '';
+  const aiDlHtml = j.status==='ai'
+    ? `<div class="assess-dl" data-act="ai-deadline" data-id="${escapeHtml(j.id)}" title="点击填写/修改AI面截止日期">📅 AI面截止: ${j.aiDeadline?getAssessTag(j.aiDeadline):'未设置'}</div>` : '';
+  return `<div class="card" draggable="true" tabindex="0" role="button" aria-label="查看 ${escapeHtml(j.company||'')} ${escapeHtml(j.position||'')} 详情" data-act="open-detail" data-id="${escapeHtml(j.id)}" style="border-left-color:${getStatusDot(j.status)}">
     <div class="card-actions">
-      <button class="btn btn-sm btn-outline" onclick="event.stopPropagation();openEditModal('${j.id}')" title="编辑">✎</button>
-      <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteJob('${j.id}')" title="删除">✕</button>
+      <button type="button" class="btn btn-sm btn-outline" data-act="edit" data-id="${escapeHtml(j.id)}" title="编辑" aria-label="编辑 ${escapeHtml(j.company||'')}">✎</button>
+      <button type="button" class="btn btn-sm btn-danger" data-act="delete" data-id="${escapeHtml(j.id)}" title="删除" aria-label="删除 ${escapeHtml(j.company||'')}">✕</button>
     </div>
     <div class="card-company">${escapeHtml(j.company)}</div>
     <div class="card-position">${escapeHtml(j.position)}</div>
-    ${j.status==='assessment'?`<div class="assess-dl" onclick="event.stopPropagation();setAssessDeadline('${j.id}')" title="点击填写/修改测评截止日期">📅 测评截止: ${j.assessDeadline?getAssessTag(j.assessDeadline):'未设置'}</div>`:''}
-    ${j.status==='ai'?`<div class="assess-dl" onclick="event.stopPropagation();setAiDeadline('${j.id}')" title="点击填写/修改AI面截止日期">📅 AI面截止: ${j.aiDeadline?getAssessTag(j.aiDeadline):'未设置'}</div>`:''}
+    ${assessHtml}
+    ${aiDlHtml}
     <div class="card-meta">${typeHtml}${cityHtml}${deadlineHtml}${j.salary?`<span>💰 ${escapeHtml(j.salary)}</span>`:''}</div>
   </div>`;
 }
@@ -2091,21 +2237,21 @@ function renderList() {
   const lv = document.getElementById('listView');
   if (filtered.length===0) { lv.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div>没有匹配的岗位</div>`; return; }
   lv.innerHTML = `<table class="list-table"><thead><tr>
-    <th>公司</th><th>岗位</th><th>类型</th><th>城市</th><th>状态</th><th>投递日期</th><th>截止日期</th><th>笔/面试</th><th>薪资</th><th>操作</th>
+    <th scope="col">公司</th><th scope="col">岗位</th><th scope="col">类型</th><th scope="col">城市</th><th scope="col">状态</th><th scope="col">投递日期</th><th scope="col">截止日期</th><th scope="col">笔/面试</th><th scope="col">薪资</th><th scope="col">操作</th>
   </tr></thead><tbody>${filtered.map(j=>{
-    return `<tr>
+    return `<tr class="list-row" data-act="open-detail" data-id="${escapeHtml(j.id)}" tabindex="0">
     <td><strong>${escapeHtml(j.company)}</strong></td>
     <td>${escapeHtml(j.position)}</td>
     <td>${escapeHtml(j.companyType||'-')}</td>
     <td>${escapeHtml(j.city||'-')}</td>
-    <td><span class="status-badge" style="background:${getStatusBadge(j.status)}">${getStatusLabel(j.status)}</span></td>
-    <td>${j.applyDate||'-'}</td>
-    <td>${j.deadline||'-'}</td>
-    <td>${j.interviewDate||'-'}</td>
-    <td>${j.salary||'-'}</td>
+    <td><span class="status-badge" style="background:${getStatusBadge(j.status)}">${escapeHtml(getStatusLabel(j.status))}</span></td>
+    <td>${escapeHtml(j.applyDate||'-')}</td>
+    <td>${escapeHtml(j.deadline||'-')}</td>
+    <td>${escapeHtml(j.interviewDate||'-')}</td>
+    <td>${escapeHtml(j.salary||'-')}</td>
     <td>
-      <button class="btn btn-xs btn-outline" onclick="openEditModal('${j.id}')">✎</button>
-      <button class="btn btn-xs btn-danger" onclick="deleteJob('${j.id}')">✕</button>
+      <button type="button" class="btn btn-xs btn-outline" data-act="edit" data-id="${escapeHtml(j.id)}" aria-label="编辑 ${escapeHtml(j.company||'')}">✎</button>
+      <button type="button" class="btn btn-xs btn-danger" data-act="delete" data-id="${escapeHtml(j.id)}" aria-label="删除 ${escapeHtml(j.company||'')}">✕</button>
     </td>
   </tr>`;}).join('')}</tbody></table>`;
 }
@@ -2113,7 +2259,7 @@ function renderList() {
 function updateFilterOptions() {
   const sel = document.getElementById('filterStatus');
   const cur = sel.value;
-  sel.innerHTML = '<option value="">全部状态</option>' + STATUSES.map(s=>`<option value="${s.key}"${s.key===cur?' selected':''}>${s.label}</option>`).join('');
+  sel.innerHTML = '<option value="">全部状态</option>' + STATUSES.map(s=>`<option value="${s.key}"${s.key===cur?' selected':''}>${escapeHtml(s.label)}</option>`).join('');
 }
 
 function todayStr() {
@@ -2122,7 +2268,9 @@ function todayStr() {
 }
 
 function handleDrop(e, newStatus) {
-  e.preventDefault(); e.currentTarget.style.borderColor=''; e.currentTarget.style.boxShadow='';
+  e.preventDefault();
+  const col = e.currentTarget;
+  col.style.borderColor=''; col.style.boxShadow='';
   const id = e.dataTransfer.getData('text/plain');
   const j = jobs.find(j=>j.id===id);
   if (j && j.status!==newStatus) {
@@ -2130,6 +2278,117 @@ function handleDrop(e, newStatus) {
     j.status=newStatus; saveJobs(); renderTrack(); toast(`状态已更新为「${getStatusLabel(newStatus)}」`);
   }
 }
+
+// ==================== 事件委托（替代内联 onclick，避免属性注入） ====================
+const ACTIONS = {
+  'open-detail':      el => openDetail(el.dataset.id),
+  'edit':             el => openEditModal(el.dataset.id),
+  'delete':           el => deleteJob(el.dataset.id),
+  'assess-deadline':  el => setAssessDeadline(el.dataset.id),
+  'ai-deadline':      el => setAiDeadline(el.dataset.id),
+  'open-explore':     el => openExploreDetail(el.dataset.id),
+  'add-to-track':     el => addToTrack(el.dataset.id),
+  'goto-track-company': el => gotoTrackCompany(el.dataset.company),
+  'review-load':      el => {
+    const r = findReview(el.dataset.id);
+    if (!r) return;
+    // data-fi 存在时表示点的是附件芯片，直接预览该附件
+    const fi = el.dataset.fi;
+    loadReviewToRight(r, fi === undefined ? null : Number(fi));
+  },
+  'review-toggle':    el => toggleReviewContent(el.dataset.id, el),
+  'review-delete':    el => deleteReview(el.dataset.id),
+  // 以索引为参数的处理器统一走 idx-<函数名>，索引来自 data-idx
+  'ai-add-to-track':  el => aiAddToTrack(el.dataset.id),
+  'open-ai-settings': () => {
+    const d = document.getElementById('aiSettings');
+    if (d) {
+      d.open = true;
+      d.scrollIntoView({ block:'center', behavior:'smooth' });
+      const k = document.getElementById('aiApiKey');
+      if (k) k.focus();
+    }
+  },
+};
+// 索引型动作表：函数名 -> 处理器
+const IDX_ACTIONS = {
+  previewPdf, downloadPdf, renamePdf, replacePdf, removePdf,
+  previewPendingFile, removePendingFile,
+  previewExistingFile, removeExistingFile,
+  previewRightFile, removeRightFile,
+};
+function runIdxAction(el) {
+  const name = String(el.dataset.act || '').slice(4);   // 去掉 'idx-'
+  const fn = IDX_ACTIONS[name];
+  if (typeof fn !== 'function') return false;
+  const i = Number(el.dataset.idx);
+  if (!Number.isInteger(i) || i < 0) return false;
+  fn(i);
+  return true;
+}
+function runAction(el) {
+  if (!el) return false;
+  const act = String(el.dataset.act || '');
+  if (act.indexOf('idx-') === 0) return runIdxAction(el);
+  const fn = ACTIONS[act];
+  if (!fn) return false;
+  fn(el);
+  return true;
+}
+// 从事件目标向上找最近的可执行动作；按钮/截止日期标签优先于卡片本体
+function findActionEl(target) {
+  if (!target || typeof target.closest !== 'function') return null;
+  return target.closest('[data-act]');
+}
+document.addEventListener('click', function(e) {
+  const el = findActionEl(e.target);
+  if (!el) return;
+  if (runAction(el)) e.stopPropagation();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const el = e.target;
+  if (!el || el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return;
+  const actionEl = findActionEl(el);
+  if (actionEl && actionEl === el) { e.preventDefault(); runAction(el); }
+});
+
+// ==================== 看板拖拽（委托到 document，渲染后无需重新绑定） ====================
+(function bindBoardDrag(){
+  const board = document.getElementById('board');
+  if (!board) return;
+  board.addEventListener('dragstart', function(e){
+    const card = e.target.closest && e.target.closest('.card[data-id]');
+    if (!card) return;
+    try { e.dataTransfer.setData('text/plain', card.dataset.id); } catch(err){}
+    e.dataTransfer.effectAllowed = 'move';
+    card.classList.add('dragging');
+  });
+  board.addEventListener('dragend', function(e){
+    const card = e.target.closest && e.target.closest('.card[data-id]');
+    if (card) card.classList.remove('dragging');
+  });
+  board.addEventListener('dragover', function(e){
+    const col = e.target.closest && e.target.closest('.column');
+    if (!col) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    col.style.borderColor = 'var(--accent)';
+    col.style.boxShadow = '0 0 8px var(--accent-glow)';
+  });
+  board.addEventListener('dragleave', function(e){
+    const col = e.target.closest && e.target.closest('.column');
+    if (!col) return;
+    // 仅在真正离开该列时清除高亮
+    if (col.contains(e.relatedTarget)) return;
+    col.style.borderColor = ''; col.style.boxShadow = '';
+  });
+  board.addEventListener('drop', function(e){
+    const col = e.target.closest && e.target.closest('.column');
+    if (!col) return;
+    handleDrop(e, col.dataset.dropStatus);
+  });
+})();
 
 // ==================== 投递岗位 CRUD ====================
 function openAddModal() {
@@ -2242,10 +2501,35 @@ function changeStatus() {
 function closeDetail() { document.getElementById('detailModal').style.display = 'none'; detailJobId = null; }
 
 // ==================== 导入/导出 ====================
+// 导出完整数据包：旧版只导 jobs，导致复盘（含附件 base64）和简历无法备份，这里补齐
+const EXPORT_FORMAT = 'qiuzhao-platform-backup';
+const EXPORT_VERSION = 2;
+function buildBackup() {
+  return {
+    format: EXPORT_FORMAT,
+    version: EXPORT_VERSION,
+    exportedAt: nowIso(),
+    jobs: jobs,
+    jobList: jobList,
+    reviews: reviews,
+    resume: loadResumeData(),
+    summary: lsGet(STORAGE_SUMMARY) || '',
+  };
+}
 function exportData() {
-  const blob = new Blob([JSON.stringify(jobs,null,2)],{type:'application/json'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '秋招投递数据.json'; a.click();
-  toast('数据已导出');
+  const backup = buildBackup();
+  let text = JSON.stringify(backup, null, 2);
+  const mb = (text.length / 1024 / 1024).toFixed(2);
+  if (Number(mb) > 20 && !window.confirm(`备份文件约 ${mb} MB（复盘附件体积较大）。\n\n确定继续导出吗？`)) return;
+  const d = new Date();
+  const stamp = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+  const blob = new Blob([text], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `秋招数据备份_${stamp}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  toast(`已导出完整备份（${jobs.length} 条投递 / ${reviews.length} 条复盘，约 ${mb} MB）`);
 }
 
 function importData() {
@@ -2254,16 +2538,44 @@ function importData() {
     const file = input.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = ()=>{
-      try {
-        const data = JSON.parse(reader.result);
-        if (!Array.isArray(data)) throw new Error('格式错误');
-        const merged = [...jobs];
-        for (const item of data) {
-          if (!merged.find(j=>j.id===item.id)) merged.push(item);
-        }
-        jobs = merged; saveJobs(); renderTrack();
-        toast(`已导入 ${data.length} 条数据`);
-      } catch { toast('文件格式错误'); }
+      let raw;
+      try { raw = JSON.parse(reader.result); }
+      catch { toast('文件格式错误：不是合法的 JSON'); return; }
+
+      // 兼容旧版：直接就是一个 jobs 数组
+      const legacyArray = Array.isArray(raw);
+      const backup = legacyArray ? { jobs: raw } : raw;
+      if (!backup || typeof backup !== 'object') { toast('文件格式错误：无法识别的备份结构'); return; }
+      if (backup.format && backup.format !== EXPORT_FORMAT) { toast('文件格式错误：不是本站的备份文件'); return; }
+
+      const inJobs = Array.isArray(backup.jobs) ? backup.jobs.map(sanitizeJob).filter(Boolean) : [];
+      const inJobList = sanitizeJobList(backup.jobList);
+      const inReviews = Array.isArray(backup.reviews) ? backup.reviews.map(sanitizeReview).filter(Boolean) : [];
+      const inSummary = typeof backup.summary === 'string' ? backup.summary : '';
+      const inResume = (backup.resume && typeof backup.resume === 'object') ? backup.resume : null;
+
+      if (!inJobs.length && !inJobList.length && !inReviews.length && !inResume && !inSummary) {
+        toast('备份文件里没有可导入的数据');
+        return;
+      }
+
+      const parts = [];
+      if (inJobs.length) parts.push(`${inJobs.length} 条投递`);
+      if (inJobList.length) parts.push(`${inJobList.length} 条岗位`);
+      if (inReviews.length) parts.push(`${inReviews.length} 条复盘`);
+      if (inResume) parts.push('简历');
+      if (inSummary) parts.push('总结');
+      if (!window.confirm(`即将导入：${parts.join(' / ')}。\n\n同 id 的记录会按更新时间取较新的一份，不会删除你现有的其他数据。\n\n确定继续吗？`)) return;
+
+      let added = 0;
+      if (inJobs.length) { const before = jobs.length; jobs = mergeById(jobs, inJobs, sanitizeJob); added += jobs.length - before; saveJobs(); }
+      if (inJobList.length) { const before = jobList.length; jobList = mergeById(jobList, inJobList, null); added += jobList.length - before; saveJobList(); }
+      if (inReviews.length) { const before = reviews.length; reviews = mergeById(reviews, inReviews, sanitizeReview); added += reviews.length - before; saveReviews(); }
+      if (inSummary) { lsSet(STORAGE_SUMMARY, inSummary); const el=document.getElementById('summaryText'); if (el) el.value = inSummary; }
+      if (inResume) { saveResumeData(inResume); renderResume(); }
+
+      renderExplore(); renderTrack(); renderReviews();
+      toast(`导入完成：新增 ${added} 条记录`);
     };
     reader.readAsText(file);
   };
@@ -2278,16 +2590,18 @@ function toggleSummary() {
 }
 function saveSummary() {
   const v = document.getElementById('summaryText').value;
-  localStorage.setItem(STORAGE_SUMMARY, v);
+  // 与其它数据统一走压缩层，避免原始 JSON 覆盖压缩内容导致读取不一致
+  lsSet(STORAGE_SUMMARY, v);
   cloudPush('summary', v);
   toast('总结已保存');
 }
 function loadSummary() {
-  document.getElementById('summaryText').value = localStorage.getItem(STORAGE_SUMMARY)||'';
+  const v = lsGet(STORAGE_SUMMARY);
+  document.getElementById('summaryText').value = typeof v === 'string' ? v : '';
 }
 
 function getQiuzhiSyncMeta() { try { return JSON.parse(localStorage.getItem(QIUZHI_META_KEY)||'{}'); } catch { return {}; } }
-function setQiuzhiSyncMeta(m) { localStorage.setItem(QIUZHI_META_KEY, JSON.stringify(m)); }
+function setQiuzhiSyncMeta(m) { try { localStorage.setItem(QIUZHI_META_KEY, JSON.stringify(m)); } catch(e){} }
 
 function qzSplitPositions(raw) {
   if (!raw) return [];
@@ -2498,8 +2812,9 @@ function fixAppliedDates() {
     if (changed > 0) { saveJobs(); console.log('已按加入时间回填 ' + changed + ' 条真实投递日期'); }
   } catch(e) { console.warn('fixAppliedDates', e); }
 }
-const cleaned = cleanupStaleJobs();
-if (cleaned > 0) console.log('已清理 ' + cleaned + ' 条旧版自动同步数据');
+// 注意：不再在启动时自动执行 cleanupStaleJobs()。
+// 它会删除"待投递且无来源 id"的记录——手动添加、尚未投递的岗位正好符合该特征，
+// 会在用户毫不知情的情况下被清掉。保留函数以便需要时手动清理。
 loadJobList();
 loadReviews();
 fixAppliedDates();
@@ -2513,7 +2828,15 @@ saveJobList(); renderExplore();
 renderTrack();
 renderReviews();
 updateFilterOptions();
-cloudSyncAll().then(()=>{ fixAppliedDates(); renderTrack(); });
+cloudSyncLabel();
+// 云同步默认关闭：仅在用户显式开启后才拉取云端数据
+if (isCloudSyncOn()) {
+  if (supabaseClient) {
+    cloudSyncAll().then(()=>{ fixAppliedDates(); renderTrack(); cloudSyncLabel(); });
+  }
+} else {
+  console.log('[云同步] 未开启，数据仅保存在本机浏览器。开启方式：投递管理页 → 云同步开关。');
+}
 
 /* ═══════════ 星图渲染（3D 球体 · 右面板布局） ═══════════ */
 let starDetailJobId = null;
@@ -3084,11 +3407,11 @@ function renderPdfStatus(data) {
       + '<div class="pfc-meta">'+sizeKB+' KB'+(uploadedAt?' · '+uploadedAt:'')+'</div>'
       + '</div>'
       + '<div class="pfc-actions">'
-      + '<button class="pfc-btn" onclick="previewPdf('+i+')">🔍 预览</button>'
-      + '<button class="pfc-btn" onclick="downloadPdf('+i+')">⬇ 下载</button>'
-      + '<button class="pfc-btn" onclick="renamePdf('+i+')">✏️ 重命名</button>'
-      + '<button class="pfc-btn" onclick="replacePdf('+i+')">🔄 替换</button>'
-      + '<button class="pfc-btn del" onclick="removePdf('+i+')">✕ 删除</button>'
+      + '<button type="button" class="pfc-btn" data-act="idx-previewPdf" data-idx="'+i+'">🔍 预览</button>'
+      + '<button type="button" class="pfc-btn" data-act="idx-downloadPdf" data-idx="'+i+'">⬇ 下载</button>'
+      + '<button type="button" class="pfc-btn" data-act="idx-renamePdf" data-idx="'+i+'">✏️ 重命名</button>'
+      + '<button type="button" class="pfc-btn" data-act="idx-replacePdf" data-idx="'+i+'">🔄 替换</button>'
+      + '<button type="button" class="pfc-btn del" data-act="idx-removePdf" data-idx="'+i+'">✕ 删除</button>'
       + '</div>'
       + '</div>';
   });
@@ -3299,7 +3622,7 @@ function renderReviews() {
     const content = escapeHtml(r.content||'');
     const contentShort = content.length > 180;
     const next = escapeHtml(r.next||'');
-    return '<div class="review-card review-card-clickable" onclick="loadReviewToRight(findReview(\''+r.id+'\'))">'
+    return '<div class="review-card review-card-clickable" data-act="review-load" data-id="'+escapeHtml(r.id)+'" tabindex="0" role="button">'
       + '<div class="review-card-head">'
       + '<span class="review-company">'+escapeHtml(r.company||'未命名复盘')+'</span>'
       + (r.job ? '<span class="review-job">'+escapeHtml(r.job)+'</span>' : '')
@@ -3307,11 +3630,11 @@ function renderReviews() {
       + '<span class="review-date">'+escapeHtml(r.date||'')+'</span>'
       + '</div>'
       + (r.title ? '<div class="review-title">'+escapeHtml(r.title)+'</div>' : '')
-      + (content ? '<div class="review-content'+(contentShort?' collapsed':'')+'" id="rc_'+r.id+'">'+content+'</div>' + (contentShort ? '<button class="review-link-toggle" onclick="toggleReviewContent(\''+r.id+'\',this)">展开</button>' : '') : '')
+      + (content ? '<div class="review-content'+(contentShort?' collapsed':'')+'" id="rc_'+escapeHtml(r.id)+'">'+content+'</div>' + (contentShort ? '<button type="button" class="review-link-toggle" data-act="review-toggle" data-id="'+escapeHtml(r.id)+'">展开</button>' : '') : '')
       + (next ? '<div class="review-next"><b>下一步:</b> '+next+'</div>' : '')
       + ((r.files && r.files.length) ? '<div class="review-files">'+r.files.map((f,fi)=> {
           const canPrev = f && f.base64 && (!f.skipped);
-          return '<span class="review-file-chip" onclick="event.stopPropagation();loadReviewToRight(findReview(\''+r.id+'\'),'+fi+')">'
+          return '<span class="review-file-chip" data-act="review-load" data-id="'+escapeHtml(r.id)+'" data-fi="'+fi+'">'
             + '<span class="rfc-icon">'+fileIcon(f.name)+'</span>'
             + '<span class="rfc-name">'+escapeHtml(f.name||'附件')+'</span>'
             + (f.size ? '<span class="rfc-size">'+formatFileSize(f.size)+'</span>' : '')
@@ -3319,8 +3642,8 @@ function renderReviews() {
             + '</span>';
         }).join('')+'</div>' : '')
       + '<div class="review-card-actions">'
-      + '<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();loadReviewToRight(findReview(\''+r.id+'\'))">✏️ 编辑</button>'
-      + '<button class="btn btn-outline btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.25);" onclick="event.stopPropagation();deleteReview(\''+r.id+'\')">🗑 删除</button>'
+      + '<button type="button" class="btn btn-outline btn-sm" data-act="review-load" data-id="'+escapeHtml(r.id)+'">✏️ 编辑</button>'
+      + '<button type="button" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.25);" data-act="review-delete" data-id="'+escapeHtml(r.id)+'">🗑 删除</button>'
       + '</div>'
       + '</div>';
     }).join('')
@@ -3447,8 +3770,8 @@ function renderPendingList() {
     + '<span class="rfc-icon">'+fileIcon(f.name)+'</span>'
     + '<span class="rfc-name">'+escapeHtml(f.name||'附件')+'</span>'
     + '<span class="rfc-size">'+formatFileSize(f.size)+'</span>'
-    + '<span class="rfc-preview" onclick="previewPendingFile('+i+')">预览</span>'
-    + '<span class="rfc-remove" onclick="removePendingFile('+i+')">✕</span>'
+    + '<span class="rfc-preview" role="button" tabindex="0" data-act="idx-previewPendingFile" data-idx="'+i+'">预览</span>'
+    + '<span class="rfc-remove" role="button" tabindex="0" aria-label="移除附件" data-act="idx-removePendingFile" data-idx="'+i+'">✕</span>'
     + '</div>').join('');
 }
 function previewPendingFile(i) {
@@ -3467,8 +3790,8 @@ function renderExistingList() {
     + '<span class="rfc-icon">'+fileIcon(f.name)+'</span>'
     + '<span class="rfc-name">'+escapeHtml(f.name||'附件')+'</span>'
     + '<span class="rfc-size">'+formatFileSize(f.size||0)+(f.skipped?' · 云同步已剥离':'')+'</span>'
-    + (f.base64 && !f.skipped ? '<span class="rfc-preview" onclick="previewExistingFile('+i+')">预览</span>' : '<span class="rfc-size">仅本机</span>')
-    + '<span class="rfc-remove" onclick="removeExistingFile('+i+')">✕</span>'
+    + (f.base64 && !f.skipped ? '<span class="rfc-preview" role="button" tabindex="0" data-act="idx-previewExistingFile" data-idx="'+i+'">预览</span>' : '<span class="rfc-size">仅本机</span>')
+    + '<span class="rfc-remove" role="button" tabindex="0" aria-label="移除附件" data-act="idx-removeExistingFile" data-idx="'+i+'">✕</span>'
     + '</div>').join('');
 }
 function previewExistingFile(i) {
@@ -3557,8 +3880,8 @@ function renderRightFiles() {
       + '<span class="rfc-icon">'+fileIcon(f.name)+'</span>'
       + '<span class="rfc-name">'+escapeHtml(f.name||'附件')+'</span>'
       + '<span class="rfc-size">'+(f.size?formatFileSize(f.size):'')+(f.skipped?' · 云同步已剥离':'')+'</span>'
-      + (canPrev ? '<span class="rfc-preview" onclick="previewRightFile('+i+')">预览</span>' : '<span class="rfc-size">仅本机</span>')
-      + '<span class="rfc-remove" onclick="removeRightFile('+i+')">✕</span>'
+      + (canPrev ? '<span class="rfc-preview" role="button" tabindex="0" data-act="idx-previewRightFile" data-idx="'+i+'">预览</span>' : '<span class="rfc-size">仅本机</span>')
+      + '<span class="rfc-remove" role="button" tabindex="0" aria-label="移除附件" data-act="idx-removeRightFile" data-idx="'+i+'">✕</span>'
       + '</div>';
   }).join('');
 }
@@ -3652,8 +3975,10 @@ function exportRightWord() {
   const exportBtn = document.getElementById('reviewRightExportWord');
   if (!body || !body.innerHTML) return;
   const baseName = String(rightPreviewFileName || 'word').replace(/\.docx$/i, '').replace(/\.doc$/i, '');
+  // 这里必须写成转义形式（见下方字符串）。HTML 解析器不解析 JS 语法，
+  // 一旦在脚本正文里出现样式结束标签的字面量，就会提前关闭整个脚本块。
   const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escapeHtml(baseName) + '</title>'
-    + '<style>body{font-family:SimSun,serif;line-height:1.7;margin:40px auto;max-width:820px;padding:0 24px;}img{max-width:100%;}table{border-collapse:collapse;}td,th{border:1px solid #999;padding:4px 8px;}</style>'
+    + '<style>body{font-family:SimSun,serif;line-height:1.7;margin:40px auto;max-width:820px;padding:0 24px;}img{max-width:100%;}table{border-collapse:collapse;}td,th{border:1px solid #999;padding:4px 8px;}<\/style>'
     + '</head><body>' + body.innerHTML + '</body></html>';
   const blob = new Blob([html], { type: 'application/msword' });
   const url = URL.createObjectURL(blob);
@@ -3685,7 +4010,8 @@ function deleteReview(id) {
 /* ==================== 板块5: AI 岗位推荐 ==================== */
 const AI_REC_CACHE_KEY = 'ai_recommend_cache';
 const AI_REC_SETTINGS_KEY = 'ai_recommend_settings';
-const AI_REC_DEFAULT_KEY = 'sk-069a570620684d839377512558f85d47';
+// 不再内置任何 API Key：Key 只保存在使用者本机 localStorage，且只发送给 api.deepseek.com
+const AI_REC_DEFAULT_KEY = '';
 const AI_REC_DEFAULT_MODEL = 'deepseek-chat';
 const AI_REC_BATCH = 50;
 const AI_REC_TIMEOUT = 60000;
@@ -3829,6 +4155,15 @@ function renderAiRecommend() {
   const st = aiReadSettings();
   if (keyEl && !keyEl.value) keyEl.value = st.key;
   if (modelEl && !modelEl.value) modelEl.value = st.model;
+  // 未配置 Key 时给出明确引导：本站不再内置任何 Key
+  if (!st.key) {
+    if (listEl) {
+      listEl.innerHTML = '<div class="ai-empty">🔑 本站不内置 API Key，需要你填自己的 DeepSeek Key 才能使用 AI 推荐<br>'
+        + '<span style="font-size:13px;color:var(--text-muted)">Key 仅保存在你本机浏览器，请求直连 DeepSeek 官方接口</span><br><br>'
+        + '<button type="button" class="btn btn-primary btn-sm" data-act="open-ai-settings">⚙️ 去填写 API Key</button></div>';
+    }
+    return;
+  }
   const cache = aiReadCache();
   if (cache && Array.isArray(cache.items) && cache.items.length) {
     const fp = aiBuildFingerprint(loadResumeData(), jobList);
@@ -3860,8 +4195,8 @@ function aiRenderCards(items) {
     const tracked = aiIsTracked(j);
     const linkHtml = j.url ? '<a class="ai-card-link" href="'+escapeHtml(j.url)+'" target="_blank" rel="noopener">🔗 投递链接</a>' : '<span class="ai-card-link" style="color:var(--text-muted)">无链接</span>';
     const btnHtml = tracked
-      ? '<button class="btn btn-xs" disabled style="opacity:.5">✓ 已加入</button>'
-      : '<button class="btn btn-success btn-xs" onclick="aiAddToTrack(\''+j.id+'\')">+ 加入投递</button>';
+      ? '<button type="button" class="btn btn-xs" disabled style="opacity:.5">✓ 已加入</button>'
+      : '<button type="button" class="btn btn-success btn-xs" data-act="ai-add-to-track" data-id="'+escapeHtml(j.id)+'">+ 加入投递</button>';
     const typeTags = (Array.isArray(j.typeTags) && j.typeTags.length) ? j.typeTags : ((j.companyType||'').split(' / ').map(function(s){return s.trim();}).filter(Boolean));
     const chips = [];
     if (j.company) chips.push('<span class="ai-meta-chip">🏢 '+escapeHtml(j.company)+'</span>');
