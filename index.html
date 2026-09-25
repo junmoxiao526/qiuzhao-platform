@@ -1512,6 +1512,10 @@ function jobToPoolRow(j) {
 }
 // 数据库行 → 岗位对象（复用现有 sanitizeJobList 兜底消毒）
 function poolRowToJob(r) {
+  // company_types 已不在拉取列中，用 type_tags 推导，两者语义一致
+  const types = Array.isArray(r.company_types) && r.company_types.length
+    ? r.company_types
+    : (Array.isArray(r.type_tags) ? r.type_tags : []);
   return {
     id: genId(),
     qiuzhiId: r.qiuzhi_id,
@@ -1520,8 +1524,8 @@ function poolRowToJob(r) {
     positionTypes: r.position_types || [],
     industryRaw: r.industry_raw || '',
     typeTags: r.type_tags || [],
-    companyTypesRaw: r.company_types || [],
-    companyType: mapCompanyTypes(r.company_types || []) || (r.type_tags || []).join(' / '),
+    companyTypesRaw: types,
+    companyType: mapCompanyTypes(types) || types.join(' / '),
     cities: r.cities || [],
     city: (r.cities || []).join(' / '),
     batch: r.batch || '',
@@ -1535,19 +1539,66 @@ function poolRowToJob(r) {
   };
 }
 
-// 拉取共享池；返回 true 表示成功
-async function pullJobPool(showToast) {
-  if (!isPoolAvailable()) { if (showToast) toast('共享岗位池不可用（Supabase 未加载）'); return false; }
-  try {
+// 拉取共享池。
+// 两个必须处理的现实约束：
+//   1) Supabase 单次响应默认上限 1000 行（Max Rows），必须分页，否则会静默截断
+//   2) 池子可达数千行、单次全量约 500KB，因此支持「增量拉取」
+//
+// 分页为什么不用 updated_at 做游标：
+//   批量 upsert 会让成百上千行的 updated_at 落在同一毫秒（实测 1000 行里只有 2 个不同值），
+//   此时 `gt('updated_at', 游标)` 会一次性跳过所有同值行，导致漏数据（实测 4215 行只拉到 2125）。
+//   因此排序改用主键 qiuzhi_id（唯一），配合 range() 做区间翻页，彻底规避同值问题。
+const POOL_PAGE = 1000;
+const POOL_COLUMNS = 'qiuzhi_id,company,position_raw,position_types,industry_raw,'
+  + 'type_tags,cities,batch,deadline,opening_date,url,notice_url,referral_code,popular,first_seen_at,updated_at';
+
+async function fetchPoolRows(incremental) {
+  const rows = [];
+  if (incremental) {
+    // 增量：只取上次拉取时间之后有更新的行；同样的同值问题这里无害
+    // （我们只是拿"新增/变更的行"，重复几行由 mergeJobPool 去重兜住）
+    let lastPull = '';
+    try { lastPull = localStorage.getItem(LAST_POOL_PULL_KEY) || ''; } catch(e) {}
+    if (lastPull) {
+      const { data, error } = await supabaseClient
+        .from(JOB_POOL_TABLE)
+        .select(POOL_COLUMNS)
+        .gt('updated_at', lastPull)
+        .order('updated_at', { ascending: true })
+        .limit(POOL_PAGE);
+      if (error) throw error;
+      return data || [];
+    }
+  }
+  // 全量：按主键区间翻页
+  for (let page = 0; page < 30; page++) {   // 上限 3 万行，防御性封顶
+    const from = page * POOL_PAGE;
+    const to = from + POOL_PAGE - 1;
     const { data, error } = await supabaseClient
       .from(JOB_POOL_TABLE)
-      .select('*')
-      .order('updated_at', { ascending: false })
-      .limit(5000);
+      .select(POOL_COLUMNS)
+      .order('qiuzhi_id', { ascending: true })
+      .range(from, to);
     if (error) throw error;
-    const rows = data || [];
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < POOL_PAGE) break;    // 最后一页
+  }
+  return rows;
+}
+
+async function pullJobPool(showToast, forceFull) {
+  if (!isPoolAvailable()) { if (showToast) toast('共享岗位池不可用（Supabase 未加载）'); return false; }
+  let lastPull = '';
+  try { lastPull = localStorage.getItem(LAST_POOL_PULL_KEY) || ''; } catch(e) {}
+  const incremental = !forceFull && !!lastPull && jobList.length > 0;
+  try {
+    const rows = await fetchPoolRows(incremental);
     if (rows.length === 0) {
-      if (showToast) toast('共享岗位池暂无数据，点「同步招聘方舟」抓取后会自动共享');
+      // 增量拉取无新数据时不必重建界面，只需标记已同步
+      try { localStorage.setItem(LAST_POOL_PULL_KEY, nowIso()); } catch(e) {}
+      if (showToast) toast(incremental ? '共享池已是最新' : '共享岗位池暂无数据，点「同步招聘方舟」抓取后会自动共享');
+      renderPoolStatus();
       return true;
     }
     const remote = sanitizeJobList(rows.map(poolRowToJob));
@@ -1556,9 +1607,12 @@ async function pullJobPool(showToast) {
     saveJobList();
     try { localStorage.setItem(LAST_POOL_PULL_KEY, nowIso()); } catch(e) {}
     renderExplore();
+    renderPoolStatus();
     if (showToast) {
       const added = jobList.length - before;
-      toast(added > 0 ? `已从共享池获取 ${added} 个新岗位` : '共享池已是最新');
+      toast(added > 0
+        ? `已从共享池获取 ${added} 个新岗位（本次传输 ${rows.length} 条）`
+        : `共享池已是最新（本次传输 ${rows.length} 条）`);
     }
     return true;
   } catch(e) {

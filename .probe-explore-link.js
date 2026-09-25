@@ -33,6 +33,9 @@ if (link) {
 }
 
 // 3) 顺带验证「加入投递」按钮链路（造一条没有对应投递记录的岗位）
+// 注意：这里必须精确定位到本用例自己那条岗位的按钮。
+// 岗位池可能有数千条真实岗位，用 querySelector 取"第一个"会拿到别人的按钮，
+// 断言就会变成随机通过/失败（这正是本用例此前失效的原因）。
 jobList.push({
   id: 'list_test_2', qiuzhiId: 'qz_test_2', company: '未投递测试公司',
   positionTypes: ['待投岗'], positionRaw: '待投岗', city: '北京',
@@ -40,8 +43,12 @@ jobList.push({
   companyType: '金融', url: 'https://example.com/apply2', noticeUrl: '',
   batch: '2026秋招', deadline: '', openingDate: '2026-09-01', popular: 1
 });
+var searchBox = document.getElementById('exploreSearch');
+if (searchBox) searchBox.value = '未投递测试公司';   // 过滤到只剩本用例这一条
 renderExplore();
 var addBtn = document.querySelector('[data-act="add-to-track"]');
+chk('本用例的按钮已定位', !!addBtn && addBtn.dataset.id === 'list_test_2',
+    addBtn ? ('实际 data-id=' + addBtn.dataset.id) : 'no button');
 if (addBtn) {
   var before = jobs.length;
   addBtn.click();
@@ -49,8 +56,8 @@ if (addBtn) {
   var added = jobs[jobs.length - 1];
   chk('新增记录带来源 id', added && !!added.notes && added.notes.indexOf('qz_test_2') !== -1, added && added.notes);
   chk('新增记录状态为待投递', added && added.status === 'pending', added && added.status);
-} else {
-  chk('加入投递按钮存在', false, '未渲染出 add-to-track 按钮');
+  chk('新增记录公司正确', added && added.company === '未投递测试公司', added && added.company);
 }
+if (searchBox) searchBox.value = '';
 
 return R;

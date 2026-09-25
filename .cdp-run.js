@@ -63,17 +63,34 @@ function httpJson(url) {
   // 在任何页面脚本执行之前注入种子状态。
   // 这样被测页面可以是未经任何改动的 index.html —— 不做字符串替换，
   // 避免替换动作本身破坏被测文件（之前正是这样制造了一个假的语法错误）。
-  await send('Page.addScriptToEvaluateOnNewDocument', {
-    source: [
-      '(function(){',
-      '  try {',
-      '    localStorage.clear();',
-      '    localStorage.removeItem("qiuzhao_cloud_sync_enabled");',
-      '    window.__PROBE_SEEDED = true;',
-      '  } catch(e) { window.__PROBE_SEED_ERROR = String(e); }',
-      '})();'
-    ].join('\n')
-  }, sessionId);
+  // 环境变量：
+  //   PROBE_TAG           标识当前 profile（打印用）
+  //   PROBE_SEED_PERSONAL =1 时写入一份「私人数据」，用于隔离验证
+  const seedTag = process.env.PROBE_TAG || '';
+  const seedPersonal = process.env.PROBE_SEED_PERSONAL === '1';
+  const seedSource = [
+    '(function(){',
+    '  try {',
+    '    localStorage.clear();',
+    seedPersonal
+      ? '    localStorage.setItem("campus_recruit_jobs", JSON.stringify([{id:"p1",company:"我的私人公司",position:"私人岗位",status:"applied",city:"上海",applyDate:"2026-09-01",notes:""}]));'
+      : '    localStorage.removeItem("campus_recruit_jobs");',
+    seedPersonal
+      ? '    localStorage.setItem("campus_reviews", JSON.stringify([{id:"r1",company:"私人公司",title:"私人面经标题",content:"这是绝不应该被别人看到的私人面经内容",stage:"interview1",date:"2026-09-02",next:"",files:[]}]));'
+      : '    localStorage.removeItem("campus_reviews");',
+    seedPersonal
+      ? '    localStorage.setItem("campus_resume", JSON.stringify({basicInfo:{name:"私人姓名",mobile:"13900000000",email:"private@example.com"},settings:{title:"个人简历",skin:"#607a9d",lastSyncAt:null}}));'
+      : '    localStorage.removeItem("campus_resume");',
+    seedPersonal
+      ? '    localStorage.setItem("campus_summary", JSON.stringify("我的私人投递总结"));'
+      : '    localStorage.removeItem("campus_summary");',
+    '    localStorage.removeItem("qiuzhao_pool_last_pull");',
+    '    window.__PROBE_SEEDED = true;',
+    '    window.__PROFILE_TAG = ' + JSON.stringify(seedTag) + ';',
+    '  } catch(e) { window.__PROBE_SEED_ERROR = String(e); }',
+    '})();'
+  ].join('\n');
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: seedSource }, sessionId);
 
   const navStart = events.length;
   await send('Page.navigate', { url: pageUrl }, sessionId);

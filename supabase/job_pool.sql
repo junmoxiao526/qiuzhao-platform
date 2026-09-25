@@ -71,6 +71,20 @@ create policy "job_pool_public_update"
   using (true)
   with check (true);
 
+-- ---------- 3b. 可选：是否允许删除 ----------
+-- 默认**不建** delete 策略，含义是「谁都删不掉岗位池」——RLS 默认拒绝，
+-- 这是最安全的形态。代价是失效岗位会一直堆积。
+--
+-- 如果你希望任何人都能清理过期/无效岗位，取消下面一段的注释并执行。
+-- 风险评估：池内只有公开招聘信息，不含隐私；被清空也只是回到"空池"状态，
+-- 大家点一次「同步招聘方舟」即可重新填充。
+--
+-- drop policy if exists "job_pool_public_delete" on public.job_pool;
+-- create policy "job_pool_public_delete"
+--   on public.job_pool for delete
+--   to anon, authenticated
+--   using (true);
+
 -- ---------- 4. 验证本表状态 ----------
 select relname                as "表名",
        relrowsecurity         as "RLS已开启",
@@ -79,4 +93,4 @@ select relname                as "表名",
 from pg_class
 where relname = 'job_pool';
 
--- 期望：RLS已开启 = true，策略数 = 3
+-- 期望：RLS已开启 = true，策略数 = 3（未放开删除）或 4（放开删除）
