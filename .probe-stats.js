@@ -36,21 +36,22 @@ return (async function () {
   reset(); renderExplore();
   R.push('INFO :: 公司数=' + val('公司数') + ' 已加入投递=' + val('已加入投递') + ' 当前筛选=' + val('当前筛选') + ' 投递管理=' + trackTotal());
   chk('公司数 = 3', val('公司数') === 3, val('公司数'));
-  chk('当前筛选 = 记录条数 3', val('当前筛选') === 3, val('当前筛选'));
+  chk('无筛选时 当前筛选 = 公司数 3', val('当前筛选') === 3, val('当前筛选'));
   chk('已加入投递 = 投递管理总数', val('已加入投递') === trackTotal(), val('已加入投递') + ' vs ' + trackTotal());
 
   // 同一家公司再加一个岗位：公司数不变，记录条数 +1
   jobList.push(sanitizeJobList([{ id:'t4', qiuzhiId:'k4', company:'甲公司', positionRaw:'岗位D', positionTypes:['岗位D'], city:'上海', cities:['上海'], companyType:'大厂', typeTags:['互联网'], openingDate:'2026-09-04', popular:0 }])[0]);
   reset(); renderExplore();
   chk('同公司加岗位：公司数仍为 3', val('公司数') === 3, val('公司数'));
-  chk('同公司加岗位：记录条数变为 4', val('当前筛选') === 4, val('当前筛选'));
+  chk('同公司加岗位：当前筛选仍为 3（公司去重）', val('当前筛选') === 3, val('当前筛选'));
   chk('副标题显示 4 条岗位记录', subs('公司数').some(function(s){ return s.indexOf('4 条') !== -1; }), JSON.stringify(subs('公司数')));
+  chk('当前筛选已改为公司口径（非记录条数）', val('当前筛选') !== 4, val('当前筛选'));
 
   // 新增一家公司：公司数 +1
   jobList.push(sanitizeJobList([{ id:'t5', qiuzhiId:'k5', company:'丁公司', positionRaw:'岗位E', positionTypes:['岗位E'], city:'杭州', cities:['杭州'], companyType:'大厂', typeTags:['互联网'], openingDate:'2026-09-05', popular:0 }])[0]);
   reset(); renderExplore();
   chk('新增公司：公司数变为 4', val('公司数') === 4, val('公司数'));
-  chk('记录条数变为 5', val('当前筛选') === 5, val('当前筛选'));
+  chk('新增公司：当前筛选变为 4', val('当前筛选') === 4, val('当前筛选'));
 
   // 投递管理增删应同步「已加入投递」
   jobs.push(sanitizeJob({ id:'j4', company:'新增公司', position:'岗位E', status:'pending', notes:'{}' }));

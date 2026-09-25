@@ -1902,6 +1902,10 @@ function renderExplore() {
   const companyCount = companySet.size;
   const openingCount = jobList.length;
   const trackedAll = jobs.length;
+  // 「当前筛选」同样按公司口径（去重），与主卡保持一致；
+  // 未加任何筛选时 filtered 等于全量，因此两张卡数字必然相同。
+  const filteredCompanySet = new Set();
+  filtered.forEach(j => { const c = (j.company || '').trim(); if (c) filteredCompanySet.add(c); });
   const dateRange = (function () {
     const ds = jobList.map(j => j.openingDate).filter(Boolean).sort();
     return ds.length ? (ds[0] + ' ~ ' + ds[ds.length - 1]) : '';
@@ -1909,7 +1913,7 @@ function renderExplore() {
   document.getElementById('exploreStats').innerHTML = `
     <div class="stat-card" title="去重后的公司数量，与下方表格行数一致（表格一行即一家公司）"><div class="stat-label">公司数</div><div class="stat-value" style="color:var(--accent)">${companyCount}</div>${openingCount!==companyCount?`<div class="stat-sub">共 ${openingCount} 条岗位记录</div>`:''}${dateRange?`<div class="stat-sub">开放日期 ${escapeHtml(dateRange)}</div>`:''}</div>
     <div class="stat-card" title="与「投递管理」中的记录总数一致"><div class="stat-label">已加入投递</div><div class="stat-value" style="color:var(--green)">${trackedAll}</div></div>
-    <div class="stat-card" title="应用搜索与筛选条件后的记录条数"><div class="stat-label">当前筛选</div><div class="stat-value" style="color:var(--amber)">${filtered.length}</div></div>
+    <div class="stat-card" title="应用搜索与筛选条件后的公司数（去重）"><div class="stat-label">当前筛选</div><div class="stat-value" style="color:var(--amber)">${filteredCompanySet.size}</div></div>
   `;
   document.getElementById('exploreCount').textContent = openingCount;
   document.getElementById('trackCount').textContent = jobs.length;
