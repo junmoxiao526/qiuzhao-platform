@@ -807,16 +807,6 @@ body {
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .expl-row:focus-visible, .list-row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
-/* 云同步开关 */
-.cloud-box { display:flex; flex-direction:column; gap:8px; margin:0 16px 14px; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface); }
-.cloud-box .cloud-row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.cloud-box .cloud-title { font-size:13px; color:var(--text-secondary); }
-.cloud-box .cloud-state { font-size:12px; color:var(--text-muted); }
-.cloud-box .cloud-state.on { color:var(--green); }
-.cloud-box .cloud-warn { font-size:12px; line-height:1.7; color:var(--text-muted); margin:0; }
-.cloud-box .cloud-warn strong, .cloud-box .cloud-warn b { color:var(--text-secondary); }
-.cloud-box .cloud-info { font-size:12px; line-height:1.7; color:var(--text-muted); margin:0; }
-.cloud-box .cloud-info b { color:var(--accent); }
 </style>
 </head>
 <body>
@@ -940,21 +930,6 @@ body {
       <button class="btn btn-sm" onclick="loadSummary()">📂 加载</button>
       <button class="btn btn-primary btn-sm" onclick="saveSummary()">💾 保存</button>
     </div>
-  </div>
-
-  <!-- 岗位池共享状态 -->
-  <div class="cloud-box" id="cloudBox">
-    <div class="cloud-row">
-      <span class="cloud-title">🌐 共享岗位池（所有使用者共用一份，人人可贡献）</span>
-      <span style="display:flex;align-items:center;gap:10px;">
-        <button class="btn btn-outline btn-sm" id="poolPullBtn" onclick="pullJobPool(true)">⬇ 获取共享岗位</button>
-      </span>
-    </div>
-    <p class="cloud-info" id="poolInfo">正在读取岗位池状态…</p>
-    <p class="cloud-warn">
-      🔒 <b>你的投递记录、复盘面经、简历资料只保存在本机浏览器，不会上传到任何服务器</b>，其他人看不到。
-      共享池里只有公开招聘信息（公司、岗位、城市、投递链接），不含任何个人数据。
-    </p>
   </div>
 
   <!-- Board View -->
@@ -1194,7 +1169,6 @@ body {
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* mammoth.js v1.6.0 内联（Word .docx 解析，离线可用） */
 !function(f){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=f();else if("function"==typeof define&&define.amd)define([],f);else{var g;g="undefined"!=typeof window?window:"undefined"!=typeof global?global:"undefined"!=typeof self?self:this,g.mammoth=f()}}(function(){var define,module,exports;return function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a="function"==typeof require&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}for(var i="function"==typeof require&&require,o=0;o<r.length;o++)s(r[o]);return s}({1:[function(require,module,exports){function Files(){function read(uri){return promises.reject(new Error("could not open external image: '"+uri+"'\ncannot open linked files from a web browser"))}return{read:read}}var promises=require("../../lib/promises");exports.Files=Files},{"../../lib/promises":23}],2:[function(require,module,exports){function openZip(options){return options.arrayBuffer?promises.resolve(zipfile.openArrayBuffer(options.arrayBuffer)):promises.reject(new Error("Could not find file in options"))}var promises=require("../lib/promises"),zipfile=require("../lib/zipfile");exports.openZip=openZip},{"../lib/promises":23,"../lib/zipfile":40}],3:[function(require,module,exports){function DocumentConverter(options){return{convertToHtml:function(element){var comments=_.indexBy(element.type===documents.types.document?element.comments:[],"commentId"),conversion=new DocumentConversion(options,comments);return conversion.convertToHtml(element)}}}function DocumentConversion(options,comments){function convertToHtml(document){var messages=[],html=elementToHtml(document,messages,{}),deferredNodes=[];walkHtml(html,function(node){"deferred"===node.type&&deferredNodes.push(node)});var deferredValues={};return promises.mapSeries(deferredNodes,function(deferred){return deferred.value().then(function(value){deferredValues[deferred.id]=value})}).then(function(){function replaceDeferred(nodes){return flatMap(nodes,function(node){return"deferred"===node.type?deferredValues[node.id]:node.children?[_.extend({},node,{children:replaceDeferred(node.children)})]:[node]})}var writer=writers.writer({prettyPrint:options.prettyPrint,outputFormat:options.outputFormat});return Html.write(writer,Html.simplify(replaceDeferred(html))),new results.Result(writer.asString(),messages)})}function convertElements(elements,messages,options){return flatMap(elements,function(element){return elementToHtml(element,messages,options)})}function elementToHtml(element,messages,options){if(!options)throw new Error("options not set");var handler=elementConverters[element.type];return handler?handler(element,messages,options):[]}function convertParagraph(element,messages,options){return htmlPathForParagraph(element,messages).wrap(function(){var content=convertElements(element.children,messages,options);return ignoreEmptyParagraphs?content:[Html.forceWrite].concat(content)})}function htmlPathForParagraph(element,messages){var style=findStyle(element);return style?style.to:(element.styleId&&messages.push(unrecognisedStyleWarning("paragraph",element)),defaultParagraphStyle)}function convertRun(run,messages,options){var nodes=function(){return convertElements(run.children,messages,options)},paths=[];run.isSmallCaps&&paths.push(findHtmlPathForRunProperty("smallCaps")),run.isAllCaps&&paths.push(findHtmlPathForRunProperty("allCaps")),run.isStrikethrough&&paths.push(findHtmlPathForRunProperty("strikethrough","s")),run.isUnderline&&paths.push(findHtmlPathForRunProperty("underline")),run.verticalAlignment===documents.verticalAlignment.subscript&&paths.push(htmlPaths.element("sub",{},{fresh:!1})),run.verticalAlignment===documents.verticalAlignment.superscript&&paths.push(htmlPaths.element("sup",{},{fresh:!1})),run.isItalic&&paths.push(findHtmlPathForRunProperty("italic","em")),run.isBold&&paths.push(findHtmlPathForRunProperty("bold","strong"));var stylePath=htmlPaths.empty,style=findStyle(run);return style?stylePath=style.to:run.styleId&&messages.push(unrecognisedStyleWarning("run",run)),paths.push(stylePath),paths.forEach(function(path){nodes=path.wrap.bind(path,nodes)}),nodes()}function findHtmlPathForRunProperty(elementType,defaultTagName){var path=findHtmlPath({type:elementType});return path?path:defaultTagName?htmlPaths.element(defaultTagName,{},{fresh:!1}):htmlPaths.empty}function findHtmlPath(element,defaultPath){var style=findStyle(element);return style?style.to:defaultPath}function findStyle(element){for(var i=0;i<styleMap.length;i++)if(styleMap[i].from.matches(element))return styleMap[i]}function recoveringConvertImage(convertImage){return function(image,messages){return promises.attempt(function(){return convertImage(image,messages)}).caught(function(error){return messages.push(results.error(error)),[]})}}function noteHtmlId(note){return referentHtmlId(note.noteType,note.noteId)}function noteRefHtmlId(note){return referenceHtmlId(note.noteType,note.noteId)}function referentHtmlId(referenceType,referenceId){return htmlId(referenceType+"-"+referenceId)}function referenceHtmlId(referenceType,referenceId){return htmlId(referenceType+"-ref-"+referenceId)}function htmlId(suffix){return idPrefix+suffix}function convertTable(element,messages,options){return findHtmlPath(element,defaultTablePath).wrap(function(){return convertTableChildren(element,messages,options)})}function convertTableChildren(element,messages,options){var bodyIndex=_.findIndex(element.children,function(child){return!child.type===documents.types.tableRow||!child.isHeader});-1===bodyIndex&&(bodyIndex=element.children.length);var children;if(0===bodyIndex)children=convertElements(element.children,messages,_.extend({},options,{isTableHeader:!1}));else{var headRows=convertElements(element.children.slice(0,bodyIndex),messages,_.extend({},options,{isTableHeader:!0})),bodyRows=convertElements(element.children.slice(bodyIndex),messages,_.extend({},options,{isTableHeader:!1}));children=[Html.freshElement("thead",{},headRows),Html.freshElement("tbody",{},bodyRows)]}return[Html.forceWrite].concat(children)}function convertTableRow(element,messages,options){var children=convertElements(element.children,messages,options);return[Html.freshElement("tr",{},[Html.forceWrite].concat(children))]}function convertTableCell(element,messages,options){var tagName=options.isTableHeader?"th":"td",children=convertElements(element.children,messages,options),attributes={};return 1!==element.colSpan&&(attributes.colspan=element.colSpan.toString()),1!==element.rowSpan&&(attributes.rowspan=element.rowSpan.toString()),[Html.freshElement(tagName,attributes,[Html.forceWrite].concat(children))]}function convertCommentReference(reference,messages,options){return findHtmlPath(reference,htmlPaths.ignore).wrap(function(){var comment=comments[reference.commentId],count=referencedComments.length+1,label="["+commentAuthorLabel(comment)+count+"]";return referencedComments.push({label:label,comment:comment}),[Html.freshElement("a",{href:"#"+referentHtmlId("comment",reference.commentId),id:referenceHtmlId("comment",reference.commentId)},[Html.text(label)])]})}function convertComment(referencedComment,messages,options){var label=referencedComment.label,comment=referencedComment.comment,body=convertElements(comment.body,messages,options).concat([Html.nonFreshElement("p",{},[Html.text(" "),Html.freshElement("a",{href:"#"+referenceHtmlId("comment",comment.commentId)},[Html.text("↑")])])]);return[Html.freshElement("dt",{id:referentHtmlId("comment",comment.commentId)},[Html.text("Comment "+label)]),Html.freshElement("dd",{},body)]}function convertBreak(element,messages,options){return htmlPathForBreak(element).wrap(function(){return[]})}function htmlPathForBreak(element){var style=findStyle(element);return style?style.to:"line"===element.breakType?htmlPaths.topLevelElement("br"):htmlPaths.empty}var noteNumber=1,noteReferences=[],referencedComments=[];options=_.extend({ignoreEmptyParagraphs:!0},options);var idPrefix=void 0===options.idPrefix?"":options.idPrefix,ignoreEmptyParagraphs=options.ignoreEmptyParagraphs,defaultParagraphStyle=htmlPaths.topLevelElement("p"),styleMap=options.styleMap||[],defaultTablePath=htmlPaths.elements([htmlPaths.element("table",{},{fresh:!0})]),elementConverters={document:function(document,messages,options){var children=convertElements(document.children,messages,options),notes=noteReferences.map(function(noteReference){return document.notes.resolve(noteReference)}),notesNodes=convertElements(notes,messages,options);return children.concat([Html.freshElement("ol",{},notesNodes),Html.freshElement("dl",{},flatMap(referencedComments,function(referencedComment){return convertComment(referencedComment,messages,options)}))])},paragraph:convertParagraph,run:convertRun,text:function(element,messages,options){return[Html.text(element.value)]},tab:function(element,messages,options){return[Html.text("	")]},hyperlink:function(element,messages,options){var href=element.anchor?"#"+htmlId(element.anchor):element.href,attributes={href:href};null!=element.targetFrame&&(attributes.target=element.targetFrame);var children=convertElements(element.children,messages,options);return[Html.nonFreshElement("a",attributes,children)]},bookmarkStart:function(element,messages,options){var anchor=Html.freshElement("a",{id:htmlId(element.name)},[Html.forceWrite]);return[anchor]},noteReference:function(element,messages,options){noteReferences.push(element);var anchor=Html.freshElement("a",{href:"#"+noteHtmlId(element),id:noteRefHtmlId(element)},[Html.text("["+noteNumber++ +"]")]);return[Html.freshElement("sup",{},[anchor])]},note:function(element,messages,options){var children=convertElements(element.body,messages,options),backLink=Html.elementWithTag(htmlPaths.element("p",{},{fresh:!1}),[Html.text(" "),Html.freshElement("a",{href:"#"+noteRefHtmlId(element)},[Html.text("↑")])]),body=children.concat([backLink]);return Html.freshElement("li",{id:noteHtmlId(element)},body)},commentReference:convertCommentReference,comment:convertComment,image:deferredConversion(recoveringConvertImage(options.convertImage||images.dataUri)),table:convertTable,tableRow:convertTableRow,tableCell:convertTableCell,"break":convertBreak};return{convertToHtml:convertToHtml}}function deferredConversion(func){return function(element,messages,options){return[{type:"deferred",id:deferredId++,value:function(){return func(element,messages,options)}}]}}function unrecognisedStyleWarning(type,element){return results.warning("Unrecognised "+type+" style: '"+element.styleName+"' (Style ID: "+element.styleId+")")}function flatMap(values,func){return _.flatten(values.map(func),!0)}function walkHtml(nodes,callback){nodes.forEach(function(node){callback(node),node.children&&walkHtml(node.children,callback)})}var _=require("underscore"),promises=require("./promises"),documents=require("./documents"),htmlPaths=require("./styles/html-paths"),results=require("./results"),images=require("./images"),Html=require("./html"),writers=require("./writers");exports.DocumentConverter=DocumentConverter;var deferredId=1,commentAuthorLabel=exports.commentAuthorLabel=function(comment){return comment.authorInitials||""}},{"./documents":4,"./html":18,"./images":20,"./promises":23,"./results":25,"./styles/html-paths":28,"./writers":33,underscore:103}],4:[function(require,module,exports){(function(Buffer){function Document(children,options){return options=options||{},{type:types.document,children:children,notes:options.notes||new Notes({}),comments:options.comments||[]}}function Paragraph(children,properties){properties=properties||{};var indent=properties.indent||{};return{type:types.paragraph,children:children,styleId:properties.styleId||null,styleName:properties.styleName||null,numbering:properties.numbering||null,alignment:properties.alignment||null,indent:{start:indent.start||null,end:indent.end||null,firstLine:indent.firstLine||null,hanging:indent.hanging||null}}}function Run(children,properties){return properties=properties||{},{type:types.run,children:children,styleId:properties.styleId||null,styleName:properties.styleName||null,isBold:!!properties.isBold,isUnderline:!!properties.isUnderline,isItalic:!!properties.isItalic,isStrikethrough:!!properties.isStrikethrough,isAllCaps:!!properties.isAllCaps,isSmallCaps:!!properties.isSmallCaps,verticalAlignment:properties.verticalAlignment||verticalAlignment.baseline,font:properties.font||null,fontSize:properties.fontSize||null}}function Text(value){return{type:types.text,value:value}}function Tab(){return{type:types.tab}}function Hyperlink(children,options){return{type:types.hyperlink,children:children,href:options.href,anchor:options.anchor,targetFrame:options.targetFrame}}function NoteReference(options){return{type:types.noteReference,noteType:options.noteType,noteId:options.noteId}}function Notes(notes){this._notes=_.indexBy(notes,function(note){return noteKey(note.noteType,note.noteId)})}function Note(options){return{type:types.note,noteType:options.noteType,noteId:options.noteId,body:options.body}}function commentReference(options){return{type:types.commentReference,commentId:options.commentId}}function comment(options){return{type:types.comment,commentId:options.commentId,body:options.body,authorName:options.authorName,authorInitials:options.authorInitials}}function noteKey(noteType,id){return noteType+"-"+id}function Image(options){return{type:types.image,read:function(encoding){return encoding?options.readImage(encoding):options.readImage().then(function(arrayBuffer){return Buffer.from(arrayBuffer)})},readAsArrayBuffer:function(){return options.readImage()},readAsBase64String:function(){return options.readImage("base64")},readAsBuffer:function(){return options.readImage().then(function(arrayBuffer){return Buffer.from(arrayBuffer)})},altText:options.altText,contentType:options.contentType}}function Table(children,properties){return properties=properties||{},{type:types.table,children:children,styleId:properties.styleId||null,styleName:properties.styleName||null}}function TableRow(children,options){return options=options||{},{type:types.tableRow,children:children,isHeader:options.isHeader||!1}}function TableCell(children,options){return options=options||{},{type:types.tableCell,children:children,colSpan:null==options.colSpan?1:options.colSpan,rowSpan:null==options.rowSpan?1:options.rowSpan}}function Break(breakType){return{type:types["break"],breakType:breakType}}function BookmarkStart(options){return{type:types.bookmarkStart,name:options.name}}var _=require("underscore"),types=exports.types={document:"document",paragraph:"paragraph",run:"run",text:"text",tab:"tab",hyperlink:"hyperlink",noteReference:"noteReference",image:"image",note:"note",commentReference:"commentReference",comment:"comment",table:"table",tableRow:"tableRow",tableCell:"tableCell","break":"break",bookmarkStart:"bookmarkStart"},verticalAlignment={baseline:"baseline",superscript:"superscript",subscript:"subscript"};Notes.prototype.resolve=function(reference){return this.findNoteByKey(noteKey(reference.noteType,reference.noteId))},Notes.prototype.findNoteByKey=function(key){return this._notes[key]||null},exports.document=exports.Document=Document,exports.paragraph=exports.Paragraph=Paragraph,exports.run=exports.Run=Run,exports.text=exports.Text=Text,exports.tab=exports.Tab=Tab,exports.Hyperlink=Hyperlink,exports.noteReference=exports.NoteReference=NoteReference,exports.Notes=Notes,exports.Note=Note,exports.commentReference=commentReference,exports.comment=comment,exports.Image=Image,exports.Table=Table,exports.TableRow=TableRow,exports.TableCell=TableCell,exports.lineBreak=Break("line"),exports.pageBreak=Break("page"),exports.columnBreak=Break("column"),exports.BookmarkStart=BookmarkStart,exports.verticalAlignment=verticalAlignment}).call(this,require("buffer").Buffer)},{buffer:83,underscore:103}],5:[function(require,module,exports){function createBodyReader(options){return{readXmlElement:function(element){return new BodyReader(options).readXmlElement(element)},readXmlElements:function(elements){return new BodyReader(options).readXmlElements(elements)}}}function BodyReader(options){function readXmlElements(elements){var results=elements.map(readXmlElement);return combineResults(results)}function readXmlElement(element){if("element"===element.type){var handler=xmlElementReaders[element.name];if(handler)return handler(element);if(!Object.prototype.hasOwnProperty.call(ignoreElements,element.name)){var message=warning("An unrecognised element was ignored: "+element.name);return emptyResultWithMessages([message])}}return emptyResult()}function readParagraphProperties(element){return readParagraphStyle(element).map(function(style){return{type:"paragraphProperties",styleId:style.styleId,styleName:style.name,alignment:element.firstOrEmpty("w:jc").attributes["w:val"],numbering:readNumberingProperties(style.styleId,element.firstOrEmpty("w:numPr"),numbering),indent:readParagraphIndent(element.firstOrEmpty("w:ind"))}})}function readParagraphIndent(element){return{start:element.attributes["w:start"]||element.attributes["w:left"],end:element.attributes["w:end"]||element.attributes["w:right"],firstLine:element.attributes["w:firstLine"],hanging:element.attributes["w:hanging"]}}function readRunProperties(element){return readRunStyle(element).map(function(style){var fontSizeString=element.firstOrEmpty("w:sz").attributes["w:val"],fontSize=/^[0-9]+$/.test(fontSizeString)?parseInt(fontSizeString,10)/2:null;return{type:"runProperties",styleId:style.styleId,styleName:style.name,verticalAlignment:element.firstOrEmpty("w:vertAlign").attributes["w:val"],font:element.firstOrEmpty("w:rFonts").attributes["w:ascii"],fontSize:fontSize,isBold:readBooleanElement(element.first("w:b")),isUnderline:readUnderline(element.first("w:u")),isItalic:readBooleanElement(element.first("w:i")),isStrikethrough:readBooleanElement(element.first("w:strike")),isAllCaps:readBooleanElement(element.first("w:caps")),isSmallCaps:readBooleanElement(element.first("w:smallCaps"))}})}function readUnderline(element){if(element){var value=element.attributes["w:val"];return void 0!==value&&"false"!==value&&"0"!==value&&"none"!==value}return!1}function readBooleanElement(element){if(element){var value=element.attributes["w:val"];return"false"!==value&&"0"!==value}return!1}function readParagraphStyle(element){return readStyle(element,"w:pStyle","Paragraph",styles.findParagraphStyleById)}function readRunStyle(element){return readStyle(element,"w:rStyle","Run",styles.findCharacterStyleById)}function readTableStyle(element){return readStyle(element,"w:tblStyle","Table",styles.findTableStyleById)}function readStyle(element,styleTagName,styleType,findStyleById){var messages=[],styleElement=element.first(styleTagName),styleId=null,name=null;if(styleElement&&(styleId=styleElement.attributes["w:val"])){var style=findStyleById(styleId);style?name=style.name:messages.push(undefinedStyleWarning(styleType,styleId))}return elementResultWithMessages({styleId:styleId,name:name},messages)}function readFldChar(element){var type=element.attributes["w:fldCharType"];if("begin"===type)complexFieldStack.push(unknownComplexField),currentInstrText=[];else if("end"===type)complexFieldStack.pop();else if("separate"===type){var hyperlinkOptions=parseHyperlinkFieldCode(currentInstrText.join("")),complexField=null===hyperlinkOptions?unknownComplexField:{type:"hyperlink",options:hyperlinkOptions};complexFieldStack.pop(),complexFieldStack.push(complexField)}return emptyResult()}function currentHyperlinkOptions(){var topHyperlink=_.last(complexFieldStack.filter(function(complexField){return"hyperlink"===complexField.type}));return topHyperlink?topHyperlink.options:null}function parseHyperlinkFieldCode(code){var externalLinkResult=/\s*HYPERLINK "(.*)"/.exec(code);if(externalLinkResult)return{href:externalLinkResult[1]};var internalLinkResult=/\s*HYPERLINK\s+\\l\s+"(.*)"/.exec(code);return internalLinkResult?{anchor:internalLinkResult[1]}:null}function readInstrText(element){return currentInstrText.push(element.text()),emptyResult()}function readSymbol(element){var font=element.attributes["w:font"],char=element.attributes["w:char"],unicodeCharacter=dingbatToUnicode.hex(font,char);return null==unicodeCharacter&&/^F0..$/.test(char)&&(unicodeCharacter=dingbatToUnicode.hex(font,char.substring(2))),null==unicodeCharacter?emptyResultWithMessages([warning("A w:sym element with an unsupported character was ignored: char "+char+" in font "+font)]):elementResult(new documents.Text(unicodeCharacter.string))}function noteReferenceReader(noteType){return function(element){var noteId=element.attributes["w:id"];return elementResult(new documents.NoteReference({noteType:noteType,noteId:noteId}))}}function readCommentReference(element){return elementResult(documents.commentReference({commentId:element.attributes["w:id"]}))}function readChildElements(element){return readXmlElements(element.children)}function readTable(element){var propertiesResult=readTableProperties(element.firstOrEmpty("w:tblPr"));return readXmlElements(element.children).flatMap(calculateRowSpans).flatMap(function(children){return propertiesResult.map(function(properties){return documents.Table(children,properties)})})}function readTableProperties(element){return readTableStyle(element).map(function(style){return{styleId:style.styleId,styleName:style.name}})}function readTableRow(element){var properties=element.firstOrEmpty("w:trPr"),isHeader=!!properties.first("w:tblHeader");return readXmlElements(element.children).map(function(children){return documents.TableRow(children,{isHeader:isHeader})})}function readTableCell(element){return readXmlElements(element.children).map(function(children){var properties=element.firstOrEmpty("w:tcPr"),gridSpan=properties.firstOrEmpty("w:gridSpan").attributes["w:val"],colSpan=gridSpan?parseInt(gridSpan,10):1,cell=documents.TableCell(children,{colSpan:colSpan});return cell._vMerge=readVMerge(properties),cell})}function readVMerge(properties){var element=properties.first("w:vMerge");if(element){var val=element.attributes["w:val"];return"continue"===val||!val}return null}function calculateRowSpans(rows){var unexpectedNonRows=_.any(rows,function(row){return row.type!==documents.types.tableRow});if(unexpectedNonRows)return elementResultWithMessages(rows,[warning("unexpected non-row element in table, cell merging may be incorrect")]);var unexpectedNonCells=_.any(rows,function(row){return _.any(row.children,function(cell){return cell.type!==documents.types.tableCell})});if(unexpectedNonCells)return elementResultWithMessages(rows,[warning("unexpected non-cell element in table row, cell merging may be incorrect")]);var columns={};return rows.forEach(function(row){var cellIndex=0;row.children.forEach(function(cell){cell._vMerge&&columns[cellIndex]?columns[cellIndex].rowSpan++:(columns[cellIndex]=cell,cell._vMerge=!1),cellIndex+=cell.colSpan})}),rows.forEach(function(row){row.children=row.children.filter(function(cell){return!cell._vMerge}),row.children.forEach(function(cell){delete cell._vMerge})}),elementResult(rows)}function readDrawingElement(element){var blips=element.getElementsByTagName("a:graphic").getElementsByTagName("a:graphicData").getElementsByTagName("pic:pic").getElementsByTagName("pic:blipFill").getElementsByTagName("a:blip");return combineResults(blips.map(readBlip.bind(null,element)))}function readBlip(element,blip){var properties=element.first("wp:docPr").attributes,altText=isBlank(properties.descr)?properties.title:properties.descr,blipImageFile=findBlipImageFile(blip);return null===blipImageFile?emptyResultWithMessages([warning("Could not find image file for a:blip element")]):readImage(blipImageFile,altText)}function isBlank(value){return null==value||/^\s*$/.test(value)}function findBlipImageFile(blip){var embedRelationshipId=blip.attributes["r:embed"],linkRelationshipId=blip.attributes["r:link"];if(embedRelationshipId)return findEmbeddedImageFile(embedRelationshipId);if(linkRelationshipId){var imagePath=relationships.findTargetByRelationshipId(linkRelationshipId);return{path:imagePath,read:files.read.bind(files,imagePath)}}return null}function readImageData(element){var relationshipId=element.attributes["r:id"];return relationshipId?readImage(findEmbeddedImageFile(relationshipId),element.attributes["o:title"]):emptyResultWithMessages([warning("A v:imagedata element without a relationship ID was ignored")])}function findEmbeddedImageFile(relationshipId){var path=uris.uriToZipEntryName("word",relationships.findTargetByRelationshipId(relationshipId));return{path:path,read:docxFile.read.bind(docxFile,path)}}function readImage(imageFile,altText){var contentType=contentTypes.findContentType(imageFile.path),image=documents.Image({readImage:imageFile.read,altText:altText,contentType:contentType}),warnings=supportedImageTypes[contentType]?[]:warning("Image of type "+contentType+" is unlikely to display in web browsers");return elementResultWithMessages(image,warnings)}function undefinedStyleWarning(type,styleId){return warning(type+" style with ID "+styleId+" was referenced but not defined in the document")}var complexFieldStack=[],currentInstrText=[],deletedParagraphContents=[],relationships=options.relationships,contentTypes=options.contentTypes,docxFile=options.docxFile,files=options.files,numbering=options.numbering,styles=options.styles,unknownComplexField={type:"unknown"},xmlElementReaders={"w:p":function(element){var paragraphPropertiesElement=element.firstOrEmpty("w:pPr"),isDeleted=!!paragraphPropertiesElement.firstOrEmpty("w:rPr").first("w:del");if(isDeleted)return element.children.forEach(function(child){deletedParagraphContents.push(child)}),emptyResult();var childrenXml=element.children;return deletedParagraphContents.length>0&&(childrenXml=deletedParagraphContents.concat(childrenXml),deletedParagraphContents=[]),ReadResult.map(readParagraphProperties(paragraphPropertiesElement),readXmlElements(childrenXml),function(properties,children){return new documents.Paragraph(children,properties)}).insertExtra()},"w:r":function(element){return ReadResult.map(readRunProperties(element.firstOrEmpty("w:rPr")),readXmlElements(element.children),function(properties,children){var hyperlinkOptions=currentHyperlinkOptions();return null!==hyperlinkOptions&&(children=[new documents.Hyperlink(children,hyperlinkOptions)]),new documents.Run(children,properties)})},"w:fldChar":readFldChar,"w:instrText":readInstrText,"w:t":function(element){return elementResult(new documents.Text(element.text()))},"w:tab":function(element){return elementResult(new documents.Tab)},"w:noBreakHyphen":function(){return elementResult(new documents.Text("‑"))},"w:softHyphen":function(element){return elementResult(new documents.Text("­"))},"w:sym":readSymbol,"w:hyperlink":function(element){var relationshipId=element.attributes["r:id"],anchor=element.attributes["w:anchor"];return readXmlElements(element.children).map(function(children){function create(options){var targetFrame=element.attributes["w:tgtFrame"]||null;return new documents.Hyperlink(children,_.extend({targetFrame:targetFrame},options))}if(relationshipId){var href=relationships.findTargetByRelationshipId(relationshipId);return anchor&&(href=uris.replaceFragment(href,anchor)),create({href:href})}return anchor?create({anchor:anchor}):children})},"w:tbl":readTable,"w:tr":readTableRow,"w:tc":readTableCell,"w:footnoteReference":noteReferenceReader("footnote"),"w:endnoteReference":noteReferenceReader("endnote"),"w:commentReference":readCommentReference,"w:br":function(element){var breakType=element.attributes["w:type"];return null==breakType||"textWrapping"===breakType?elementResult(documents.lineBreak):"page"===breakType?elementResult(documents.pageBreak):"column"===breakType?elementResult(documents.columnBreak):emptyResultWithMessages([warning("Unsupported break type: "+breakType)])},"w:bookmarkStart":function(element){var name=element.attributes["w:name"];return"_GoBack"===name?emptyResult():elementResult(new documents.BookmarkStart({name:name}))},"mc:AlternateContent":function(element){return readChildElements(element.first("mc:Fallback"))},"w:sdt":function(element){return readXmlElements(element.firstOrEmpty("w:sdtContent").children)},"w:ins":readChildElements,"w:object":readChildElements,"w:smartTag":readChildElements,"w:drawing":readChildElements,"w:pict":function(element){return readChildElements(element).toExtra()},"v:roundrect":readChildElements,"v:shape":readChildElements,"v:textbox":readChildElements,"w:txbxContent":readChildElements,"wp:inline":readDrawingElement,"wp:anchor":readDrawingElement,"v:imagedata":readImageData,"v:group":readChildElements,"v:rect":readChildElements};return{readXmlElement:readXmlElement,readXmlElements:readXmlElements}}function readNumberingProperties(styleId,element,numbering){if(null!=styleId){var levelByStyleId=numbering.findLevelByParagraphStyleId(styleId);if(null!=levelByStyleId)return levelByStyleId}var level=element.firstOrEmpty("w:ilvl").attributes["w:val"],numId=element.firstOrEmpty("w:numId").attributes["w:val"];return void 0===level||void 0===numId?null:numbering.findLevel(numId,level)}function emptyResultWithMessages(messages){return new ReadResult(null,null,messages)}function emptyResult(){return new ReadResult(null)}function elementResult(element){return new ReadResult(element)}function elementResultWithMessages(element,messages){return new ReadResult(element,null,messages)}function ReadResult(element,extra,messages){this.value=element||[],this.extra=extra||[],this._result=new Result({element:this.value,extra:extra},messages),this.messages=this._result.messages}function combineResults(results){var result=Result.combine(_.pluck(results,"_result"));return new ReadResult(_.flatten(_.pluck(result.value,"element")),_.filter(_.flatten(_.pluck(result.value,"extra")),identity),result.messages)}function joinElements(first,second){return _.flatten([first,second])}function identity(value){return value}exports.createBodyReader=createBodyReader,exports._readNumberingProperties=readNumberingProperties;var dingbatToUnicode=require("dingbat-to-unicode"),_=require("underscore"),documents=require("../documents"),Result=require("../results").Result,warning=require("../results").warning,uris=require("./uris"),supportedImageTypes={"image/png":!0,"image/gif":!0,"image/jpeg":!0,"image/svg+xml":!0,"image/tiff":!0},ignoreElements={"office-word:wrap":!0,"v:shadow":!0,"v:shapetype":!0,"w:annotationRef":!0,"w:bookmarkEnd":!0,"w:sectPr":!0,"w:proofErr":!0,"w:lastRenderedPageBreak":!0,"w:commentRangeStart":!0,"w:commentRangeEnd":!0,"w:del":!0,"w:footnoteRef":!0,"w:endnoteRef":!0,"w:pPr":!0,"w:rPr":!0,"w:tblPr":!0,"w:tblGrid":!0,"w:trPr":!0,"w:tcPr":!0};ReadResult.prototype.toExtra=function(){return new ReadResult(null,joinElements(this.extra,this.value),this.messages)},ReadResult.prototype.insertExtra=function(){var extra=this.extra;return extra&&extra.length?new ReadResult(joinElements(this.value,extra),null,this.messages):this},ReadResult.prototype.map=function(func){var result=this._result.map(function(value){return func(value.element)});return new ReadResult(result.value,this.extra,result.messages)},ReadResult.prototype.flatMap=function(func){var result=this._result.flatMap(function(value){return func(value.element)._result});return new ReadResult(result.value.element,joinElements(this.extra,result.value.extra),result.messages)},ReadResult.map=function(first,second,func){return new ReadResult(func(first.value,second.value),joinElements(first.extra,second.extra),first.messages.concat(second.messages))}},{"../documents":4,"../results":25,"./uris":16,"dingbat-to-unicode":85,underscore:103}],6:[function(require,module,exports){function createCommentsReader(bodyReader){function readCommentsXml(element){
@@ -1297,8 +1271,6 @@ const REVIEW_STAGES = [
   { key:'failed',    label:'已挂',   color:'#B45309' },
   { key:'other',     label:'其他',   color:'#64748b' },
 ];
-const SUPA_URL = 'https://dppxnheifyqenroqtusw.supabase.co';
-const SUPA_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRwcHhuaGVpZnlxZW5yb3F0dXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMDAzMjEsImV4cCI6MjEwMjU3NjMyMX0._Lli_AZ_qifLW9EI3W0qjevJkNrAwvMm4GcgcR-1mAI';
 const QIUZHI_META_KEY = 'qiuzhi_sync_meta';
 const SJ_COMPANY_TYPE_TAGS = ['科技','互联网','央国企','金融','外企','游戏','在线教育','快消','其他','制造业'];
 
@@ -1388,8 +1360,9 @@ function safeDataUrl(v) {
   if (!/^data:(image\/(png|jpe?g|gif|webp|bmp)|application\/pdf)[;,]/.test(s)) return '';
   return s;
 }
-// 链接白名单：岗位池是共享且匿名可写的，任何人塞进来的 url 都可能带 javascript: 等协议，
-// 点一下就在受害者浏览器里执行脚本。escapeHtml 只挡引号尖括号，挡不住协议，必须单独校验。
+// 链接白名单：岗位数据来自外部公开招聘接口，字段内容不完全可信，
+// 其中的 url 可能带 javascript: 等协议，点一下就在使用者浏览器里执行脚本。
+// escapeHtml 只挡引号尖括号，挡不住协议，必须单独校验。
 const SAFE_HREF_PROTOCOLS = ['http:', 'https:', 'mailto:', 'tel:'];
 function safeHref(v) {
   if (v === undefined || v === null) return '';
@@ -1474,210 +1447,12 @@ function saveReviews() {
   if (!lsSet(STORAGE_REVIEWS, reviews)) { try { alert('复盘数据本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
 }
 
-// ==================== Supabase 共享岗位池 ====================
-// 架构说明：
-//   job_pool  —— 岗位池，全站共用一份，匿名可读可写（岗位是公开招聘信息，非隐私）
-//   个人数据   —— 投递/复盘/简历/总结，只存本机 localStorage，永不上传，无需登录
-// 因此本文件里不存在任何"把个人数据推到云端"的代码路径。
-const JOB_POOL_TABLE = 'job_pool';
-const POOL_BATCH = 200;   // 分批 upsert，避免单请求体过大
-const LAST_POOL_PULL_KEY = 'qiuzhao_pool_last_pull';
-const LAST_POOL_PUSH_KEY = 'qiuzhao_pool_last_push';
-
-let supabaseClient = null;
-try { if (window.supabase) supabaseClient = supabase.createClient(SUPA_URL, SUPA_ANON_KEY); } catch(e) {}
+// ==================== 岗位清单本地数据 ====================
+// 架构说明：本站没有任何后端存储。
+//   岗位清单 —— 由使用者点「🔄 同步招聘方舟」自行从公开招聘接口抓取，只存在本机浏览器。
+//   个人数据 —— 投递记录 / 复盘 / 简历 / 总结，同样只存本机 localStorage，永不上传。
+// 因此本文件里不存在任何把数据发送到云端的代码路径。
 function nowIso() { return new Date().toISOString(); }
-function isPoolAvailable() { return !!supabaseClient; }
-
-// 岗位对象 → 数据库行
-function jobToPoolRow(j) {
-  return {
-    qiuzhi_id:      String(j.qiuzhiId),
-    company:        String(j.company || ''),
-    position_raw:   j.positionRaw || (Array.isArray(j.positionTypes) ? j.positionTypes.join(' / ') : '') || '',
-    position_types: Array.isArray(j.positionTypes) ? j.positionTypes : [],
-    industry_raw:   j.industryRaw || '',
-    type_tags:      Array.isArray(j.typeTags) ? j.typeTags : [],
-    company_types:  Array.isArray(j.companyTypesRaw) ? j.companyTypesRaw : (Array.isArray(j.companyTypes) ? j.companyTypes : []),
-    cities:         Array.isArray(j.cities) ? j.cities : [],
-    batch:          j.batch || '',
-    deadline:       j.deadline || '',
-    opening_date:   j.openingDate || '',
-    url:            j.url || '',
-    notice_url:     j.noticeUrl || '',
-    referral_code:  j.referralCode || '',
-    popular:        Number(j.popular) || 0,
-    updated_at:     nowIso(),
-  };
-}
-// 数据库行 → 岗位对象（复用现有 sanitizeJobList 兜底消毒）
-function poolRowToJob(r) {
-  // company_types 已不在拉取列中，用 type_tags 推导，两者语义一致
-  const types = Array.isArray(r.company_types) && r.company_types.length
-    ? r.company_types
-    : (Array.isArray(r.type_tags) ? r.type_tags : []);
-  return {
-    id: genId(),
-    qiuzhiId: r.qiuzhi_id,
-    company: r.company,
-    positionRaw: r.position_raw || '',
-    positionTypes: r.position_types || [],
-    industryRaw: r.industry_raw || '',
-    typeTags: r.type_tags || [],
-    companyTypesRaw: types,
-    companyType: mapCompanyTypes(types) || types.join(' / '),
-    cities: r.cities || [],
-    city: (r.cities || []).join(' / '),
-    batch: r.batch || '',
-    deadline: r.deadline || '',
-    openingDate: r.opening_date || '',
-    url: r.url || '',
-    noticeUrl: r.notice_url || '',
-    referralCode: r.referral_code || '',
-    popular: Number(r.popular) || 0,
-    addedAt: r.first_seen_at || nowIso(),
-  };
-}
-
-// 拉取共享池。
-// 两个必须处理的现实约束：
-//   1) Supabase 单次响应默认上限 1000 行（Max Rows），必须分页，否则会静默截断
-//   2) 池子可达数千行、单次全量约 500KB，因此支持「增量拉取」
-//
-// 分页为什么不用 updated_at 做游标：
-//   批量 upsert 会让成百上千行的 updated_at 落在同一毫秒（实测 1000 行里只有 2 个不同值），
-//   此时 `gt('updated_at', 游标)` 会一次性跳过所有同值行，导致漏数据（实测 4215 行只拉到 2125）。
-//   因此排序改用主键 qiuzhi_id（唯一），配合 range() 做区间翻页，彻底规避同值问题。
-const POOL_PAGE = 1000;
-const POOL_COLUMNS = 'qiuzhi_id,company,position_raw,position_types,industry_raw,'
-  + 'type_tags,cities,batch,deadline,opening_date,url,notice_url,referral_code,popular,first_seen_at,updated_at';
-
-async function fetchPoolRows(incremental) {
-  const rows = [];
-  if (incremental) {
-    // 增量：只取上次拉取时间之后有更新的行；同样的同值问题这里无害
-    // （我们只是拿"新增/变更的行"，重复几行由 mergeJobPool 去重兜住）
-    let lastPull = '';
-    try { lastPull = localStorage.getItem(LAST_POOL_PULL_KEY) || ''; } catch(e) {}
-    if (lastPull) {
-      const { data, error } = await supabaseClient
-        .from(JOB_POOL_TABLE)
-        .select(POOL_COLUMNS)
-        .gt('updated_at', lastPull)
-        .order('updated_at', { ascending: true })
-        .limit(POOL_PAGE);
-      if (error) throw error;
-      return data || [];
-    }
-  }
-  // 全量：按主键区间翻页
-  for (let page = 0; page < 30; page++) {   // 上限 3 万行，防御性封顶
-    const from = page * POOL_PAGE;
-    const to = from + POOL_PAGE - 1;
-    const { data, error } = await supabaseClient
-      .from(JOB_POOL_TABLE)
-      .select(POOL_COLUMNS)
-      .order('qiuzhi_id', { ascending: true })
-      .range(from, to);
-    if (error) throw error;
-    const batch = data || [];
-    rows.push(...batch);
-    if (batch.length < POOL_PAGE) break;    // 最后一页
-  }
-  return rows;
-}
-
-async function pullJobPool(showToast, forceFull) {
-  if (!isPoolAvailable()) { if (showToast) toast('共享岗位池不可用（Supabase 未加载）'); return false; }
-  let lastPull = '';
-  try { lastPull = localStorage.getItem(LAST_POOL_PULL_KEY) || ''; } catch(e) {}
-  const incremental = !forceFull && !!lastPull && jobList.length > 0;
-  try {
-    const rows = await fetchPoolRows(incremental);
-    if (rows.length === 0) {
-      // 增量拉取无新数据时不必重建界面，只需标记已同步
-      try { localStorage.setItem(LAST_POOL_PULL_KEY, nowIso()); } catch(e) {}
-      if (showToast) toast(incremental ? '共享池已是最新' : '共享岗位池暂无数据，点「同步招聘方舟」抓取后会自动共享');
-      renderPoolStatus();
-      return true;
-    }
-    const remote = sanitizeJobList(rows.map(poolRowToJob));
-    const before = jobList.length;
-    jobList = mergeJobPool(jobList, remote);
-    saveJobList();
-    try { localStorage.setItem(LAST_POOL_PULL_KEY, nowIso()); } catch(e) {}
-    renderExplore();
-    renderPoolStatus();
-    if (showToast) {
-      const added = jobList.length - before;
-      toast(added > 0
-        ? `已从共享池获取 ${added} 个新岗位（本次传输 ${rows.length} 条）`
-        : `共享池已是最新（本次传输 ${rows.length} 条）`);
-    }
-    return true;
-  } catch(e) {
-    console.warn('[pullJobPool]', e);
-    if (showToast) toast('获取共享岗位失败：' + (e.message || e));
-    return false;
-  }
-}
-// 合并规则：按 qiuzhiId 去重；两边都有时以远端的时效字段为准，但保留本地已加入时间
-function mergeJobPool(localArr, remoteArr) {
-  const byId = new Map();
-  (localArr || []).forEach(j => { if (j && j.qiuzhiId) byId.set(String(j.qiuzhiId), { ...j }); });
-  (remoteArr || []).forEach(j => {
-    if (!j || !j.qiuzhiId) return;
-    const k = String(j.qiuzhiId);
-    const cur = byId.get(k);
-    if (!cur) { byId.set(k, j); return; }
-    byId.set(k, {
-      ...cur,
-      ...j,
-      id: cur.id,                       // 保持本地 id，避免投递记录里的引用失效
-      addedAt: cur.addedAt || j.addedAt, // 保留本地加入时间
-    });
-  });
-  return [...byId.values()];
-}
-
-// 把本地岗位池推送到共享池（分批 upsert）
-async function pushJobPool(rows, showToast) {
-  if (!isPoolAvailable()) return false;
-  if (!rows.length) { if (showToast) toast('没有需要共享的新岗位'); return true; }
-  try {
-    for (let i = 0; i < rows.length; i += POOL_BATCH) {
-      const batch = rows.slice(i, i + POOL_BATCH);
-      const { error } = await supabaseClient
-        .from(JOB_POOL_TABLE)
-        .upsert(batch, { onConflict: 'qiuzhi_id' });
-      if (error) throw error;
-    }
-    try { localStorage.setItem(LAST_POOL_PUSH_KEY, nowIso()); } catch(e) {}
-    if (showToast) toast(`已向共享池贡献 ${rows.length} 个岗位`);
-    return true;
-  } catch(e) {
-    console.warn('[pushJobPool]', e);
-    if (showToast) toast('共享失败：' + (e.message || e));
-    return false;
-  }
-}
-function poolLastSyncText() {
-  let pullAt = '', pushAt = '';
-  try { pullAt = localStorage.getItem(LAST_POOL_PULL_KEY) || ''; pushAt = localStorage.getItem(LAST_POOL_PUSH_KEY) || ''; } catch(e) {}
-  const fmt = t => { if (!t) return '从未'; try { return new Date(t).toLocaleString('zh-CN'); } catch(e) { return '从未'; } };
-  return { pull: fmt(pullAt), push: fmt(pushAt) };
-}
-function renderPoolStatus() {
-  const info = document.getElementById('poolInfo');
-  if (!info) return;
-  const t = poolLastSyncText();
-  const shared = jobList.filter(j => j.qiuzhiId).length;
-  const manual = jobList.length - shared;
-  info.innerHTML =
-    `本机岗位：<b>${jobList.length}</b> 个（其中共享池来源 <b>${shared}</b>，手动添加 <b>${manual}</b>）`
-    + `　·　上次获取共享池：${escapeHtml(t.pull)}　·　上次贡献：${escapeHtml(t.push)}`;
-}
-// 同步流程见 syncQiuzhiFangzhou()：抓取 → 本地合并 → 仅把新增岗位推送到共享池
 
 function mergeById(localArr, remoteArr, sanitize) {
   const fn = typeof sanitize === 'function' ? sanitize : (x => x);
@@ -1707,7 +1482,7 @@ function cleanupStaleJobs() {
   return 0;
 }
 function loadJobList() { try { const r=lsGet(STORAGE_JOBLIST); jobList=sanitizeJobList(r); } catch { jobList=[]; } }
-// 岗位池同时写本机缓存；共享池的推送由 pullJobPool / syncJobPool 显式触发
+// 岗位清单只写本机缓存（无任何云端同步）
 function saveJobList() {
   if (!lsSet(STORAGE_JOBLIST, jobList)) { try { alert('岗位清单本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
 }
@@ -2782,7 +2557,11 @@ function setQiuzhiSyncMeta(m) { try { localStorage.setItem(QIUZHI_META_KEY, JSON
 
 function qzSplitPositions(raw) {
   if (!raw) return [];
-  const parts = String(raw).split(/[\s\/]+/).map(s=>s.trim()).filter(Boolean);
+  // 招聘方舟返回的岗位字段用中文顿号分隔（如"光学工程师、激光工程师、…"），
+  // 也见过逗号/斜杠/空白混用，这里一并作为分隔符。
+  // 此前只按 [\s\/] 拆，导致整串被当成一个岗位类型再被截断显示，
+  // 例如"光学工程师、激光工程…"。城市解析 sjParseLocations 一直有处理顿号，仅此处漏了。
+  const parts = String(raw).split(/[、,，;；\s\/]+/).map(s=>s.trim()).filter(Boolean);
   const out = [];
   for (const p of parts) {
     if (out.length >= 3) break;
@@ -2902,14 +2681,12 @@ async function syncQiuzhiFangzhou() {
     const existingQiuzhiIds = new Set(jobList.map(j=>(j.qiuzhiId||null)).filter(Boolean));
     let newCount=0, skipCount=0;
     const newCos=[];
-    const newItems=[];   // 本次新增的岗位，稍后单向推送到共享池
     for (const q of data) {
       if (existingQiuzhiIds.has(q.id)) { skipCount++; continue; }
       meta.syncedIds = meta.syncedIds||[];
       meta.syncedIds.push(q.id);
       newCount++;
       newCos.push(q.company);
-      newItems.push(q);
     }
     meta.lastSyncAt = new Date().toISOString();
     meta.totalRemote = data.length;
@@ -2918,30 +2695,12 @@ async function syncQiuzhiFangzhou() {
     mergeQiuzhiList(); saveJobList();
     renderExplore();
 
-    // 把本次新增的岗位贡献到共享岗位池（只增，不覆盖他人可能已更新的记录）
-    let pushedText = '';
-    if (newItems.length) {
-      const rows = newItems.map(q => jobToPoolRow({
-        qiuzhiId: q.id, company: q.company, positionRaw: q.positionRaw,
-        positionTypes: q.positionTypes, industryRaw: q.industryRaw,
-        typeTags: q.typeTags, companyTypes: q.companyTypes, cities: q.cities,
-        batch: q.batch, deadline: q.deadline, openingDate: q.openingDate,
-        url: q.url, noticeUrl: q.noticeUrl, referralCode: q.referralCode,
-        popular: q.popular,
-      }));
-      const ok = await pushJobPool(rows, false);
-      pushedText = ok
-        ? `<p style="color:var(--green);font-size:12px;">✅ 已向共享池贡献 ${rows.length} 个岗位，其他使用者可直接获取</p>`
-        : `<p style="color:var(--amber);font-size:12px;">⚠️ 岗位已存本机，但共享失败（共享池未建或网络异常）</p>`;
-      renderPoolStatus();
-    }
-
     const summary = document.getElementById('syncSummary');
     summary.innerHTML = `<div style="display:flex;gap:16px;margin-bottom:8px;">
       <div style="flex:1;text-align:center;padding:12px;background:rgba(74,222,128,0.10);border-radius:8px;border:1px solid rgba(74,222,128,0.22)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:24px;font-weight:700;color:var(--text-muted)">${skipCount}</div><div style="font-size:12px;color:var(--text-muted)">已存在</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:rgba(96,165,250,0.10);border-radius:8px;border:1px solid rgba(96,165,250,0.22)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
-    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}</p>${pushedText}`;
+    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}　·　数据已存入本机浏览器，仅你自己可见</p>`;
 
     let listHtml = '';
     if (newCos.length>0) {
@@ -3025,13 +2784,8 @@ saveJobList(); renderExplore();
 renderTrack();
 renderReviews();
 updateFilterOptions();
-renderPoolStatus();
-// 启动时自动拉取一次共享岗位池（岗位是公开数据，不涉及任何个人隐私）
-if (isPoolAvailable()) {
-  pullJobPool(false).then(() => { fixAppliedDates(); renderTrack(); renderPoolStatus(); });
-} else {
-  console.log('[岗位池] Supabase 未加载，本次仅使用本机数据');
-}
+// 没有任何后端存储：岗位清单靠使用者点「🔄 同步招聘方舟」自行抓取到本机
+console.log('[数据存储] 纯本地模式：岗位清单与个人数据都只保存在本机浏览器，不上传任何服务器');
 
 /* ═══════════ 星图渲染（3D 球体 · 右面板布局） ═══════════ */
 let starDetailJobId = null;

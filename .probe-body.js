@@ -1,5 +1,7 @@
 // 纯断言脚本：由 .cdp-run.js 注入到真实页面中执行，返回结果字符串数组
 // 注意：这里运行在浏览器页面上下文，可访问页面全局作用域（函数声明会挂到 window）
+// 包成 async IIFE，因为 I 段需要 await 同步流程
+return (async function () {
 var R = [], ERRORS = [];
 function chk(name, cond, extra) { R.push((cond ? 'PASS' : 'FAIL') + ' :: ' + name + (extra !== undefined && !cond ? ' :: ' + extra : '')); }
 function section(tag) { R.push('-- ' + tag + ' --'); }
@@ -9,7 +11,7 @@ try {
 section('A 关键全局函数');
 [
   'escapeHtml','safeId','safeDataUrl','sanitizeJob','sanitizeReview','sanitizeJobList','mergeById',
-  'exportData','importData','buildBackup','pullJobPool','pushJobPool','mergeJobPool','renderPoolStatus',
+  'exportData','importData','buildBackup','syncQiuzhiFangzhou','qzTransformJobs','mergeQiuzhiList',
   'recruitSeasonYear','sjParseStartDate','debounce','debouncedRenderExplore','runAction',
   'renderExplore','renderTrack','renderReviews','renderBoard','renderCard','startAiAnalysis',
   'previewPdf','removePdf','aiAddToTrack','findReview','deleteReview','openDetail','openEditModal',
@@ -116,50 +118,66 @@ chk('备份含 resume', !!b.resume && typeof b.resume === 'object');
 chk('备份含 summary', typeof b.summary === 'string');
 chk('备份可序列化', typeof JSON.stringify(b) === 'string');
 
-section('I 岗位池字段映射');
-var row = jobToPoolRow({
-  qiuzhiId: 'qz_map_1', company: '映射测试', positionRaw: '岗位A / 岗位B',
-  positionTypes: ['岗位A', '岗位B'], industryRaw: '互联网', typeTags: ['互联网'],
-  companyTypesRaw: ['互联网'], cities: ['上海', '北京'], batch: '2026秋招',
-  deadline: '2026-11-01', openingDate: '2026-09-01', url: 'https://example.com/a',
-  noticeUrl: 'https://example.com/n', referralCode: 'REF1', popular: 3
-});
-chk('映射使用 qiuzhi_id 作为主键', row.qiuzhi_id === 'qz_map_1', row.qiuzhi_id);
-chk('映射 position_types 为数组', Array.isArray(row.position_types) && row.position_types.length === 2, JSON.stringify(row.position_types));
-chk('映射 cities 为数组', Array.isArray(row.cities) && row.cities.length === 2, JSON.stringify(row.cities));
-chk('映射 popular 为数字', row.popular === 3, row.popular);
-chk('映射带 updated_at', typeof row.updated_at === 'string' && row.updated_at.length > 10);
-var back = poolRowToJob(row);
-chk('回读保留 qiuzhiId', back.qiuzhiId === 'qz_map_1', back.qiuzhiId);
-chk('回读生成新的本地 id', /^job_/.test(back.id), back.id);
-chk('回读合并城市为 city', back.city === '上海 / 北京', back.city);
-chk('回读保留投递链接', back.url === 'https://example.com/a', back.url);
+section('I 本地同步：同步招聘方舟只写本机');
+chk('syncQiuzhiFangzhou 存在', typeof syncQiuzhiFangzhou === 'function');
+chk('qzTransformJobs 存在', typeof qzTransformJobs === 'function');
+chk('mergeQiuzhiList 存在', typeof mergeQiuzhiList === 'function');
+// 用桩替换 fetch，验证：只调用招聘方舟接口，且结果只落到本机 jobList
+var syncCalls = [];
+var origFetchSync = window.fetch;
+window.fetch = function (u, opt) {
+  syncCalls.push(String(u));
+  // 返回一条构造好的远程岗位
+  return Promise.resolve({
+    ok: true,
+    status: 200,
+    json: function () { return Promise.resolve({ campusList: [{ date: '2026-09-01', datas: [
+      { id: 90001, company: '同步测试公司', positions: '后端开发、前端开发', industry: '互联网/科技',
+        typeTag: ['互联网'], locations: '上海,北京', createTime: '2026-09-01',
+        deadline: '2026-12-01', batch: '2026秋招', applyUrl: 'https://example.com/sync-test',
+        noticeUrl: 'https://example.com/notice', referralCode: '', popular: '2' }
+    ] }] }); }
+  });
+};
+var beforeSyncLen = jobList.length;
+await syncQiuzhiFangzhou();
+window.fetch = origFetchSync;
+chk('同步只调用招聘方舟接口', syncCalls.length > 0 && syncCalls.every(function (u) { return u.indexOf('qiuzhifangzhou') !== -1; }),
+    syncCalls.join(' | '));
+chk('同步未调用任何其它域名', syncCalls.every(function (u) { return u.indexOf('supabase') === -1 && u.indexOf('deepseek') === -1; }), syncCalls.join(' | '));
+var addedJob = jobList.filter(function (j) { return String(j.qiuzhiId) === '90001'; })[0];
+chk('远程岗位已并入本机 jobList', !!addedJob, 'jobList.length ' + beforeSyncLen + ' -> ' + jobList.length);
+if (addedJob) {
+  chk('公司名正确', addedJob.company === '同步测试公司', addedJob.company);
+  chk('岗位类型已拆分', Array.isArray(addedJob.positionTypes) && addedJob.positionTypes.length === 2, JSON.stringify(addedJob.positionTypes));
+  chk('城市已拆分', Array.isArray(addedJob.cities) && addedJob.cities.length === 2, JSON.stringify(addedJob.cities));
+  chk('投递链接保留', addedJob.url === 'https://example.com/sync-test', addedJob.url);
+}
+// 重复同步不应产生重复行
+var cntBefore = jobList.filter(function (j) { return String(j.qiuzhiId) === '90001'; }).length;
+window.fetch = function (u) { return Promise.resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ campusList: [{ date: '2026-09-01', datas: [
+  { id: 90001, company: '同步测试公司', positions: '后端开发、前端开发', industry: '互联网/科技', typeTag: ['互联网'], locations: '上海,北京', createTime: '2026-09-01', deadline: '2026-12-01', batch: '2026秋招', applyUrl: 'https://example.com/sync-test', noticeUrl: '', referralCode: '', popular: '2' }
+] }] }); } }); };
+await syncQiuzhiFangzhou();
+window.fetch = origFetchSync;
+var cntAfter = jobList.filter(function (j) { return String(j.qiuzhiId) === '90001'; }).length;
+chk('重复同步不产生重复岗位', cntAfter === cntBefore && cntAfter === 1, cntBefore + ' -> ' + cntAfter);
+var sm = document.getElementById('syncResultModal'); if (sm) sm.style.display = 'none';
 
-section('J 共享池合并语义');
-var localA = [{ id: 'L1', qiuzhiId: 'p1', company: '本地公司', deadline: '旧', addedAt: '2026-01-01T00:00:00Z' }];
-var remoteA = [
-  { id: 'R1', qiuzhiId: 'p1', company: '远端公司', deadline: '新', addedAt: '2026-09-01T00:00:00Z' },
-  { id: 'R2', qiuzhiId: 'p2', company: '新增公司', addedAt: '2026-09-01T00:00:00Z' }
-];
-var merged = mergeJobPool(localA, remoteA);
-chk('合并后不重复（p1 只一条）', merged.filter(j => j.qiuzhiId === 'p1').length === 1, merged.length);
-chk('合并保留本地 id', merged.filter(j => j.qiuzhiId === 'p1')[0].id === 'L1', merged.filter(j => j.qiuzhiId === 'p1')[0].id);
-chk('合并采用远端时效字段', merged.filter(j => j.qiuzhiId === 'p1')[0].deadline === '新');
-chk('合并保留本地加入时间', merged.filter(j => j.qiuzhiId === 'p1')[0].addedAt === '2026-01-01T00:00:00Z');
-chk('合并纳入新岗位', !!merged.filter(j => j.qiuzhiId === 'p2')[0]);
-chk('合并结果数量为 2', merged.length === 2, merged.length);
-
-section('K 个人数据绝不外传（关键架构约束）');
-var supaHits = [];
-var origFetch = window.fetch;
-window.fetch = function (u) { var s = String(u); if (s.indexOf('supabase') !== -1) supaHits.push(s); return origFetch.apply(this, arguments); };
+section('J 纯本地架构：保存个人数据不发任何网络请求');
+var allCalls = [];
+var origFetchAll = window.fetch;
+window.fetch = function (u) { allCalls.push(String(u)); return origFetchAll.apply(this, arguments); };
 saveJobs();
 saveReviews();
 saveSummary();
 saveResumeData(loadResumeData());
-window.fetch = origFetch;
-chk('保存个人数据未发起任何 supabase 请求', supaHits.length === 0, 'hits=' + supaHits.length + ' ' + supaHits.slice(0, 3).join(' | '));
-// 源码层面确认个人数据没有任何上传路径
+saveJobList();
+window.fetch = origFetchAll;
+chk('保存全部数据未发起任何网络请求', allCalls.length === 0, allCalls.slice(0, 3).join(' | '));
+chk('数据确实写入了本机', !!localStorage.getItem('campus_recruit_jobs') && !!localStorage.getItem('campus_resume'));
+
+section('K 源码层面确认没有任何上传路径');
 var bigScript = null;
 for (var si2 = 0; si2 < document.scripts.length; si2++) {
   if ((document.scripts[si2].textContent || '').length > 100000) bigScript = document.scripts[si2];
@@ -167,25 +185,38 @@ for (var si2 = 0; si2 < document.scripts.length; si2++) {
 chk('能取到主脚本', !!bigScript);
 if (bigScript) {
   var src = bigScript.textContent;
-  chk('源码不再引用 sync_data 表', src.indexOf("from('sync_data')") === -1 && src.indexOf('"sync_data"') === -1);
-  chk('岗位池表名已切换', src.indexOf("JOB_POOL_TABLE = 'job_pool'") !== -1);
-  chk('saveJobs 内无上传调用', (function () {
+  chk('源码不含 supabase', src.indexOf('supabase') === -1);
+  chk('源码不含 job_pool / sync_data', src.indexOf('job_pool') === -1 && src.indexOf('sync_data') === -1);
+  chk('源码无 anon key', src.indexOf('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9') === -1);
+  chk('saveJobs 内无网络调用', (function () {
     var m = src.match(/function saveJobs\(\)[\s\S]{0,400}?\n\}/);
-    return !!m && m[0].indexOf('supabase') === -1;
+    return !!m && m[0].indexOf('fetch') === -1 && m[0].indexOf('supabase') === -1;
   })());
-  chk('saveReviews 内无上传调用', (function () {
+  chk('saveReviews 内无网络调用', (function () {
     var m = src.match(/function saveReviews\(\)[\s\S]{0,400}?\n\}/);
-    return !!m && m[0].indexOf('supabase') === -1;
+    return !!m && m[0].indexOf('fetch') === -1 && m[0].indexOf('supabase') === -1;
   })());
-  chk('saveResumeData 内无上传调用', (function () {
+  chk('saveResumeData 内无网络调用', (function () {
     var m = src.match(/function saveResumeData\([\s\S]{0,300}?\n\}/);
-    return !!m && m[0].indexOf('supabase') === -1;
+    return !!m && m[0].indexOf('fetch') === -1 && m[0].indexOf('supabase') === -1;
   })());
-  chk('简历字段不出现在池映射中', String(window.jobToPoolRow).indexOf('basicInfo') === -1);
-  chk('池映射不含手机号字段', String(window.jobToPoolRow).indexOf('mobile') === -1);
+  chk('saveJobList 内无网络调用', (function () {
+    var m = src.match(/function saveJobList\(\)[\s\S]{0,300}?\n\}/);
+    return !!m && m[0].indexOf('fetch') === -1 && m[0].indexOf('supabase') === -1;
+  })());
+  // 只允许两个运行时外部接口
+  var hosts = {};
+  var re = /fetch\(\s*'([^']+)'/g, mm;
+  while ((mm = re.exec(src)) !== null) {
+    var h = mm[1].replace(/^https?:\/\//, '').split('/')[0];
+    hosts[h] = (hosts[h] || 0) + 1;
+  }
+  var hostList = Object.keys(hosts);
+  R.push('INFO :: 源码中的 fetch 目标 = ' + (hostList.join(', ') || '(无)'));
+  chk('外部接口仅招聘方舟与 DeepSeek', hostList.every(function (h) { return h === 'api.qiuzhifangzhou.com' || h === 'api.deepseek.com'; }), hostList.join(', '));
 }
-chk('页面无云同步开关残留', !document.getElementById('cloudToggleBtn'));
-chk('岗位池状态区已渲染', !!document.getElementById('poolInfo'));
+chk('页面无云同步开关', !document.getElementById('cloudToggleBtn'));
+chk('页面无共享池状态区', !document.getElementById('poolInfo'));
 
 
 section('J 搜索防抖');
@@ -363,3 +394,4 @@ return Promise.all(asyncChecks).then(function (results) {
   R.push((fails === 0 ? 'PASS' : 'FAIL') + ' :: TOTAL ' + counted.length + ' 项检查，' + fails + ' 项失败');
   return R;
 });
+})();

@@ -84,8 +84,9 @@ function httpJson(url) {
     seedPersonal
       ? '    localStorage.setItem("campus_summary", JSON.stringify("我的私人投递总结"));'
       : '    localStorage.removeItem("campus_summary");',
-    '    localStorage.removeItem("qiuzhao_pool_last_pull");',
+    '    localStorage.removeItem("campus_job_list");',
     '    window.__PROBE_SEEDED = true;',
+    '    window.__PROBE_SEED_PERSONAL = ' + (seedPersonal ? '1' : '0') + ';',
     '    window.__PROFILE_TAG = ' + JSON.stringify(seedTag) + ';',
     '  } catch(e) { window.__PROBE_SEED_ERROR = String(e); }',
     '})();'
