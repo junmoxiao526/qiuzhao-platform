@@ -326,20 +326,51 @@ body {
 
 /* ═══════ List View ═══════ */
 .list-view { padding:0 28px 28px; }
+/* 窄屏时表格内部横向滚动，而不是把整个页面撑宽 */
+.list-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.list-scroll::-webkit-scrollbar { height:8px; }
+.list-scroll::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:4px; }
 .list-table {
-  width:100%; border-collapse:collapse; background:var(--surface);
+  width:100%; min-width:1020px; border-collapse:collapse; background:var(--surface);
   border-radius:var(--radius); overflow:hidden; border:1px solid var(--border);
+  table-layout:fixed;
 }
 .list-table th {
   background:var(--surface-2); padding:11px 14px; text-align:left;
   font-size:11.5px; font-weight:700; color:var(--text-muted); border-bottom:1px solid var(--border);
   text-transform:uppercase; letter-spacing:0.6px;
+  white-space:nowrap;
 }
-.list-table td { padding:11px 14px; font-size:13px; border-bottom:1px solid var(--border); color:var(--text-secondary); }
+.list-table td {
+  padding:11px 14px; font-size:13px; border-bottom:1px solid var(--border); color:var(--text-secondary);
+  vertical-align:middle; word-break:break-word;
+}
 .list-table tr:hover td { background:var(--surface-2); }
+
+/* 列宽分配：短列固定宽度，城市列吸收剩余空间（它是最长的文本）
+   配合 table-layout:fixed，避免自动布局把状态徽章和日期挤断行 */
+.list-table .col-act     { width:92px;  white-space:nowrap; }
+.list-table .col-status  { width:88px;  white-space:nowrap; }
+.list-table .col-date    { width:100px; white-space:nowrap; }
+.list-table .col-num     { width:64px;  white-space:nowrap; }
+.list-table .col-type    { width:80px;  white-space:nowrap; }
+.list-table .col-company { width:150px; }
+.list-table .col-pos     { width:300px; }
+.list-table .col-city    { width:auto; }   /* 吸收剩余宽度 */
+
+/* 多行截断（城市/岗位可能很长） */
+.clamp-2 {
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; line-height:1.5;
+}
+/* 操作列：两个按钮并排 */
+.row-actions { display:flex; gap:6px; align-items:center; white-space:nowrap; }
+.row-actions .btn { padding:3px 8px; line-height:1.2; }
 .status-badge {
   padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700; color:#fff;
   letter-spacing:0.3px;
+  display:inline-block; white-space:nowrap;   /* 防止「已投递」被拆成两行 */
+  line-height:1.6;
 }
 .empty-state { text-align:center; padding:80px 20px; color:var(--text-muted); }
 .empty-icon { font-size:52px; margin-bottom:16px; opacity:0.3; }
@@ -2236,24 +2267,26 @@ function renderList() {
   });
   const lv = document.getElementById('listView');
   if (filtered.length===0) { lv.innerHTML=`<div class="empty-state"><div class="empty-icon">📭</div>没有匹配的岗位</div>`; return; }
-  lv.innerHTML = `<table class="list-table"><thead><tr>
-    <th scope="col">公司</th><th scope="col">岗位</th><th scope="col">类型</th><th scope="col">城市</th><th scope="col">状态</th><th scope="col">投递日期</th><th scope="col">截止日期</th><th scope="col">笔/面试</th><th scope="col">薪资</th><th scope="col">操作</th>
+  lv.innerHTML = `<div class="list-scroll"><table class="list-table"><thead><tr>
+    <th scope="col" class="col-company">公司</th><th scope="col" class="col-pos">岗位</th><th scope="col" class="col-type">类型</th><th scope="col" class="col-city">城市</th><th scope="col" class="col-status">状态</th><th scope="col" class="col-date">投递日期</th><th scope="col" class="col-date">截止日期</th><th scope="col" class="col-date">笔/面试</th><th scope="col" class="col-num">薪资</th><th scope="col" class="col-act">操作</th>
   </tr></thead><tbody>${filtered.map(j=>{
     return `<tr class="list-row" data-act="open-detail" data-id="${escapeHtml(j.id)}" tabindex="0">
-    <td><strong>${escapeHtml(j.company)}</strong></td>
-    <td>${escapeHtml(j.position)}</td>
-    <td>${escapeHtml(j.companyType||'-')}</td>
-    <td>${escapeHtml(j.city||'-')}</td>
-    <td><span class="status-badge" style="background:${getStatusBadge(j.status)}">${escapeHtml(getStatusLabel(j.status))}</span></td>
-    <td>${escapeHtml(j.applyDate||'-')}</td>
-    <td>${escapeHtml(j.deadline||'-')}</td>
-    <td>${escapeHtml(j.interviewDate||'-')}</td>
-    <td>${escapeHtml(j.salary||'-')}</td>
-    <td>
-      <button type="button" class="btn btn-xs btn-outline" data-act="edit" data-id="${escapeHtml(j.id)}" aria-label="编辑 ${escapeHtml(j.company||'')}">✎</button>
-      <button type="button" class="btn btn-xs btn-danger" data-act="delete" data-id="${escapeHtml(j.id)}" aria-label="删除 ${escapeHtml(j.company||'')}">✕</button>
+    <td class="col-company"><strong>${escapeHtml(j.company)}</strong></td>
+    <td class="col-pos"><div class="clamp-2">${escapeHtml(j.position)}</div></td>
+    <td class="col-type">${escapeHtml(j.companyType||'-')}</td>
+    <td class="col-city"><div class="clamp-2">${escapeHtml(j.city||'-')}</div></td>
+    <td class="col-status"><span class="status-badge" style="background:${getStatusBadge(j.status)}">${escapeHtml(getStatusLabel(j.status))}</span></td>
+    <td class="col-date">${escapeHtml(j.applyDate||'-')}</td>
+    <td class="col-date">${escapeHtml(j.deadline||'-')}</td>
+    <td class="col-date">${escapeHtml(j.interviewDate||'-')}</td>
+    <td class="col-num">${escapeHtml(j.salary||'-')}</td>
+    <td class="col-act">
+      <div class="row-actions">
+        <button type="button" class="btn btn-xs btn-outline" data-act="edit" data-id="${escapeHtml(j.id)}" aria-label="编辑 ${escapeHtml(j.company||'')}">✎</button>
+        <button type="button" class="btn btn-xs btn-danger" data-act="delete" data-id="${escapeHtml(j.id)}" aria-label="删除 ${escapeHtml(j.company||'')}">✕</button>
+      </div>
     </td>
-  </tr>`;}).join('')}</tbody></table>`;
+  </tr>`;}).join('')}</tbody></table></div>`;
 }
 
 function updateFilterOptions() {

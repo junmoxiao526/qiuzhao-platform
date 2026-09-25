@@ -13,8 +13,8 @@ __pycache__/
 *.pyc
 
 # ── 本地校验/测试台产物（不入库）──
-# 说明：.check-syntax.js / .cdp-run.js / .probe-body.js 是有价值的测试工具，保留入库；
-# 下面这些是一次性产物与基线快照，不入库。
+# 说明：.check-syntax.js / .cdp-run.js / .probe-*.js 是有价值的测试工具，保留入库；
+# 下面这些是一次性产物、基线快照与截图，不入库。
 *.orig-backup
 baseline-original.html
 .probe.html
@@ -35,5 +35,8 @@ probe-*.html
 .probe-export.js
 .make-probe.js
 .shot.js
+.shot-listview.js
 shot-*.png
+listview-*.png
+lv-*.png
 minitest/
