@@ -260,8 +260,23 @@ body {
 .explore-table .expl-dim { color:var(--dim); }
 .explore-table .expl-pos { max-width:240px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .explore-table .expl-city { max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.explore-table .expl-act { white-space:nowrap; }
+.explore-table .expl-act { white-space:nowrap; width:132px; }
 .explore-table .expl-act .btn { padding:4px 12px; font-size:11.5px; }
+/* 操作列的状态下拉：外观与原来的绿色按钮一致，但可展开选择 */
+.status-select {
+  appearance:none; -webkit-appearance:none;
+  background:var(--green); color:#fff; border:none; border-radius:var(--radius-xs);
+  padding:5px 26px 5px 12px; font-size:11.5px; font-weight:600; font-family:inherit;
+  cursor:pointer; white-space:nowrap; line-height:1.5; width:100%; min-width:104px;
+  text-align:left; text-align-last:left;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath fill='%23fff' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 9px center; background-size:8px 5px;
+}
+/* 悬停用轻微提亮而不是切换 --green-hover：
+   该变量在深色主题下是 #2A523A，配白字对比度不足 */
+.status-select:hover { filter:brightness(1.12); }
+.status-select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.status-select option { background:var(--surface); color:var(--text); }
 .explore-table .expl-industry { max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .explore-table .expl-batch { max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .explore-table .expl-heat { white-space:nowrap; }
@@ -1953,8 +1968,12 @@ function renderExplore() {
       return `<tr class="expl-row" data-act="open-explore" data-id="${escapeHtml(j.id)}" tabindex="0">
         <td class="expl-act">
           ${trkCnt>0
-            ? `<button type="button" class="btn btn-xs" disabled style="opacity:.5">✓ ${hasApplied ? '已投递' : '已加入'}</button>`
-            : `<button type="button" class="btn btn-success btn-xs" data-act="add-to-track" data-id="${escapeHtml(j.id)}">+ 加入投递</button>`
+            ? `<span class="tracked-badge ${hasApplied ? '' : 'tracked-badge-pending'}" title="该企业在投递管理中有 ${trkCnt} 条记录">${hasApplied ? '已投递' : '已加入'}</span>`
+            : `<select class="status-select" data-act="track-status" data-id="${escapeHtml(j.id)}" title="选择要加入投递管理的状态">
+                 <option value="">+ 加入投递</option>
+                 <option value="pending">仅加入（待投递）</option>
+                 <option value="applied">已投递（今天）</option>
+               </select>`
           }
         </td>
         <td class="expl-update">${upd}</td>
@@ -1974,9 +1993,13 @@ function renderExplore() {
   if (document.getElementById('filterPanel').classList.contains('show')) buildFilterPanel();
 }
 
-function addToTrack(listId) {
+// 把岗位清单中的岗位加入投递管理。
+// initialStatus：'pending'（默认，仅加入待投递）或 'applied'（直接标记已投递）。
+// 选「已投递」时把投递日期记为今天——使用者点这一下就是"我今天投了它"的意思。
+function addToTrack(listId, initialStatus) {
   const item = jobList.find(j=>j.id===listId);
   if (!item) return;
+  const status = (initialStatus === 'applied') ? 'applied' : 'pending';
   const trackedIds = getTrackedStarJobIds();
   const itemKey = item.qiuzhiId ? 'q:'+item.qiuzhiId : (item.starjobId ? 's:'+item.starjobId : '');
   if (itemKey && trackedIds.has(itemKey)) { toast('该岗位已在投递列表中'); return; }
@@ -1984,10 +2007,10 @@ function addToTrack(listId) {
     id: genId(),
     company: item.company,
     position: (item.positionTypes||[]).slice(0,3).join(' / '),
-    status: 'pending',
+    status: status,
     city: item.city || '',
     companyType: item.companyType || '',
-    applyDate: '',
+    applyDate: status === 'applied' ? todayStr() : '',
     deadline: item.deadline || '',
     assessDeadline: '',
     aiDeadline: '',
@@ -1998,7 +2021,9 @@ function addToTrack(listId) {
   };
   jobs.push(newJob); saveJobs();
   item.addedAt = new Date().toISOString(); saveJobList();
-  toast(`已加入投递: ${item.company}`);
+  toast(status === 'applied'
+    ? `已标记已投递: ${item.company}（投递日期 ${newJob.applyDate}）`
+    : `已加入投递: ${item.company}`);
   renderExplore(); renderTrack();
 }
 
@@ -2251,7 +2276,6 @@ const ACTIONS = {
   'assess-deadline':  el => setAssessDeadline(el.dataset.id),
   'ai-deadline':      el => setAiDeadline(el.dataset.id),
   'open-explore':     el => openExploreDetail(el.dataset.id),
-  'add-to-track':     el => addToTrack(el.dataset.id),
   'goto-track-company': el => gotoTrackCompany(el.dataset.company),
   'review-load':      el => {
     const r = findReview(el.dataset.id);
@@ -2308,6 +2332,14 @@ document.addEventListener('click', function(e) {
   const el = findActionEl(e.target);
   if (!el) return;
   if (runAction(el)) e.stopPropagation();
+});
+// 岗位清单「操作」列的下拉：选「仅加入」或「已投递」后直接把岗位加入投递管理
+document.addEventListener('change', function(e) {
+  const el = e.target;
+  if (!el || !el.matches || !el.matches('select[data-act="track-status"]')) return;
+  const status = el.value;
+  if (!status) return;                       // 停在占位项，不动作
+  addToTrack(el.dataset.id, status);
 });
 document.addEventListener('keydown', function(e) {
   if (e.key !== 'Enter' && e.key !== ' ') return;

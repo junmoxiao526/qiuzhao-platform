@@ -33,8 +33,8 @@ if (link) {
 }
 
 // 3) 顺带验证「加入投递」按钮链路（造一条没有对应投递记录的岗位）
-// 注意：这里必须精确定位到本用例自己那条岗位的按钮。
-// 岗位池可能有数千条真实岗位，用 querySelector 取"第一个"会拿到别人的按钮，
+// 注意：这里必须精确定位到本用例自己那条岗位的下拉。
+// 岗位清单可能有数千条真实岗位，用 querySelector 取"第一个"会拿到别人的，
 // 断言就会变成随机通过/失败（这正是本用例此前失效的原因）。
 jobList.push({
   id: 'list_test_2', qiuzhiId: 'qz_test_2', company: '未投递测试公司',
@@ -46,13 +46,15 @@ jobList.push({
 var searchBox = document.getElementById('exploreSearch');
 if (searchBox) searchBox.value = '未投递测试公司';   // 过滤到只剩本用例这一条
 renderExplore();
-var addBtn = document.querySelector('[data-act="add-to-track"]');
-chk('本用例的按钮已定位', !!addBtn && addBtn.dataset.id === 'list_test_2',
-    addBtn ? ('实际 data-id=' + addBtn.dataset.id) : 'no button');
-if (addBtn) {
+// 2026-09 起「操作」列由按钮改为状态下拉（加入投递 / 已投递）
+var statusSel = document.querySelector('select[data-act="track-status"]');
+chk('本用例的下拉已定位', !!statusSel && statusSel.dataset.id === 'list_test_2',
+    statusSel ? ('实际 data-id=' + statusSel.dataset.id) : 'no select');
+if (statusSel) {
   var before = jobs.length;
-  addBtn.click();
-  chk('加入投递按钮生效', jobs.length === before + 1, 'before=' + before + ' after=' + jobs.length);
+  statusSel.value = 'pending';
+  statusSel.dispatchEvent(new Event('change', { bubbles: true }));
+  chk('选择「仅加入」后新增记录', jobs.length === before + 1, 'before=' + before + ' after=' + jobs.length);
   var added = jobs[jobs.length - 1];
   chk('新增记录带来源 id', added && !!added.notes && added.notes.indexOf('qz_test_2') !== -1, added && added.notes);
   chk('新增记录状态为待投递', added && added.status === 'pending', added && added.status);
