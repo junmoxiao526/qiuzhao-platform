@@ -66,31 +66,37 @@ function httpJson(url) {
   // 环境变量：
   //   PROBE_TAG           标识当前 profile（打印用）
   //   PROBE_SEED_PERSONAL =1 时写入一份「私人数据」，用于隔离验证
+  //   PROBE_KEEP_STORAGE  =1 时不清空 localStorage（用于性能测量：
+  //                       需要先灌入真实数据，再量"带着数据启动"的耗时）
   const seedTag = process.env.PROBE_TAG || '';
   const seedPersonal = process.env.PROBE_SEED_PERSONAL === '1';
-  const seedSource = [
-    '(function(){',
-    '  try {',
-    '    localStorage.clear();',
-    seedPersonal
-      ? '    localStorage.setItem("campus_recruit_jobs", JSON.stringify([{id:"p1",company:"我的私人公司",position:"私人岗位",status:"applied",city:"上海",applyDate:"2026-09-01",notes:""}]));'
-      : '    localStorage.removeItem("campus_recruit_jobs");',
-    seedPersonal
-      ? '    localStorage.setItem("campus_reviews", JSON.stringify([{id:"r1",company:"私人公司",title:"私人面经标题",content:"这是绝不应该被别人看到的私人面经内容",stage:"interview1",date:"2026-09-02",next:"",files:[]}]));'
-      : '    localStorage.removeItem("campus_reviews");',
-    seedPersonal
-      ? '    localStorage.setItem("campus_resume", JSON.stringify({basicInfo:{name:"私人姓名",mobile:"13900000000",email:"private@example.com"},settings:{title:"个人简历",skin:"#607a9d",lastSyncAt:null}}));'
-      : '    localStorage.removeItem("campus_resume");',
-    seedPersonal
-      ? '    localStorage.setItem("campus_summary", JSON.stringify("我的私人投递总结"));'
-      : '    localStorage.removeItem("campus_summary");',
-    '    localStorage.removeItem("campus_job_list");',
-    '    window.__PROBE_SEEDED = true;',
-    '    window.__PROBE_SEED_PERSONAL = ' + (seedPersonal ? '1' : '0') + ';',
-    '    window.__PROFILE_TAG = ' + JSON.stringify(seedTag) + ';',
-    '  } catch(e) { window.__PROBE_SEED_ERROR = String(e); }',
-    '})();'
-  ].join('\n');
+  const keepStorage = process.env.PROBE_KEEP_STORAGE === '1';
+  const seedLines = keepStorage
+    ? [
+        '    window.__PROBE_SEEDED = true;',
+        '    window.__PROBE_SEED_PERSONAL = "kept";',
+        '    window.__PROFILE_TAG = ' + JSON.stringify(seedTag) + ';'
+      ]
+    : [
+        '    localStorage.clear();',
+        seedPersonal
+          ? '    localStorage.setItem("campus_recruit_jobs", JSON.stringify([{id:"p1",company:"我的私人公司",position:"私人岗位",status:"applied",city:"上海",applyDate:"2026-09-01",notes:""}]));'
+          : '    localStorage.removeItem("campus_recruit_jobs");',
+        seedPersonal
+          ? '    localStorage.setItem("campus_reviews", JSON.stringify([{id:"r1",company:"私人公司",title:"私人面经标题",content:"这是绝不应该被别人看到的私人面经内容",stage:"interview1",date:"2026-09-02",next:"",files:[]}]));'
+          : '    localStorage.removeItem("campus_reviews");',
+        seedPersonal
+          ? '    localStorage.setItem("campus_resume", JSON.stringify({basicInfo:{name:"私人姓名",mobile:"13900000000",email:"private@example.com"},settings:{title:"个人简历",skin:"#607a9d",lastSyncAt:null}}));'
+          : '    localStorage.removeItem("campus_resume");',
+        seedPersonal
+          ? '    localStorage.setItem("campus_summary", JSON.stringify("我的私人投递总结"));'
+          : '    localStorage.removeItem("campus_summary");',
+        '    localStorage.removeItem("campus_job_list");',
+        '    window.__PROBE_SEEDED = true;',
+        '    window.__PROBE_SEED_PERSONAL = ' + (seedPersonal ? '1' : '0') + ';',
+        '    window.__PROFILE_TAG = ' + JSON.stringify(seedTag) + ';'
+      ];
+  const seedSource = ['(function(){', '  try {', ...seedLines, '  } catch(e) { window.__PROBE_SEED_ERROR = String(e); }', '})();'].join('\n');
   await send('Page.addScriptToEvaluateOnNewDocument', { source: seedSource }, sessionId);
 
   const navStart = events.length;

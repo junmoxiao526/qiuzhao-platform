@@ -262,6 +262,10 @@ body {
 .explore-table .expl-city { max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .explore-table .expl-act { white-space:nowrap; width:132px; }
 .explore-table .expl-act .btn { padding:4px 12px; font-size:11.5px; }
+/* 分批渲染的「加载更多」 */
+.explore-more { display:flex; align-items:center; justify-content:center; gap:12px; padding:14px 0 4px; }
+.explore-more:empty { display:none; }
+.explore-more-hint { font-size:12px; color:var(--text-muted); }
 /* 操作列的状态下拉：外观与原来的绿色按钮一致，但可展开选择 */
 .status-select {
   appearance:none; -webkit-appearance:none;
@@ -907,6 +911,7 @@ body {
       <tbody id="exploreGrid"></tbody>
     </table>
   </div>
+  <div class="explore-more" id="exploreMore"></div>
   <div class="empty-state" id="exploreEmpty" style="display:none;">
     <div class="empty-icon">📭</div>
     <p>没有匹配的岗位</p>
@@ -1349,12 +1354,20 @@ const PROVINCE_MAP = {
 const INDUSTRIES = ['科技','互联网','金融','央国企','外企','游戏','制造业','快消','教育','医药','汽车','其他'];
 
 let jobs = [];         // 投递管理中的岗位
-let jobList = [];      // 岗位清单（来自 starjob + 手动）
+let jobList = [];      // 岗位清单（来自招聘方舟 + 手动）
 let reviews = [];      // 复盘记录
 let reviewPendingFiles = [];  // 待保存的复盘附件
 let reviewExistingFiles = [];  // 弹窗内已保存附件
 let trackView = 'board';
 let detailJobId = null;
+
+// 岗位清单表格的分批渲染上限。
+// 实测：一次渲染 4104 行要 261ms、生成约 5.9MB HTML 字符串，是首屏卡顿的主因。
+// 因此每次只渲染 EXPLORE_PAGE_SIZE 行，余量用「加载更多」按钮追加。
+// 搜索/筛选始终作用于全量 jobList，所以"搜不到"的情况不会发生。
+const EXPLORE_PAGE_SIZE = 200;
+let exploreRenderLimit = EXPLORE_PAGE_SIZE;
+let exploreLastFilterSig = '';   // 用于识别筛选条件变化，从而重置分批进度
 
 // 筛选状态
 let exploreSort = 'updated';
@@ -1498,10 +1511,33 @@ function cleanupStaleJobs() {
   return 0;
 }
 function loadJobList() { try { const r=lsGet(STORAGE_JOBLIST); jobList=sanitizeJobList(r); } catch { jobList=[]; } }
-// 岗位清单只写本机缓存（无任何云端同步）
-function saveJobList() {
-  if (!lsSet(STORAGE_JOBLIST, jobList)) { try { alert('岗位清单本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){} }
+
+// 岗位清单落盘做了防抖：LZString 压缩 4000+ 条实测要 660ms，
+// 而同步/加入投递等操作会连续多次调用 saveJobList，同步执行会明显卡界面。
+// 内存数据始终是最新的，只是把「压缩+写 localStorage」合并到一次。
+// 页面隐藏/关闭前会立即补写一次，避免丢数据。
+let jobListSaveTimer = null;
+const JOBLIST_SAVE_DELAY = 800;
+function flushJobListNow() {
+  if (jobListSaveTimer !== null) { clearTimeout(jobListSaveTimer); jobListSaveTimer = null; }
+  if (!lsSet(STORAGE_JOBLIST, jobList)) {
+    try { alert('岗位清单本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){}
+  }
 }
+function saveJobList() {
+  if (jobListSaveTimer !== null) clearTimeout(jobListSaveTimer);
+  jobListSaveTimer = setTimeout(function () {
+    jobListSaveTimer = null;
+    if (!lsSet(STORAGE_JOBLIST, jobList)) {
+      try { alert('岗位清单本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch(e){}
+    }
+  }, JOBLIST_SAVE_DELAY);
+}
+// 关闭/切走页面前把待写的岗位清单补写落盘，避免防抖窗口内丢数据
+window.addEventListener('pagehide', flushJobListNow);
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'hidden') flushJobListNow();
+});
 
 // ==================== Tab 切换 ====================
 function switchTab(tab) {
@@ -1854,6 +1890,13 @@ function gotoTrackCompany(name) {
 
 function renderExplore() {
   const f = getExploreFilters();
+  // 筛选条件变化时把分批渲染的进度重置回第一批，
+  // 否则上一次「加载更多」的展开量会带到新条件下（例如只剩 5 条却仍按 800 渲染）
+  const filterSig = JSON.stringify([f.search, f.untracked, [...f.provinces].sort(), [...f.types].sort(), f.dateFrom, f.dateTo, exploreSort]);
+  if (filterSig !== exploreLastFilterSig) {
+    exploreLastFilterSig = filterSig;
+    exploreRenderLimit = EXPLORE_PAGE_SIZE;
+  }
   const tracked = getTrackedStarJobIds();
   let filtered = [...jobList];
 
@@ -1934,13 +1977,20 @@ function renderExplore() {
   document.getElementById('trackCount').textContent = jobs.length;
 
   // 渲染深色数据表格
+  // 分批渲染：只渲染前 exploreRenderLimit 行，其余用「加载更多」追加。
+  // 实测一次性渲染 4104 行要 261ms 并生成约 5.9MB 字符串，是首屏卡顿的主因。
   const grid = document.getElementById('exploreGrid');
   const empty = document.getElementById('exploreEmpty');
+  const moreBox = document.getElementById('exploreMore');
   if (filtered.length === 0) {
+    if (moreBox) moreBox.innerHTML = '';
     grid.innerHTML = ''; empty.style.display = 'block';
   } else {
     empty.style.display = 'none';
-    grid.innerHTML = filtered.map(j=>{
+    // 注意：不要在此处"限额超过总数就重置回一批"——那会让第二次「加载更多」
+    // 恰好把限额推过总数时被重置回 200。筛选变化的重置由上面的 filterSig 负责。
+    const shown = filtered.slice(0, exploreRenderLimit);
+    grid.innerHTML = shown.map(j=>{
       const isTracked = (j.qiuzhiId ? tracked.has('q:'+j.qiuzhiId) : (j.starjobId ? tracked.has('s:'+j.starjobId) : false));
       const industry = getIndustryFromJob(j) || '';
       const upd = getExploreUpdateLabel(j);
@@ -1988,6 +2038,17 @@ function renderExplore() {
         <td class="expl-city" title="${escapeHtml(cityText)}">${escapeHtml(cityText)}</td>
       </tr>`;
     }).join('');
+
+    // 「加载更多」：把余量追加到 DOM 尾部，不重建已渲染的行
+    if (moreBox) {
+      const remain = filtered.length - shown.length;
+      moreBox.innerHTML = remain > 0
+        ? `<button type="button" class="btn btn-outline btn-sm" data-act="explore-more">加载更多（还有 ${remain} 条）</button>
+           <span class="explore-more-hint">已显示 ${shown.length} / ${filtered.length} 条</span>`
+        : (filtered.length > EXPLORE_PAGE_SIZE
+            ? `<span class="explore-more-hint">已显示全部 ${filtered.length} 条</span>`
+            : '');
+    }
   }
   // 延迟构建筛选面板（避免每次render都重建）
   if (document.getElementById('filterPanel').classList.contains('show')) buildFilterPanel();
@@ -2277,6 +2338,11 @@ const ACTIONS = {
   'ai-deadline':      el => setAiDeadline(el.dataset.id),
   'open-explore':     el => openExploreDetail(el.dataset.id),
   'goto-track-company': el => gotoTrackCompany(el.dataset.company),
+  'explore-more':     () => {
+    // 只追加，不重建已渲染的行
+    exploreRenderLimit += EXPLORE_PAGE_SIZE;
+    renderExplore();
+  },
   'review-load':      el => {
     const r = findReview(el.dataset.id);
     if (!r) return;
