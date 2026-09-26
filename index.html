@@ -1928,19 +1928,21 @@ function renderExplore() {
   }
 
   // Date filter（按自选日期范围筛选）
+  // 日期都是 YYYY-MM-DD，字典序与时间序一致，因此直接比字符串，
+  // 避免为每条数据构造 Date 对象（4104 条时是明显的白付开销）
   if (f.dateFrom || f.dateTo) {
     filtered = filtered.filter(j => {
-      if (!j.openingDate) return false;
-      const d = new Date(j.openingDate); d.setHours(0,0,0,0);
-      if (f.dateFrom) { const fd = new Date(f.dateFrom); fd.setHours(0,0,0,0); if (d < fd) return false; }
-      if (f.dateTo)   { const td = new Date(f.dateTo);   td.setHours(0,0,0,0); if (d > td) return false; }
+      const d = j.openingDate;
+      if (!d) return false;
+      if (f.dateFrom && d < f.dateFrom) return false;
+      if (f.dateTo && d > f.dateTo) return false;
       return true;
     });
   }
 
   // Sort
   if (exploreSort === 'opened') {
-    filtered.sort((a,b)=>new Date(b.openingDate||'2020-01-01')-new Date(a.openingDate||'2020-01-01'));
+    filtered.sort((a,b)=> String(b.openingDate||'').localeCompare(String(a.openingDate||'')));
   } else {
     // updated: 按同步加入时间从新到旧
     filtered.sort((a,b)=>new Date(b.addedAt||0)-new Date(a.addedAt||0));
@@ -2176,6 +2178,13 @@ function filterByStatus(key) {
   renderTrack();
 }
 
+// 停止星图动画循环。
+// 必须显式调用：rAF 在元素被 display:none 隐藏后仍会触发，
+// 所以离开星图若不停，它会一直全速重绘 canvas，持续抢占主线程与 GPU，
+// 导致其它功能整体发顿（实测离开星图后 400ms 内仍有 25 次 rAF 回调）。
+function stopStarMap() {
+  if (starAnimId) { cancelAnimationFrame(starAnimId); starAnimId = null; }
+}
 function setTrackView(view) {
   trackView = view;
   document.getElementById('btnBoard').classList.toggle('active', view==='board');
@@ -2184,6 +2193,7 @@ function setTrackView(view) {
   document.getElementById('board').style.display = view==='board'?'flex':'none';
   document.getElementById('listView').style.display = view==='list'?'block':'none';
   document.getElementById('starView').classList.toggle('active', view==='star');
+  if (view !== 'star') stopStarMap();   // 离开星图立即停掉动画循环
   renderTrack();
 }
 
@@ -2952,7 +2962,7 @@ function ellipseAngles(a, b, n, phase) {
 
 function renderStarMap() {
   const container = document.getElementById('starView');
-  if (starAnimId) { cancelAnimationFrame(starAnimId); starAnimId = null; }
+  stopStarMap();
 
   const filterVal = document.getElementById('filterStatus').value;
   const searchVal = (document.getElementById('trackSearch').value || '').toLowerCase();
