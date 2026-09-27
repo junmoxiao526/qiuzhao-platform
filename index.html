@@ -3919,6 +3919,10 @@ function deleteReview(id) {
 // 启动流程集中在此处，并在脚本末尾调用 —— 保证所有函数与常量都已定义、
 // 数据已从本机读入之后再开始渲染。
 function initApp() {
+  // 注意：这三行是"把数据读进内存"的关键步骤，缺一不可。
+  // loadJobs 曾经在整理 Init 块时被漏掉，导致启动后 jobs 恒为空数组
+  // ——投递管理看不到任何数据，而且 saveJobs() 还会把空数组写回去。
+  loadJobs();
   loadJobList();
   loadReviews();
   fixAppliedDates();
