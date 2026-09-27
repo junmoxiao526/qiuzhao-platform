@@ -13,8 +13,8 @@ section('A 关键全局函数');
   'escapeHtml','safeId','safeDataUrl','sanitizeJob','sanitizeReview','sanitizeJobList','mergeById',
   'exportData','importData','buildBackup','syncQiuzhiFangzhou','qzTransformJobs','mergeQiuzhiList',
   'recruitSeasonYear','sjParseStartDate','debounce','debouncedRenderExplore','runAction',
-  'renderExplore','renderTrack','renderReviews','renderBoard','renderCard','startAiAnalysis',
-  'previewPdf','removePdf','aiAddToTrack','findReview','deleteReview','openDetail','openEditModal',
+  'renderExplore','renderTrack','renderReviews','renderBoard','renderCard',
+  'previewPdf','removePdf','findReview','deleteReview','openDetail','openEditModal',
   'handleDrop','setTrackView','filterByStatus','switchTab'
 ].forEach(function (n) {
   // 注意：函数声明会挂到 window，但 const 声明的变量（如 debouncedRenderExplore）不会，
@@ -71,10 +71,13 @@ chk('08.15 动态取年份', sjParseStartDate('08.15') === (recruitSeasonYear() 
 chk('完整日期原样返回', sjParseStartDate('2026-09-01') === '2026-09-01', sjParseStartDate('2026-09-01'));
 
 section('F 安全');
-chk('已移除内置 API Key', AI_REC_DEFAULT_KEY === '', JSON.stringify(AI_REC_DEFAULT_KEY));
+// AI 推荐功能已整体移除，断言改为「页面上不存在任何 AI 推荐入口」
+chk('已无 AI 推荐 Tab', !document.querySelector('[onclick*="aiRecommend"]'));
+chk('已无 AI 推荐区块', !document.getElementById('sectionAiRecommend'));
+chk('已无 AI Key 输入框', !document.getElementById('aiApiKey'));
 // 不把完整 Key 字面量写进仓库，用前缀缩短的方式判断是否残留
 chk('页面源码不含内置 sk- Key', document.documentElement.outerHTML.indexOf('sk-' + '069a570620684d83') === -1);
-chk('AI Key 输入框为 password', (function(){ var e = document.getElementById('aiApiKey'); return !!e && e.type === 'password'; })());
+chk('源码已无 DeepSeek 调用', (function(){ var s=null; for(var i=0;i<document.scripts.length;i++){ if((document.scripts[i].textContent||'').length>100000) s=document.scripts[i].textContent; } return !!s && s.indexOf('api.deepseek.com') === -1; })());
 jobs.push(sanitizeJob({ id: "x');window.__XSS=1;//", company: '<img src=x onerror="window.__XSS=2">', position: 'p', status: 'pending' }));
 jobs.push(sanitizeJob({ id: 'ok_1', company: '正常公司', position: '<b>bold</b>', status: 'applied' }));
 renderTrack();
@@ -213,7 +216,7 @@ if (bigScript) {
   }
   var hostList = Object.keys(hosts);
   R.push('INFO :: 源码中的 fetch 目标 = ' + (hostList.join(', ') || '(无)'));
-  chk('外部接口仅招聘方舟与 DeepSeek', hostList.every(function (h) { return h === 'api.qiuzhifangzhou.com' || h === 'api.deepseek.com'; }), hostList.join(', '));
+  chk('外部接口仅剩招聘方舟', hostList.length === 1 && hostList[0] === 'api.qiuzhifangzhou.com', hostList.join(', '));
 }
 chk('页面无云同步开关', !document.getElementById('cloudToggleBtn'));
 chk('页面无共享池状态区', !document.getElementById('poolInfo'));

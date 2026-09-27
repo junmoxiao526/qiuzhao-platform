@@ -37,7 +37,7 @@ return (async function () {
   // 给渲染函数打点
   var timings = {};
   var origs = {};
-  ['renderExplore', 'renderTrack', 'renderReviews', 'renderResume', 'renderAiRecommend', 'renderTrackStats', 'renderPoolStatus'].forEach(function (name) {
+  ['renderExplore', 'renderTrack', 'renderReviews', 'renderResume', 'renderTrackStats'].forEach(function (name) {
     if (typeof window[name] !== 'function') return;
     origs[name] = window[name];
     window[name] = function () {
@@ -64,7 +64,6 @@ return (async function () {
     ['投递管理', function () { switchTab('track'); }],
     ['简历管理', function () { switchTab('resume'); }],
     ['复盘', function () { switchTab('review'); }],
-    ['AI 推荐', function () { switchTab('aiRecommend'); }],
     ['岗位清单', function () { switchTab('explore'); }]
   ];
   var tabCost = {};
