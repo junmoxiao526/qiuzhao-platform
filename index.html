@@ -608,20 +608,11 @@ body {
 .review-word-editable img { max-width:100%; height:auto; }
 .review-word-editable:focus { outline:1px solid var(--accent,#7B61FF); outline-offset:1px; }
 .review-layout { display:flex; flex:1; overflow:hidden; gap:16px; padding:16px; }
-.review-left { flex:1 1 58%; min-width:0; overflow-y:auto; }
+/* 复盘页原先左右分栏（左：列表 / 右：导入文件+预览），右侧工作区已移除，左栏占满 */
+.review-left { flex:1 1 100%; min-width:0; overflow-y:auto; }
 .review-left .stats-bar { padding:16px 0; }
 .review-left .toolbar { padding:0 0 14px; }
 .review-left .review-list { padding:4px 0 24px; max-width:none; }
-.review-right { flex:1 1 42%; min-width:320px; max-width:600px; background:var(--bg-card,#fff); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-md); padding:16px; display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
-.review-right-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
-.review-right-top .review-right-hint { font-size:12px; color:var(--text-weak, #8a94a6); }
-.review-right-header { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:700; font-size:14px; color:var(--text); }
-.review-right-hint { font-size:11.5px; color:var(--text-muted); font-weight:400; }
-.review-import-zone { display:flex; align-items:center; gap:10px; border:1.5px dashed var(--border-strong); border-radius:10px; padding:12px 14px; cursor:pointer; transition:border-color .15s, background .15s; }
-.review-import-zone:hover { border-color:var(--accent); background:rgba(18,41,78,0.04); }
-.review-preview-area { border:1px solid var(--border); border-radius:10px; overflow:hidden; }
-.review-preview-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; background:var(--bg-sub,#f5f7fa); border-bottom:1px solid var(--border); }
-.review-preview-name { font-size:12px; font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .review-edit-form { display:flex; flex-direction:column; gap:10px; }
 .review-edit-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:2px; }
 .review-card-clickable { cursor:pointer; transition:border-color .15s, box-shadow .15s; }
@@ -630,7 +621,6 @@ body {
   #sectionReview { overflow:visible; }
   .review-layout { flex-direction:column; padding:0 16px 24px; overflow:visible; }
   .review-left { overflow:visible; }
-  .review-right { max-width:none; position:static; max-height:none; }
 }
 
 /* ==================== 板块3: 简历管理 CSS ==================== */
@@ -975,27 +965,6 @@ body {
         <button class="btn btn-primary btn-sm" onclick="openReviewModal()">+ 添加复盘</button>
       </div>
       <div class="review-list" id="reviewList"></div>
-    </div>
-
-    <!-- 右栏: 导入文件 -> 预览 -> 直接编辑 -->
-    <div class="review-right" id="reviewRight">
-      <div class="review-right-top">
-        <button class="btn btn-primary btn-sm" onclick="document.getElementById('reviewRightFileInput').click()">📎 导入文件</button>
-        <span class="review-right-hint" id="reviewRightHint">导入图片 / PDF 直接预览</span>
-        <input type="file" id="reviewRightFileInput" multiple accept="image/*,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx" style="display:none;" onchange="handleRightFiles(this.files)">
-      </div>
-
-      <div class="review-file-list" id="reviewRightFileStrip"></div>
-
-      <div class="review-preview-area" id="reviewRightPreviewArea" style="display:none;">
-        <div class="review-preview-toolbar">
-          <span class="review-preview-name" id="reviewRightPreviewName"></span>
-          <button class="btn btn-primary btn-sm" id="reviewRightExportWord" style="display:none;" onclick="exportRightWord()">导出 Word</button>
-          <button class="btn btn-outline btn-sm" onclick="closeRightPreview()">✕ 关闭预览</button>
-        </div>
-        <div class="review-preview-body" id="reviewRightPreviewBody"></div>
-      </div>
-
     </div>
 
   </div>
@@ -2447,12 +2416,10 @@ const ACTIONS = {
     exploreRenderLimit += EXPLORE_PAGE_SIZE;
     renderExplore();
   },
-  'review-load':      el => {
+  // 点复盘卡片 / 点「编辑」→ 打开编辑弹窗（原右侧工作区已移除）
+  'review-edit':      el => {
     const r = findReview(el.dataset.id);
-    if (!r) return;
-    // data-fi 存在时表示点的是附件芯片，直接预览该附件
-    const fi = el.dataset.fi;
-    loadReviewToRight(r, fi === undefined ? null : Number(fi));
+    if (r) openReviewModal(r);
   },
   'review-toggle':    el => toggleReviewContent(el.dataset.id, el),
   'review-delete':    el => deleteReview(el.dataset.id),
@@ -2462,7 +2429,6 @@ const IDX_ACTIONS = {
   previewPdf, downloadPdf, renamePdf, replacePdf, removePdf,
   previewPendingFile, removePendingFile,
   previewExistingFile, removeExistingFile,
-  previewRightFile, removeRightFile,
 };
 function runIdxAction(el) {
   const name = String(el.dataset.act || '').slice(4);   // 去掉 'idx-'
@@ -3707,7 +3673,7 @@ function renderReviews() {
     const content = escapeHtml(r.content||'');
     const contentShort = content.length > 180;
     const next = escapeHtml(r.next||'');
-    return '<div class="review-card review-card-clickable" data-act="review-load" data-id="'+escapeHtml(r.id)+'" tabindex="0" role="button">'
+    return '<div class="review-card review-card-clickable" data-act="review-edit" data-id="'+escapeHtml(r.id)+'" tabindex="0" role="button" title="点击编辑这条复盘">'
       + '<div class="review-card-head">'
       + '<span class="review-company">'+escapeHtml(r.company||'未命名复盘')+'</span>'
       + (r.job ? '<span class="review-job">'+escapeHtml(r.job)+'</span>' : '')
@@ -3717,17 +3683,17 @@ function renderReviews() {
       + (r.title ? '<div class="review-title">'+escapeHtml(r.title)+'</div>' : '')
       + (content ? '<div class="review-content'+(contentShort?' collapsed':'')+'" id="rc_'+escapeHtml(r.id)+'">'+content+'</div>' + (contentShort ? '<button type="button" class="review-link-toggle" data-act="review-toggle" data-id="'+escapeHtml(r.id)+'">展开</button>' : '') : '')
       + (next ? '<div class="review-next"><b>下一步:</b> '+next+'</div>' : '')
-      + ((r.files && r.files.length) ? '<div class="review-files">'+r.files.map((f,fi)=> {
-          const canPrev = f && f.base64 && (!f.skipped);
-          return '<span class="review-file-chip" data-act="review-load" data-id="'+escapeHtml(r.id)+'" data-fi="'+fi+'">'
+      // 附件芯片已改为纯展示：预览/管理统一在编辑弹窗里做（原右侧工作区已移除）
+      + ((r.files && r.files.length) ? '<div class="review-files">'+r.files.map(function(f){
+          return '<span class="review-file-chip">'
             + '<span class="rfc-icon">'+fileIcon(f.name)+'</span>'
             + '<span class="rfc-name">'+escapeHtml(f.name||'附件')+'</span>'
             + (f.size ? '<span class="rfc-size">'+formatFileSize(f.size)+'</span>' : '')
-            + (canPrev ? '<span class="rfc-preview">预览</span>' : '<span class="rfc-size">仅本机</span>')
+            + (f.base64 && !f.skipped ? '<span class="rfc-preview">可预览</span>' : '<span class="rfc-size">仅本机</span>')
             + '</span>';
         }).join('')+'</div>' : '')
       + '<div class="review-card-actions">'
-      + '<button type="button" class="btn btn-outline btn-sm" data-act="review-load" data-id="'+escapeHtml(r.id)+'">✏️ 编辑</button>'
+      + '<button type="button" class="btn btn-outline btn-sm" data-act="review-edit" data-id="'+escapeHtml(r.id)+'">✏️ 编辑</button>'
       + '<button type="button" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:rgba(239,68,68,0.25);" data-act="review-delete" data-id="'+escapeHtml(r.id)+'">🗑 删除</button>'
       + '</div>'
       + '</div>';
@@ -3744,8 +3710,6 @@ function toggleReviewContent(id, btn) {
 }
 
 /* ---------- 右侧复盘编辑器（导入 -> 预览 -> 直接编辑） ---------- */
-let reviewRightFiles = [];   // 当前右侧文件集合（新建或编辑共用）
-let rightPreviewFileName = ''; // 当前右侧预览文件名（Word 导出用）
 
 function findReview(id) { return reviews.find(x => x.id === id); }
 
@@ -3936,150 +3900,9 @@ function saveReview() {
   toast(editId ? '复盘已更新' : '复盘已保存');
 }
 
-/* ================= 右侧工作区：导入文件 -> 预览 -> 直接编辑 ================= */
-function loadReviewToRight(r, previewIdx) {
-  if (!r) return;
-  reviewRightFiles = (r.files || []).map(f => ({ ...f }));
-  renderRightFiles();
-  setReviewRightHint('查看附件预览');
-  if (previewIdx != null && reviewRightFiles[previewIdx]) {
-    previewRightFile(previewIdx);
-  } else if (reviewRightFiles.length) {
-    previewRightFile(0);
-  } else {
-    closeRightPreview();
-  }
-  document.getElementById('reviewRight').scrollTop = 0;
-}
-
-function setReviewRightHint(t) { const el = document.getElementById('reviewRightHint'); if (el) el.textContent = t; }
-
-/* ---------- 右侧文件条 ---------- */
-function renderRightFiles() {
-  const box = document.getElementById('reviewRightFileStrip');
-  if (!box) return;
-  if (!reviewRightFiles.length) { box.innerHTML = ''; return; }
-  box.innerHTML = reviewRightFiles.map((f,i) => {
-    const canPrev = f && f.base64 && !f.skipped;
-    return '<div class="review-file-chip">'
-      + '<span class="rfc-icon">'+fileIcon(f.name)+'</span>'
-      + '<span class="rfc-name">'+escapeHtml(f.name||'附件')+'</span>'
-      + '<span class="rfc-size">'+(f.size?formatFileSize(f.size):'')+(f.skipped?' · 云同步已剥离':'')+'</span>'
-      + (canPrev ? '<span class="rfc-preview" role="button" tabindex="0" data-act="idx-previewRightFile" data-idx="'+i+'">预览</span>' : '<span class="rfc-size">仅本机</span>')
-      + '<span class="rfc-remove" role="button" tabindex="0" aria-label="移除附件" data-act="idx-removeRightFile" data-idx="'+i+'">✕</span>'
-      + '</div>';
-  }).join('');
-}
-
-function handleRightFiles(files) {
-  const MAX = 10 * 1024 * 1024;
-  for (const file of files) {
-    if (file.size > MAX) { toast('「'+file.name+'」超过 10MB，已跳过'); continue; }
-    const reader = new FileReader();
-    reader.onload = (function(f) {
-      return function(e) {
-        reviewRightFiles.push({
-          name: f.name,
-          type: f.type || '',
-          size: f.size,
-          base64: e.target.result,
-          uploadedAt: new Date().toISOString(),
-        });
-        renderRightFiles();
-        previewRightFile(reviewRightFiles.length - 1);
-      };
-    })(file);
-    reader.readAsDataURL(file);
-  }
-}
-
-function removeRightFile(i) {
-  reviewRightFiles.splice(i, 1);
-  renderRightFiles();
-  closeRightPreview();
-  if (reviewRightFiles.length) previewRightFile(Math.min(i, reviewRightFiles.length - 1));
-}
-
-function previewRightFile(i) {
-  const f = reviewRightFiles[i];
-  if (!f) return;
-  if (!f.base64 || f.skipped) { toast('该附件仅保存在本机，云端未同步'); return; }
-  const area = document.getElementById('reviewRightPreviewArea');
-  const name = document.getElementById('reviewRightPreviewName');
-  const body = document.getElementById('reviewRightPreviewBody');
-  const exportBtn = document.getElementById('reviewRightExportWord');
-  rightPreviewFileName = f.name || '';
-  body.setAttribute('contenteditable', 'false');
-  body.classList.remove('review-word-editable');
-  if (exportBtn) exportBtn.style.display = 'none';
-  name.textContent = '预览 · ' + (f.name || '附件');
-  if (/\.docx$/i.test(f.name || '')) {
-    body.classList.add('review-word-editable');
-    body.setAttribute('contenteditable', 'true');
-    if (exportBtn) exportBtn.style.display = 'inline-block';
-    body.innerHTML = '<div class="review-empty" style="margin:20px auto;">正在解析 Word 文档...</div>';
-    try {
-      const b64 = String(f.base64).split(',')[1] || '';
-      const bin = atob(b64);
-      const bytes = new Uint8Array(bin.length);
-      for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
-      mammoth.convertToHtml({ arrayBuffer: bytes.buffer }).then(function (result) {
-        body.innerHTML = (result && result.value) ? result.value : '<div class="review-empty" style="margin:20px auto;">Word 内容为空</div>';
-      }).catch(function (err) {
-        body.innerHTML = '<div class="review-empty" style="margin:20px auto;">Word 解析失败：' + escapeHtml(String((err && err.message) || err)) + '</div>';
-      });
-    } catch (err) {
-      body.innerHTML = '<div class="review-empty" style="margin:20px auto;">Word 解析失败：' + escapeHtml(String((err && err.message) || err)) + '</div>';
-    }
-  } else if (/^data:image\//.test(f.base64)) {
-    body.innerHTML = '<img src="'+f.base64+'" alt="'+escapeHtml(f.name||'')+'">'
-      + '<div class="review-preview-dl"><a href="'+f.base64+'" download="'+escapeHtml(f.name||'file')+'">⬇ 下载原图</a></div>';
-  } else if (/^data:application\/pdf/.test(f.base64) || /\.pdf$/i.test(f.name||'')) {
-    body.innerHTML = '<iframe src="'+f.base64+'"></iframe>'
-      + '<div class="review-preview-dl"><a href="'+f.base64+'" download="'+escapeHtml(f.name||'file')+'">⬇ 下载 PDF</a></div>';
-  } else {
-    const tip = /\.doc$/i.test(f.name||'') ? '.doc 老格式请另存为 .docx 后导入' : '该文件类型暂不支持在线预览';
-    body.innerHTML = '<div class="review-empty" style="margin:20px auto;">'+tip+'<br><a href="'+f.base64+'" download="'+escapeHtml(f.name||'file')+'">⬇ 点击下载</a></div>';
-  }
-  area.style.display = 'block';
-}
-function closeRightPreview() {
-  const area = document.getElementById('reviewRightPreviewArea');
-  if (area) area.style.display = 'none';
-  const body = document.getElementById('reviewRightPreviewBody');
-  if (body) {
-    body.innerHTML = '';
-    body.setAttribute('contenteditable', 'false');
-    body.classList.remove('review-word-editable');
-  }
-  const exportBtn = document.getElementById('reviewRightExportWord');
-  if (exportBtn) exportBtn.style.display = 'none';
-}
-function exportRightWord() {
-  const body = document.getElementById('reviewRightPreviewBody');
-  const exportBtn = document.getElementById('reviewRightExportWord');
-  if (!body || !body.innerHTML) return;
-  const baseName = String(rightPreviewFileName || 'word').replace(/\.docx$/i, '').replace(/\.doc$/i, '');
-  // 这里必须写成转义形式（见下方字符串）。HTML 解析器不解析 JS 语法，
-  // 一旦在脚本正文里出现样式结束标签的字面量，就会提前关闭整个脚本块。
-  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + escapeHtml(baseName) + '</title>'
-    + '<style>body{font-family:SimSun,serif;line-height:1.7;margin:40px auto;max-width:820px;padding:0 24px;}img{max-width:100%;}table{border-collapse:collapse;}td,th{border:1px solid #999;padding:4px 8px;}<\/style>'
-    + '</head><body>' + body.innerHTML + '</body></html>';
-  const blob = new Blob([html], { type: 'application/msword' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = baseName + '.doc';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-  if (exportBtn) exportBtn.style.display = 'none';
-}
-
 function editReview(id) {
   const r = findReview(id);
-  if (r) loadReviewToRight(r);
+  if (r) openReviewModal(r);   // 右栏已移除，编辑改走弹窗
 }
 
 function deleteReview(id) {

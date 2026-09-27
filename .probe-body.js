@@ -28,7 +28,8 @@ section('B 事件委托动作表');
 var missing = [];
 Object.keys(IDX_ACTIONS).forEach(function (k) { if (typeof IDX_ACTIONS[k] !== 'function') missing.push(k); });
 chk('IDX_ACTIONS 全部可解析', missing.length === 0, missing.join(','));
-chk('IDX_ACTIONS 条目数 >= 10', Object.keys(IDX_ACTIONS).length >= 10, Object.keys(IDX_ACTIONS).length);
+// 复盘页右侧工作区移除后，索引型动作少了 2 个（previewRightFile / removeRightFile）
+chk('IDX_ACTIONS 条目数 >= 8', Object.keys(IDX_ACTIONS).length >= 8, Object.keys(IDX_ACTIONS).length);
 var bad = [];
 Object.keys(ACTIONS).forEach(function (k) { if (typeof ACTIONS[k] !== 'function') bad.push(k); });
 chk('ACTIONS 全部可解析', bad.length === 0, bad.join(','));
@@ -297,36 +298,12 @@ asyncChecks.push(new Promise(function (resolve) {
   }, 250);
 }));
 
-// 2) 导出 Word：原线上版本因脚本被截断而完全失效，这里验证它能真的产出 .doc
-asyncChecks.push(new Promise(function (resolve) {
-  setTimeout(function () {
-    try {
-      if (typeof exportRightWord !== 'function') { resolve('FAIL :: 导出 Word 生成文件 :: exportRightWord 未定义'); return; }
-      var body = document.getElementById('reviewRightPreviewBody');
-      if (!body) { resolve('FAIL :: 导出 Word :: 找不到预览容器'); return; }
-      var saved = body.innerHTML;
-      body.innerHTML = '<p>测试内容</p>';
-      var origCreate = URL.createObjectURL;
-      var madeBlob = null;
-      URL.createObjectURL = function (b) { madeBlob = b; return 'blob:test'; };
-      var origClick = HTMLAnchorElement.prototype.click;
-      var clickedName = null;
-      HTMLAnchorElement.prototype.click = function () { clickedName = this.download; };
-      var err = null;
-      try { exportRightWord(); } catch (e) { err = e; }
-      HTMLAnchorElement.prototype.click = origClick;
-      URL.createObjectURL = origCreate;
-      body.innerHTML = saved;
-      if (err) { resolve('FAIL :: 导出 Word 不报错 :: ' + err.message); return; }
-      if (!madeBlob) { resolve('FAIL :: 导出 Word 未生成 Blob'); return; }
-      if (!clickedName || !/\.doc$/.test(clickedName)) { resolve('FAIL :: 导出 Word 文件名异常 :: ' + clickedName); return; }
-      if (typeof madeBlob.size !== 'number') { resolve('FAIL :: 导出 Word Blob 异常'); return; }
-      resolve('PASS :: 导出 Word 生成 ' + clickedName + '（' + madeBlob.size + ' 字节）');
-    } catch (e) {
-      resolve('FAIL :: 导出 Word 异常 :: ' + e.message);
-    }
-  }, 60);
-}));
+// 2) 导出 Word 已随复盘页右侧工作区一并移除，这里只断言它确实不再存在
+asyncChecks.push(Promise.resolve(
+  (typeof exportRightWord === 'function' || document.getElementById('reviewRightPreviewBody'))
+    ? 'FAIL :: 导出 Word 功能应已移除'
+    : 'PASS :: 导出 Word 功能已移除（复盘页右侧工作区）'
+));
 
 // 3) 看板拖拽改状态：我把内联 ondragstart/ondrop 换成了 document 级委托，必须回归验证
 asyncChecks.push(new Promise(function (resolve) {

@@ -8,7 +8,7 @@ var fns=['initApp','addedAtToDate','findTrackedSource','resolveApplyDate','fixAp
  'loadReviews','saveReviews','loadResumeData','saveResumeData','renderReviews','renderResume',
  'exportData','importData','buildBackup','syncQiuzhiFangzhou','qzTransformJobs','mergeQiuzhiList',
  'sanitizeJob','sanitizeReview','sanitizeJobList','safeHref','safeId','safeDataUrl','escapeHtml',
- 'renderPdfStatus','handlePdfUpload','exportRightWord','deleteReview'];
+ 'renderPdfStatus','handlePdfUpload','deleteReview','openReviewModal','saveReview','editReview'];
 var missing=[];
 fns.forEach(function(n){ if(typeof window[n]!=='function') missing.push(n); });
 chk('所有关键函数均存在（'+fns.length+' 个）', missing.length===0, missing.join(','));
