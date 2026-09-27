@@ -2821,7 +2821,95 @@ function mergeQiuzhiList() {
     seen.set(j.qiuzhiId, true);
     return true;
   });
+  dedupeJobList();
   saveJobList();
+}
+
+// ==================== 岗位去重 ====================
+// 背景：招聘方舟对「同一家公司、同一批岗位、同一个秋招批次」会返回多条独立记录
+// （不同日期发布的公告，id / createTime / 公告链接不同，但公司+岗位+批次完全相同）。
+// 实测当前 30 天窗口内就有 15 组，历次同步累积后更多 ——
+// 使用者看到的便是同一家公司连着出现两行，内容几乎一样。
+//
+// 判重键 = 公司 + 岗位描述 + 批次。
+// 刻意**不**把不同批次合并（例如「27秋招」与「26秋招」），那确实是两回事。
+// 只对带 qiuzhiId 的记录做合并；手动添加的岗位（通常带 notes、无 qiuzhiId）一律保留。
+const _dedupeKey = j => [
+  String(j.company || '').trim(),
+  String(j.positionRaw || '').trim(),
+  String(j.batch || '').trim()
+].join('\u0001');
+
+// 同一组里选"更值得保留"的一条：信息更全 → 更新 → 热门度更高
+function _pickBetterJob(a, b) {
+  const score = j => {
+    let s = 0;
+    if (j.url) s += 4;              // 有投递链接
+    if (j.noticeUrl) s += 2;        // 有公告链接
+    if (j.deadline) s += 2;         // 有截止日期
+    s += ((j.cities || []).length ? 1 : 0);
+    s += ((j.positionTypes || []).length ? 1 : 0);
+    return s;
+  };
+  const sa = score(a), sb = score(b);
+  if (sa !== sb) return sa > sb ? a : b;
+  const da = String(a.openingDate || ''), db = String(b.openingDate || '');
+  if (da !== db) return da > db ? a : b;      // 公告更新
+  return (Number(b.popular) || 0) > (Number(a.popular) || 0) ? b : a;
+}
+
+// 就地合并 jobList 中的重复岗位，返回被移除的条数。
+// 同时把被移除记录的 qiuzhiId 记到 window.__DEDUPED_IDS，
+// 供同步流程标记"这些远程 id 已处理过"，否则每次同步都会重新合并一遍。
+function dedupeJobList() {
+  const groups = new Map();
+  jobList.forEach(j => {
+    if (!j.qiuzhiId) return;                    // 手动添加的岗位不参与
+    const k = _dedupeKey(j);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(j);
+  });
+  const drop = new Set();
+  window.__DEDUPED_IDS = [];
+  groups.forEach(g => {
+    if (g.length < 2) return;
+    let keep = g[0];
+    for (let i = 1; i < g.length; i++) keep = _pickBetterJob(keep, g[i]);
+    g.forEach(j => {
+      if (j === keep) return;
+      drop.add(j.id);
+      if (j.qiuzhiId) window.__DEDUPED_IDS.push(j.qiuzhiId);
+    });
+  });
+  if (drop.size === 0) return 0;
+  // 保留加入时间最早的那次，避免"我早就加过它"的时间被覆盖
+  const earliest = new Map();
+  groups.forEach(g => {
+    if (g.length < 2) return;
+    const times = g.map(j => j.addedAt).filter(Boolean).sort();
+    if (times.length) earliest.set(_dedupeKey(g[0]), times[0]);
+  });
+  jobList = jobList.filter(j => !drop.has(j.id));
+  jobList.forEach(j => {
+    if (!j.qiuzhiId) return;
+    const t = earliest.get(_dedupeKey(j));
+    if (t && j.addedAt !== t) j.addedAt = t;
+  });
+  return drop.size;
+}
+
+// 只统计会被合并掉多少条，不改动数据（供同步结果提示用）
+function countDuplicateJobs() {
+  const groups = new Map();
+  jobList.forEach(j => {
+    if (!j.qiuzhiId) return;
+    const k = _dedupeKey(j);
+    if (!groups.has(k)) groups.set(k, 0);
+    groups.set(k, groups.get(k) + 1);
+  });
+  let n = 0;
+  groups.forEach(c => { if (c > 1) n += c - 1; });
+  return n;
 }
 
 async function syncQiuzhiFangzhou() {
@@ -2849,7 +2937,12 @@ async function syncQiuzhiFangzhou() {
     if (data.length===0) throw new Error('未获取到数据');
 
     const meta = getQiuzhiSyncMeta();
-    const existingQiuzhiIds = new Set(jobList.map(j=>(j.qiuzhiId||null)).filter(Boolean));
+    // 已同步过的 id = 当前列表里的 + meta.syncedIds 里记着的。
+    // 后者专门用来记住"被去重合并掉的远程 id"：这些记录不在列表里，
+    // 若不一起算进来，每次同步都会把它们重新入库、再合并一遍。
+    const existingQiuzhiIds = new Set(
+      jobList.map(j=>(j.qiuzhiId||null)).filter(Boolean).concat(meta.syncedIds || [])
+    );
     let newCount=0, skipCount=0;
     const newCos=[];
     for (const q of data) {
@@ -2863,7 +2956,36 @@ async function syncQiuzhiFangzhou() {
     meta.totalRemote = data.length;
     setQiuzhiSyncMeta(meta);
     window.QIUZHI_DATA = data;
-    mergeQiuzhiList(); saveJobList();
+    // 顺序很重要：必须在 mergeQiuzhiList() **之前**统计，
+    // 因为合并会把重复清掉，之后再数永远是 0（这里踩过一次）。
+    // 「新增岗位」要按**去重后的净增**来算：
+    // 远程数据里那些"同公司+同岗位+同批次、只是 id 不同"的记录，
+    // 虽然会通过 id 检查进入合并流程，但随即就被去重掉了，并没有真的给使用者多一个岗位。
+    // 不去掉这部分的话，每次同步都会虚报十几个"新增"（实测第二次仍显示新增 14）。
+    const _beforeCount = jobList.length;
+    mergeQiuzhiList();   // 合并 + 去重（内部已调用 dedupeJobList）
+    const _realNew = jobList.length - _beforeCount;
+    // 被去重合并掉的远程 id 也要记进 syncedIds：
+    // 否则它们永远不在 existingQiuzhiIds 里，每次同步都会重新入库再被合并一遍
+    // （实测表现为第二次同步仍显示"已合并 14 条"）。
+    // 注意：必须用 Set 直接赋值，不能 meta.syncedIds.push(...) ——
+    // 这个字段原本只在"有新记录"的分支里才初始化，而这段代码恰恰在
+    // "没有新增"的那次同步才会执行到（唯一需要标记的时机），
+    // 用 push 会抛 TypeError 并被外层 catch 悄悄吞掉。
+    if (window.__DEDUPED_IDS && window.__DEDUPED_IDS.length) {
+      const ids = new Set(meta.syncedIds || []);
+      window.__DEDUPED_IDS.forEach(id => ids.add(id));
+      meta.syncedIds = [...ids];
+      setQiuzhiSyncMeta(meta);
+    }
+    // 合并掉的条数 = 本次入库数 - 净增数（本次入库数即通过 id 检查进入流程的记录数）
+    const dupCount = Math.max(0, newCount - _realNew);
+    newCount = _realNew;
+    // 「新增公司」同样只列真正留下来的：按公司去重，避免重复公告把同一家列两次
+    const _keptCos = [...new Set(jobList.slice(_beforeCount).map(j => j.company).filter(Boolean))];
+    newCos.length = 0;
+    _keptCos.forEach(c => newCos.push(c));
+    saveJobList();
     renderExplore();
 
     const summary = document.getElementById('syncSummary');
@@ -2871,7 +2993,7 @@ async function syncQiuzhiFangzhou() {
       <div style="flex:1;text-align:center;padding:12px;background:rgba(74,222,128,0.10);border-radius:8px;border:1px solid rgba(74,222,128,0.22)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:24px;font-weight:700;color:var(--text-muted)">${skipCount}</div><div style="font-size:12px;color:var(--text-muted)">已存在</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:rgba(96,165,250,0.10);border-radius:8px;border:1px solid rgba(96,165,250,0.22)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
-    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}　·　数据已存入本机浏览器，仅你自己可见</p>`;
+    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}　·　数据已存入本机浏览器，仅你自己可见${dupCount>0?`　·　已合并 ${dupCount} 条同公司同岗位的重复公告`:''}</p>`;
 
     let listHtml = '';
     if (newCos.length>0) {
@@ -3926,6 +4048,10 @@ function initApp() {
   loadJobList();
   loadReviews();
   fixAppliedDates();
+  // 清理历史累积下来的重复岗位（同一公司+岗位+批次的多条公告）。
+  // 老版本会把这些都留下来，所以启动时补做一次；已经干净时开销可忽略。
+  const _dupRemoved = dedupeJobList();
+  if (_dupRemoved > 0) console.log('已合并 ' + _dupRemoved + ' 条重复岗位（同公司+岗位+批次）');
   // 清理历史 StarJob 来源岗位（已停用 StarJob 同步）
   {
   const _before = jobList.length;
