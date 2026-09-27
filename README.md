@@ -64,13 +64,30 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
 
 | 文件 | 覆盖内容 |
 |---|---|
+| `.probe-smoke.js` | **冒烟**：53 个关键函数是否都存在、各面板是否渲染、省份索引是否正确 |
 | `.probe-body.js` | 主套件：消毒函数、记录规范化、XSS 回归、事件委托、拖拽、键盘可达、导出 Word、**本地同步只写本机**、源码无上传路径 |
 | `.probe-positions.js` | 岗位字段按顿号/逗号/斜杠拆分（真实数据格式） |
 | `.probe-listview.js` | 列表视图排版（徽章单行、日期不断行、按钮并排、窄屏不溢出） |
-| `.probe-stats2.js` | 统计卡计数语义（已加入投递 === 投递管理总数） |
+| `.probe-stats.js` / `.probe-statcard.js` | 统计卡计数语义（公司数口径、已加入投递 === 投递管理总数） |
 | `.probe-isolation.js` | 两个浏览器 profile 交叉验证数据隔离 |
-| `.probe-explore-link.js` | 岗位清单→投递管理的跳转与加入链路 |
+| `.probe-explore-link.js` | 岗位清单→投递管理的跳转；操作列状态下拉链路 |
+| `.probe-track-select.js` | 「操作」列下拉：仅加入 / 已投递、占位项不动作、重复加入拦截 |
+| `.probe-paging.js` | 分批渲染（每批 200 行）、加载更多、筛选重置、保存防抖 |
 | `.probe-realdata.js` | 用真实 API 样本校验字段转换 |
+| `.probe-interact.js` | 交互性能：各操作耗时、星图动画是否停止排帧 |
+| `.probe-p01.js` | 省份索引 O(1)、加入投递局部更新、不可见面板不重建 |
+
+> 改动搬移代码后**务必先跑 `.probe-smoke.js`**：语法检查抓不到"函数被删/改名"这类问题
+> （脚本仍然合法，只在运行时才 ReferenceError）。
+
+## 代码结构约定
+
+- **改数据只调用统一入口**，不要在各处手写 `saveXxx(); renderXxx();` 组合：
+  - `refreshAfterJobChange({ jobIds })` —— 投递记录变化（会局部更新岗位清单对应行）
+  - `refreshAfterJobListChange()` —— 岗位清单本身变化
+  两个入口都只渲染**当前可见**的面板，避免在岗位清单页重建看板/星图。
+- 岗位清单每行的 HTML 由 `exploreRowHtml(job)` 统一生成，全量渲染与局部更新共用。
+- 省份查询走 `CITY_TO_PROVINCE` 预建索引，不要再去遍历 `PROVINCE_MAP`。
 
 用两个独立 profile 做隔离验证：
 
