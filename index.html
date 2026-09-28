@@ -800,6 +800,7 @@ body {
 .todo-due.due-today { background:rgba(245,158,11,0.20); color:#D97706; }
 .todo-due.due-soon  { background:rgba(96,165,250,0.18); color:#3B82F6; }
 .todo-due.due-later { background:var(--surface-3);      color:var(--text-muted); }
+.todo-due.due-follow { background:rgba(139,92,246,0.16); color:#8B5CF6; }
 .todo-co { font-weight:600; color:var(--accent); cursor:pointer; flex-shrink:0; }
 .todo-co:hover { text-decoration:underline; }
 .todo-kind { color:var(--text); flex-shrink:0; }
@@ -824,6 +825,81 @@ body {
 .expl-row.expl-ignored { opacity:.45; }
 .expl-row.expl-starred td.expl-triage { box-shadow:inset 2px 0 0 #F59E0B; }
 
+/* 公司时间线 */
+.expl-co-wrap { display:flex; align-items:center; gap:6px; }
+.tl-btn {
+  background:transparent; border:none; cursor:pointer; font-size:12px; line-height:1;
+  padding:2px 4px; border-radius:5px; opacity:.4; flex-shrink:0;
+  transition:opacity .15s, background .15s;
+}
+.tl-btn:hover { opacity:1; background:var(--surface-3); }
+.tl-meta { font-size:12px; color:var(--text-muted); margin-bottom:12px; }
+.tl-list { display:flex; flex-direction:column; }
+.tl-item {
+  display:flex; align-items:flex-start; gap:10px; padding:8px 0;
+  border-left:2px solid var(--border); margin-left:52px; padding-left:12px; position:relative;
+}
+.tl-date {
+  position:absolute; left:-58px; width:50px; text-align:right;
+  font-size:11.5px; color:var(--text-muted); font-variant-numeric:tabular-nums;
+}
+.tl-icon { flex-shrink:0; font-size:14px; }
+.tl-main { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+.tl-title { font-size:13px; font-weight:600; color:var(--text); }
+.tl-title[data-act]:hover { color:var(--accent); text-decoration:underline; cursor:pointer; }
+.tl-detail { font-size:12px; color:var(--text-secondary); line-height:1.6; word-break:break-word; }
+
+/* ==================== 面经题库 ==================== */
+#sectionQuestions { display:none; flex-direction:column; flex:1; overflow-y:auto; padding-bottom:24px; }
+#sectionQuestions.active { display:flex; }
+#sectionQuestions .toolbar { padding:0 16px 12px; }
+#sectionQuestions .stats-bar { padding:16px 16px 12px; }
+.question-list { display:flex; flex-direction:column; gap:10px; padding:0 16px; }
+.q-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
+.q-card:hover { border-color:var(--border-strong); }
+.q-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:11.5px; }
+.q-mastery { padding:2px 8px; border-radius:999px; cursor:pointer; font-weight:600; user-select:none; }
+.q-mastery.m-new   { background:rgba(239,68,68,0.14);  color:#EF4444; }
+.q-mastery.m-shaky { background:rgba(245,158,11,0.16); color:#D97706; }
+.q-mastery.m-ok    { background:rgba(96,165,250,0.16); color:#3B82F6; }
+.q-mastery.m-solid { background:rgba(74,222,128,0.16); color:#16A34A; }
+.q-cat { padding:1px 7px; border-radius:5px; background:var(--surface-3); color:var(--text-secondary); }
+.q-co { color:var(--accent); cursor:pointer; font-weight:600; }
+.q-co:hover { text-decoration:underline; }
+.q-pos { color:var(--text-muted); }
+.q-date { color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.q-question { font-size:14px; font-weight:600; color:var(--text); line-height:1.6; word-break:break-word; }
+.q-answer {
+  font-size:13px; color:var(--text-secondary); line-height:1.7; white-space:pre-wrap;
+  background:var(--surface-2); border-radius:8px; padding:8px 10px; word-break:break-word;
+}
+.q-answer.q-hidden { cursor:pointer; color:var(--text-muted); font-style:italic; text-align:center; }
+.q-actions { display:flex; gap:6px; }
+
+/* ==================== 投递转化统计 ==================== */
+.fn-section { margin-bottom:22px; }
+.fn-title { font-size:13px; font-weight:700; color:var(--text); margin-bottom:10px; }
+.fn-dim { color:var(--text-muted); }
+.fn-funnel { display:flex; flex-direction:column; gap:6px; }
+.fn-row { display:flex; align-items:center; gap:10px; font-size:12.5px; }
+.fn-label { flex-shrink:0; width:56px; color:var(--text-secondary); }
+.fn-bar-wrap { flex:1; height:16px; background:var(--surface-2); border-radius:4px; overflow:hidden; min-width:60px; }
+.fn-bar { display:block; height:100%; background:linear-gradient(90deg, var(--accent), #8B5CF6); border-radius:4px; }
+.fn-num { flex-shrink:0; width:120px; font-variant-numeric:tabular-nums; color:var(--text-secondary); }
+.fn-num b { color:var(--text); font-size:13.5px; }
+.fn-step { flex-shrink:0; width:56px; text-align:right; color:var(--accent); font-size:11.5px; }
+.fn-cards { display:flex; gap:10px; flex-wrap:wrap; }
+.fn-card { flex:1 1 90px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:10px; text-align:center; }
+.fn-card-n { font-size:22px; font-weight:700; color:var(--text); line-height:1.2; }
+.fn-card-l { font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+.fn-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.fn-table th { text-align:left; font-weight:600; color:var(--text-secondary); padding:6px 8px; border-bottom:1px solid var(--border); font-size:11.5px; }
+.fn-table td { padding:6px 8px; border-bottom:1px solid var(--surface-3); color:var(--text); }
+.fn-table tr:last-child td { border-bottom:none; }
+.fn-rate { font-weight:600; }
+.fn-rate.good { color:var(--green); }
+.fn-rate.zero { color:var(--text-muted); }
+
 /* 键盘可达焦点环：仅键盘导航时出现，不干扰鼠标用户 */
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .expl-row:focus-visible, .list-row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
@@ -842,6 +918,7 @@ body {
       <button class="tab-btn" onclick="switchTab('track')">📋 投递管理<span class="tab-count" id="trackCount">0</span></button>
           <button class="tab-btn" onclick="switchTab('resume')">📄 简历管理</button>
           <button class="tab-btn" onclick="switchTab('review')">📝 复盘<span class="tab-count" id="reviewCount">0</span></button>
+          <button class="tab-btn" onclick="switchTab('questions')">🎯 面经题库<span class="tab-count" id="questionCount">0</span></button>
     </nav>
   </div>
   <div class="header-right">
@@ -956,6 +1033,7 @@ body {
     <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
       <input type="checkbox" id="showDeadlineSoon" onchange="renderTrack()"> 仅临近截止
     </label>
+    <button class="btn btn-outline btn-sm" onclick="openStats()" title="转化漏斗、分维度成功率、按简历版本对比">📈 转化统计</button>
     <button class="btn btn-outline btn-sm" onclick="toggleSummary()">📊 总结</button>
     <button class="btn btn-outline btn-sm" onclick="exportData()">📥 导出</button>
     <button class="btn btn-outline btn-sm" onclick="importData()">📤 导入</button>
@@ -1033,7 +1111,86 @@ body {
   </div>
 </section>
 
+<!-- ============ 面经题库：把面试问题结构化，变成可复习的材料 ============ -->
+<section class="view-section" id="sectionQuestions">
+  <div class="stats-bar" id="questionStats"></div>
+  <div class="toolbar">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="questionSearch" placeholder="搜索题目、答案、公司..." oninput="debouncedRenderQuestions()">
+    </div>
+    <select class="filter-select" id="questionCategoryFilter" onchange="renderQuestions()"></select>
+    <select class="filter-select" id="questionMasteryFilter" onchange="renderQuestions()">
+      <option value="">全部掌握度</option>
+      <option value="new">🆕 没准备</option>
+      <option value="shaky">😬 不熟</option>
+      <option value="ok">🙂 还行</option>
+      <option value="solid">💪 熟练</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
+      <input type="checkbox" id="questionReviewMode" onchange="renderQuestions()"> 复习模式（只显示答案标题）
+    </label>
+    <span style="flex:1;"></span>
+    <button class="btn btn-outline btn-sm" onclick="exportQuestionsWord()" title="导出为 Word 文档便于打印复习">📄 导出题库</button>
+    <button class="btn btn-primary btn-sm" onclick="openQuestionModal()">+ 添加题目</button>
+  </div>
+  <div class="question-list" id="questionList"></div>
+</section>
+
 <!-- Review Modal -->
+<!-- 投递转化统计 -->
+<div class="modal-overlay" id="statsModal" style="display:none;">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header">
+      <h3>📈 投递转化统计</h3>
+      <button class="modal-close" onclick="closeStats()">×</button>
+    </div>
+    <div class="modal-body" id="statsBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeStats()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 面经题目编辑弹窗 -->
+<div class="modal-overlay" id="questionModal" style="display:none;">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-header">
+      <h3 id="questionModalTitle">添加题目</h3>
+      <button class="modal-close" onclick="closeQuestionModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="qFormId">
+      <div class="form-row">
+        <div class="form-group"><label>公司</label><input type="text" id="qFormCompany" list="questionCompanyList" placeholder="如: 字节跳动"></div>
+        <div class="form-group"><label>岗位 / 方向</label><input type="text" id="qFormPosition" placeholder="如: 后端开发"></div>
+        <datalist id="questionCompanyList"></datalist>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>分类</label>
+          <select id="qFormCategory"></select>
+        </div>
+        <div class="form-group"><label>面试日期</label><input type="date" id="qFormDate"></div>
+      </div>
+      <div class="form-group"><label>题目 *</label><textarea id="qFormQuestion" rows="2" placeholder="面试官问的原话，越具体越好"></textarea></div>
+      <div class="form-group"><label>我的回答 / 参考答案</label><textarea id="qFormAnswer" rows="4" placeholder="怎么答的、事后觉得该怎么答"></textarea></div>
+      <div class="form-group"><label>掌握度</label>
+        <select id="qFormMastery">
+          <option value="new">🆕 没准备</option>
+          <option value="shaky">😬 不熟</option>
+          <option value="ok">🙂 还行</option>
+          <option value="solid">💪 熟练</option>
+        </select>
+      </div>
+      <div class="hint">同一个问题在多场面试里反复出现是很常见的，沉淀成题库后可以在面试前快速过一遍。</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeQuestionModal()">取消</button>
+      <button class="btn btn-primary btn-sm" onclick="saveQuestion()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 提醒设置弹窗 -->
 <div class="modal-overlay" id="reminderModal" style="display:none;">
   <div class="modal" style="max-width:520px;">
@@ -1050,6 +1207,11 @@ body {
         <label for="remLeadDays">提前几天开始提醒</label>
         <input type="number" id="remLeadDays" min="0" max="30" step="1" style="width:110px;">
         <div class="hint">例如填 3：只把「3 天内到期」的事放进待办。填 0 则只看今天和已逾期。</div>
+      </div>
+      <div class="form-group">
+        <label for="remFollowUpDays">投递后多少天没进展就提醒跟进</label>
+        <input type="number" id="remFollowUpDays" min="1" max="120" step="1" style="width:110px;">
+        <div class="hint">只针对状态还是「已投递」的记录；一旦进入测评/面试说明对方有反馈，就不再催。</div>
       </div>
       <div class="form-group" style="display:flex;align-items:center;gap:8px;">
         <input type="checkbox" id="remNotify">
@@ -1154,6 +1316,10 @@ body {
         <div class="form-group"><label>笔/面试日期</label><input type="date" id="formInterviewDate"></div>
         <div class="form-group"><label>薪资</label><input type="text" id="formSalary" placeholder="如: 25k*15"></div>
       </div>
+      <div class="form-row">
+        <div class="form-group"><label>上次联系对方</label><input type="date" id="formLastContactAt" title="用于「跟进提醒」：投递后超过设定天数仍无进展就会出现在今日待办里"></div>
+        <div class="form-group"><label>这版投的简历</label><input type="text" id="formResumeVersion" placeholder="如: 后端版 v3" title="用于「投递转化统计」按简历版本对比效果"></div>
+      </div>
       <div class="form-group"><label>投递链接</label><input type="text" id="formLink" placeholder="https://..."></div>
       <div class="form-group"><label>备注</label><textarea id="formNotes" rows="2" placeholder="额外信息..."></textarea></div>
       <input type="hidden" id="formEditId">
@@ -1177,6 +1343,20 @@ body {
       <button class="btn btn-danger btn-sm" id="detailDeleteBtn" style="margin-right:auto;">删除</button>
       <select id="detailStatusSelect" onchange="changeStatus()" class="filter-select"></select>
       <button class="btn btn-sm" onclick="closeDetail()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 公司时间线：把散落在四处（清单/投递/复盘/简历）的信息按时间串起来 -->
+<div class="modal-overlay" id="timelineModal" style="display:none;">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-header">
+      <h3 id="timelineTitle">公司时间线</h3>
+      <button class="modal-close" onclick="closeTimeline()">×</button>
+    </div>
+    <div class="modal-body" id="timelineBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeTimeline()">关闭</button>
     </div>
   </div>
 </div>
@@ -1427,6 +1607,7 @@ function debounce(fn, wait) {
 const debouncedRenderExplore = debounce(renderExplore, 150);
 const debouncedRenderTrack = debounce(renderTrack, 150);
 const debouncedRenderReviews = debounce(renderReviews, 150);
+const debouncedRenderQuestions = debounce(renderQuestions, 150);
 function escapeHtml(s) { if(!s) return ''; const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}; return String(s).replace(/[&<>"']/g,c=>m[c]); }
 function getStatusLabel(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).label; }
 function getStatusDot(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).dot; }
@@ -1485,7 +1666,8 @@ function sanitizeJob(raw) {
   ['company','position','city','companyType','salary','link'].forEach(k => { if (typeof j[k] !== 'string') j[k] = j[k] == null ? '' : String(j[k]); });
   // link 会被渲染成 href，存进来时就先过一遍协议白名单
   j.link = safeHref(j.link);
-  ['applyDate','deadline','assessDeadline','aiDeadline','interviewDate'].forEach(k => {
+  ['applyDate','deadline','assessDeadline','aiDeadline','interviewDate','lastContactAt','resumeVersion'].forEach(k => {
+    if (k === 'resumeVersion') { if (typeof j[k] !== 'string') j[k] = j[k] == null ? '' : String(j[k]); return; }
     const v = (typeof j[k] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(j[k])) ? j[k] : '';
     j[k] = v;
   });
@@ -1534,6 +1716,7 @@ const REMINDER_DEFAULT = {
   leadDays: 3,            // 提前几天开始提醒
   notify: false,          // 浏览器通知（需授权）
   showJobList: false,     // 是否把"清单里临近截止的岗位"也计入待办
+  followUpDays: 14,       // 投递后多少天没进展就提醒跟进
   notifyStamp: '',        // 上次通知的日期，用于每天只提醒一次
 };
 
@@ -1611,7 +1794,25 @@ function computeTodos() {
                title: '复盘待办', detail: String(r.next).slice(0, 80), jump: ['review', r.id] });
   });
 
-  // 3) 可选：岗位清单里临近截止的岗位（默认关闭，3954 条全开会淹没待办）
+  // 3) 投递后长期无进展 → 提醒跟进
+  //    只针对"已投递"这一档：进了测评/面试说明对方有反馈，不需要催。
+  //    天数从"上次联系"算起，没有该字段就退回投递日期。
+  const fuRaw = Number(reminderSettings.followUpDays);
+  const followUpDays = isNaN(fuRaw) ? 14 : Math.max(1, Math.min(120, fuRaw));
+  (jobs || []).forEach(j => {
+    if (j.status !== 'applied') return;
+    const base = j.lastContactAt || j.applyDate;
+    const since = daysUntil(base);
+    if (since === null) return;
+    const idle = -since;                       // 已经过去多少天
+    if (idle < followUpDays) return;
+    // 注意 days 取正值：跟进不是"逾期"，而是"停滞 N 天"。
+    // 排序时它应当排在该做的事之后、未来事项之前，所以给一个较大的正数。
+    out.push({ kind: 'followUp', date: base, days: idle, company: j.company || '未命名公司',
+               title: '投递后无进展', detail: `已 ${idle} 天未推进，可主动问一下`, jump: ['track', j.id] });
+  });
+
+  // 4) 可选：岗位清单里临近截止的岗位（默认关闭，3954 条全开会淹没待办）
   if (reminderSettings.showJobList) {
     (jobList || []).forEach(j => {
       const d = daysUntil(j.deadline);
@@ -1629,17 +1830,25 @@ function computeTodos() {
   });
   const visible = out.filter(t => !t.snoozed);
   // 排序：逾期最先 → 今天 → 未来；同一天按类型紧迫度
-  const kindRank = { interview: 0, assess: 1, ai: 2, deadline: 3, reviewNext: 4, jobDeadline: 5 };
+  const kindRank = { interview: 0, assess: 1, ai: 2, deadline: 3, followUp: 4, reviewNext: 5, jobDeadline: 6 };
   visible.sort((a, b) => {
-    if (a.days !== b.days) return a.days - b.days;
+    // 跟进项的 days 是"停滞天数"（正数），不该按日期远近排，
+    // 统一放到"该做的事"之后、未来事项之前
+    const bucket = t => t.kind === 'followUp' ? 2 : (t.days < 0 ? 0 : (t.days === 0 ? 1 : 3));
+    const ba = bucket(a), bb = bucket(b);
+    if (ba !== bb) return ba - bb;
+    if (ba === 3 && a.days !== b.days) return a.days - b.days;
+    if (ba === 0 && a.days !== b.days) return a.days - b.days;
+    if (ba === 2 && a.days !== b.days) return b.days - a.days;   // 停滞越久越靠前
     return (kindRank[a.kind] || 9) - (kindRank[b.kind] || 9);
   });
   return visible;
 }
 
 // 把差几天说成人话
-function dueText(days) {
+function dueText(days, kind) {
   if (days === null || days === undefined) return '';
+  if (kind === 'followUp') return '停滞 ' + days + ' 天';
   if (days < 0) return '已逾期 ' + (-days) + ' 天';
   if (days === 0) return '今天';
   if (days === 1) return '明天';
@@ -1648,8 +1857,9 @@ function dueText(days) {
 }
 
 // 待办项的紧迫度样式类
-function dueClass(days) {
+function dueClass(days, kind) {
   if (days === null || days === undefined) return '';
+  if (kind === 'followUp') return 'due-follow';
   if (days < 0) return 'due-over';
   if (days === 0) return 'due-today';
   if (days <= 3) return 'due-soon';
@@ -1667,11 +1877,13 @@ function renderTodos() {
     return;
   }
   box.style.display = 'block';
-  const overdue = todos.filter(t => t.days < 0).length;
+  const overdue = todos.filter(t => t.days < 0 && t.kind !== 'followUp').length;
   const todayN = todos.filter(t => t.days === 0).length;
+  const followN = todos.filter(t => t.kind === 'followUp').length;
   const head = overdue > 0
     ? `⚠️ ${overdue} 项已逾期${todayN ? `，今天还有 ${todayN} 项` : ''}`
-    : (todayN > 0 ? `📌 今天有 ${todayN} 项要处理` : `📌 ${todos.length} 项临近`);
+    : (todayN > 0 ? `📌 今天有 ${todayN} 项要处理`
+      : (followN > 0 ? `📮 ${followN} 项投递后长期无进展` : `📌 ${todos.length} 项临近`));
   const show = todos.slice(0, 8);
   box.innerHTML =
     `<div class="todo-head"><span class="todo-title">${escapeHtml(head)}</span>
@@ -1681,7 +1893,7 @@ function renderTodos() {
       </span></div>
     <div class="todo-list">${show.map(t => `
       <div class="todo-item">
-        <span class="todo-due ${dueClass(t.days)}">${escapeHtml(dueText(t.days))}</span>
+        <span class="todo-due ${dueClass(t.days, t.kind)}">${escapeHtml(dueText(t.days, t.kind))}</span>
         <span class="todo-co" data-act="todo-jump" data-kind="${escapeHtml(t.kind)}" data-id="${escapeHtml((t.jump && t.jump[1]) || '')}" data-tab="${escapeHtml((t.jump && t.jump[0]) || '')}" role="button" tabindex="0" title="点击跳转">${escapeHtml(t.company)}</span>
         <span class="todo-kind">${escapeHtml(t.title)}</span>
         ${t.detail ? `<span class="todo-detail" title="${escapeHtml(t.detail)}">${escapeHtml(t.detail)}</span>` : ''}
@@ -1726,7 +1938,7 @@ function maybeNotifyTodos() {
   if (reminderSettings.notifyStamp === today) return;      // 每天只推一次
   const urgent = (todos || []).filter(t => t.days <= 1);
   if (urgent.length === 0) return;
-  const lines = urgent.slice(0, 4).map(t => `${dueText(t.days)}：${t.company} ${t.title}`);
+  const lines = urgent.slice(0, 4).map(t => `${dueText(t.days, t.kind)}：${t.company} ${t.title}`);
   const extra = urgent.length > 4 ? `\n…还有 ${urgent.length - 4} 项` : '';
   try {
     new Notification('秋招提醒：' + urgent.length + ' 项临近', {
@@ -1743,6 +1955,7 @@ function openReminderSettings() {
   if (!m) return;
   document.getElementById('remEnabled').checked = !!reminderSettings.enabled;
   document.getElementById('remLeadDays').value = String(reminderSettings.leadDays);
+  document.getElementById('remFollowUpDays').value = String(reminderSettings.followUpDays);
   document.getElementById('remNotify').checked = !!reminderSettings.notify;
   document.getElementById('remShowJobs').checked = !!reminderSettings.showJobList;
   updateNotifyHint();
@@ -1766,6 +1979,8 @@ async function saveReminderSettingsFromForm() {
   reminderSettings.enabled = document.getElementById('remEnabled').checked;
   const ld = parseInt(document.getElementById('remLeadDays').value, 10);
   reminderSettings.leadDays = isNaN(ld) ? 3 : Math.max(0, Math.min(30, ld));
+  const fud = parseInt(document.getElementById('remFollowUpDays').value, 10);
+  reminderSettings.followUpDays = isNaN(fud) ? 14 : Math.max(1, Math.min(120, fud));
   reminderSettings.showJobList = document.getElementById('remShowJobs').checked;
   // 只有真能拿到权限，才把 notify 落成 true，避免界面显示"已开启"却永远收不到
   if (wantNotify) {
@@ -1876,6 +2091,532 @@ function refreshAfterTriageChange() {
   if (panelVisible('sectionExplore')) renderExplore();
 }
 
+// ==================== 公司时间线 ====================
+// 同一家公司的信息原本散在四个地方：岗位清单里的收录与截止、投递管理的进度、
+// 复盘里的面经、简历里的版本。面试前一天想快速回顾"这家我投了什么、上次聊到哪"，
+// 得挨个面板翻。这里按时间把它们合并成一页。
+//
+// 匹配用 companiesMatch（含公司别名），与清单徽章、企业关联跳转同一套口径。
+function buildCompanyTimeline(company) {
+  const name = String(company || '').trim();
+  if (!name) return [];
+  const events = [];
+  const push = o => { if (o.date !== undefined) events.push(o); };
+
+  // 1) 岗位清单：收录 + 截止
+  getExploreJobsByCompany(name).forEach(j => {
+    push({ date: j.addedAt ? addedAtToDate(j.addedAt) : '', kind: 'list',
+           icon: '📥', title: '清单收录',
+           detail: [j.batch, (j.positionTypes || []).join('、')].filter(Boolean).join(' · ').slice(0, 90),
+           id: j.id, tab: 'explore' });
+    push({ date: j.deadline, kind: 'deadline', icon: '⏰', title: '投递截止',
+           detail: '截止 ' + j.deadline + daysSuffix(j.deadline), id: j.id, tab: 'explore' });
+  });
+
+  // 2) 投递记录：投递 / 各阶段截止 / 面试 / 状态
+  const tjs = getTrackJobsByCompany(name);
+  tjs.forEach(j => {
+    push({ date: j.applyDate, kind: 'applied', icon: '📤', title: '投递',
+           detail: [j.position, getStatusLabel(j.status), j.resumeVersion ? '简历:' + j.resumeVersion : ''].filter(Boolean).join(' · '),
+           id: j.id, tab: 'track' });
+    push({ date: j.assessDeadline, kind: 'assess', icon: '📝', title: '测评截止', detail: j.assessDeadline, id: j.id, tab: 'track' });
+    push({ date: j.aiDeadline, kind: 'ai', icon: '🤖', title: 'AI 面截止', detail: j.aiDeadline, id: j.id, tab: 'track' });
+    push({ date: j.interviewDate, kind: 'interview', icon: '🎤', title: '面试',
+           detail: getStatusLabel(j.status), id: j.id, tab: 'track' });
+    push({ date: j.lastContactAt, kind: 'contact', icon: '☎️', title: '最近联系', detail: '', id: j.id, tab: 'track' });
+    push({ date: j.deadline, kind: 'deadline', icon: '⏰', title: '投递截止', detail: j.deadline, id: j.id, tab: 'track' });
+  });
+
+  // 3) 复盘：面经
+  (reviews || []).filter(r => r.company && companiesMatch(r.company, name)).forEach(r => {
+    const stg = (REVIEW_STAGES.find(s => s.key === r.stage) || {}).label || '';
+    push({ date: r.date, kind: 'review', icon: '📝', title: '复盘 · ' + stg,
+           detail: [r.title, r.next ? '下一步：' + r.next : ''].filter(Boolean).join(' · ').slice(0, 110),
+           id: r.id, tab: 'review' });
+  });
+
+  // 4) 简历版本：投这家用过的版本
+  const versions = [...new Set(tjs.map(j => j.resumeVersion).filter(Boolean))];
+  if (versions.length) {
+    push({ date: '', kind: 'resume', icon: '📄', title: '简历版本',
+           detail: versions.join(' / '), id: '', tab: 'resume' });
+  }
+
+  // 去掉没有日期的（简历版本例外，单独排在末尾）
+  const dated = events.filter(e => e.date);
+  const undated = events.filter(e => !e.date);
+  dated.sort((a, b) => String(b.date).localeCompare(String(a.date)));   // 新的在上
+  return dated.concat(undated);
+}
+
+function daysSuffix(dateStr) {
+  const d = daysUntil(dateStr);
+  if (d === null) return '';
+  if (d < 0) return '（已过）';
+  if (d === 0) return '（今天）';
+  return '（' + d + ' 天后）';
+}
+
+function openCompanyTimeline(company) {
+  const name = String(company || '').trim();
+  if (!name) return;
+  const list = buildCompanyTimeline(name);
+  document.getElementById('timelineTitle').textContent = name + ' · 时间线';
+  const body = document.getElementById('timelineBody');
+  if (list.length === 0) {
+    body.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">这家公司还没有任何记录。</p>';
+  } else {
+    const tjs = getTrackJobsByCompany(name);
+    const revs = (reviews || []).filter(r => r.company && companiesMatch(r.company, name));
+    const meta = [
+      `清单岗位 ${getExploreJobsByCompany(name).length} 个`,
+      `投递记录 ${tjs.length} 条`,
+      `复盘 ${revs.length} 条`,
+    ].join(' · ');
+    body.innerHTML =
+      `<div class="tl-meta">${escapeHtml(meta)}</div>
+       <div class="tl-list">${list.map(e => `
+        <div class="tl-item">
+          <span class="tl-date">${escapeHtml(e.date || '—')}</span>
+          <span class="tl-icon">${e.icon}</span>
+          <span class="tl-main">
+            <span class="tl-title"${e.tab ? ` data-act="tl-jump" data-tab="${escapeHtml(e.tab)}" data-id="${escapeHtml(e.id || '')}" role="button" tabindex="0" title="跳转"` : ''}>${escapeHtml(e.title)}</span>
+            ${e.detail ? `<span class="tl-detail">${escapeHtml(e.detail)}</span>` : ''}
+          </span>
+        </div>`).join('')}</div>`;
+  }
+  document.getElementById('timelineModal').style.display = 'flex';
+}
+
+function closeTimeline() {
+  const m = document.getElementById('timelineModal');
+  if (m) m.style.display = 'none';
+}
+
+// 从时间线条目跳到对应面板
+function jumpFromTimeline(tab, id) {
+  closeTimeline();
+  if (tab === 'track') { switchTab('track'); if (id) openDetail(id); }
+  else if (tab === 'review') { switchTab('review'); }
+  else if (tab === 'resume') { switchTab('resume'); }
+  else { switchTab('explore'); }
+}
+
+// ==================== 面经题库 ====================
+// 复盘记录的是"这场面试怎么样"，而真正能反复用的是"被问到了什么"。
+// 这里把面试问题单独结构化，跨公司汇总、按分类与掌握度筛选、还能导出打印。
+const QUESTION_CATEGORIES = [
+  { key:'algorithm', label:'算法/手撕' },
+  { key:'backend',   label:'后端/服务' },
+  { key:'frontend',  label:'前端' },
+  { key:'database',  label:'数据库' },
+  { key:'network',   label:'网络/操作系统' },
+  { key:'project',   label:'项目经历' },
+  { key:'internship',label:'实习经历' },
+  { key:'behavior',  label:'行为/软素质' },
+  { key:'company',   label:'公司/岗位理解' },
+  { key:'other',     label:'其他' },
+];
+const MASTERY_LEVELS = [
+  { key:'new',   label:'没准备', icon:'🆕' },
+  { key:'shaky', label:'不熟',   icon:'😬' },
+  { key:'ok',    label:'还行',   icon:'🙂' },
+  { key:'solid', label:'熟练',   icon:'💪' },
+];
+const masteryInfo = k => MASTERY_LEVELS.find(m => m.key === k) || MASTERY_LEVELS[0];
+const categoryLabel = k => (QUESTION_CATEGORIES.find(c => c.key === k) || {}).label || '其他';
+
+let questions = [];
+let questionReviewMode = false;
+
+function sanitizeQuestion(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const q = { ...raw };
+  q.id = safeId(q.id);
+  ['company','position','question','answer','date'].forEach(k => {
+    if (typeof q[k] !== 'string') q[k] = q[k] == null ? '' : String(q[k]);
+  });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(q.date)) q.date = '';
+  const catOk = QUESTION_CATEGORIES.some(c => c.key === q.category);
+  q.category = catOk ? q.category : 'other';
+  const mOk = MASTERY_LEVELS.some(m => m.key === q.mastery);
+  q.mastery = mOk ? q.mastery : 'new';
+  // 题目本身是必填的，清洗阶段就丢掉空题，避免渲染出空白卡片
+  if (!q.question.trim()) return null;
+  return q;
+}
+
+function loadQuestions() {
+  try {
+    const r = lsGet(STORAGE_QUESTIONS);
+    questions = (Array.isArray(r) ? r : []).map(sanitizeQuestion).filter(Boolean);
+  } catch (e) { questions = []; }
+}
+function saveQuestions() {
+  if (!lsSet(STORAGE_QUESTIONS, questions)) {
+    try { alert('面经题库本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch (e) {}
+  }
+}
+
+function getQuestionFilters() {
+  const s = document.getElementById('questionSearch');
+  const c = document.getElementById('questionCategoryFilter');
+  const m = document.getElementById('questionMasteryFilter');
+  const r = document.getElementById('questionReviewMode');
+  return {
+    search: s ? s.value.toLowerCase() : '',
+    category: c ? c.value : '',
+    mastery: m ? m.value : '',
+    review: r ? r.checked : false,
+  };
+}
+
+function getFilteredQuestions() {
+  const f = getQuestionFilters();
+  let list = questions.slice();
+  if (f.search) list = list.filter(q =>
+    (q.question || '').toLowerCase().includes(f.search) ||
+    (q.answer || '').toLowerCase().includes(f.search) ||
+    (q.company || '').toLowerCase().includes(f.search) ||
+    (q.position || '').toLowerCase().includes(f.search));
+  if (f.category) list = list.filter(q => q.category === f.category);
+  if (f.mastery) list = list.filter(q => q.mastery === f.mastery);
+  // 掌握度低的排前面：复习时先看不会的
+  const rank = { new: 0, shaky: 1, ok: 2, solid: 3 };
+  list.sort((a, b) => {
+    const ra = rank[a.mastery] === undefined ? 9 : rank[a.mastery];
+    const rb = rank[b.mastery] === undefined ? 9 : rank[b.mastery];
+    if (ra !== rb) return ra - rb;
+    return String(b.date || '').localeCompare(String(a.date || ''));
+  });
+  return list;
+}
+
+function buildQuestionCategoryFilter() {
+  const sel = document.getElementById('questionCategoryFilter');
+  if (!sel) return;
+  const cur = sel.value;
+  const counts = {};
+  questions.forEach(q => { counts[q.category] = (counts[q.category] || 0) + 1; });
+  sel.innerHTML = '<option value="">全部分类</option>' + QUESTION_CATEGORIES.map(c =>
+    `<option value="${c.key}">${escapeHtml(c.label)}${counts[c.key] ? '（' + counts[c.key] + '）' : ''}</option>`).join('');
+  sel.value = cur;
+  // 弹窗里的分类下拉
+  const fsel = document.getElementById('qFormCategory');
+  if (fsel && fsel.options.length === 0) {
+    fsel.innerHTML = QUESTION_CATEGORIES.map(c => `<option value="${c.key}">${escapeHtml(c.label)}</option>`).join('');
+  }
+  const cl = document.getElementById('questionCompanyList');
+  if (cl) {
+    const cos = [...new Set(questions.map(q => q.company).filter(Boolean))].sort();
+    cl.innerHTML = cos.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+  }
+}
+
+function renderQuestions() {
+  const list = document.getElementById('questionList');
+  if (!list) return;
+  const f = getQuestionFilters();
+  const filtered = getFilteredQuestions();
+
+  // 统计条
+  const statsEl = document.getElementById('questionStats');
+  if (statsEl) {
+    const byMastery = {};
+    questions.forEach(q => { byMastery[q.mastery] = (byMastery[q.mastery] || 0) + 1; });
+    statsEl.innerHTML =
+      `<div class="stat-card"><div class="stat-label">题目总数</div><div class="stat-value" style="color:var(--accent)">${questions.length}</div></div>` +
+      MASTERY_LEVELS.map(m => `<div class="stat-card" title="掌握度：${escapeHtml(m.label)}">
+        <div class="stat-label">${m.icon} ${escapeHtml(m.label)}</div>
+        <div class="stat-value">${byMastery[m.key] || 0}</div></div>`).join('');
+  }
+  const cnt = document.getElementById('questionCount');
+  if (cnt) cnt.textContent = questions.length;
+
+  if (filtered.length === 0) {
+    list.innerHTML = questions.length === 0
+      ? '<div class="empty-state"><div class="empty-icon">🎯</div><p>还没有题目</p><p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">每场面试结束后，把被问到的问题记进来，面试前就能快速过一遍</p></div>'
+      : '<div class="empty-state"><div class="empty-icon">🔍</div><p>没有匹配的题目</p></div>';
+    return;
+  }
+  list.innerHTML = filtered.map(q => {
+    const m = masteryInfo(q.mastery);
+    return `<div class="q-card" data-id="${escapeHtml(q.id)}">
+      <div class="q-head">
+        <span class="q-mastery m-${escapeHtml(q.mastery)}" data-act="q-cycle-mastery" data-id="${escapeHtml(q.id)}"
+              role="button" tabindex="0" title="点击切换掌握度">${m.icon} ${escapeHtml(m.label)}</span>
+        <span class="q-cat">${escapeHtml(categoryLabel(q.category))}</span>
+        ${q.company ? `<span class="q-co" data-act="open-timeline" data-company="${escapeHtml(q.company)}" role="button" tabindex="0" title="查看该公司时间线">${escapeHtml(q.company)}</span>` : ''}
+        ${q.position ? `<span class="q-pos">${escapeHtml(q.position)}</span>` : ''}
+        <span style="flex:1;"></span>
+        <span class="q-date">${escapeHtml(q.date || '')}</span>
+      </div>
+      <div class="q-question">${escapeHtml(q.question)}</div>
+      ${f.review
+        ? (q.answer ? '<div class="q-answer q-hidden" data-act="q-toggle-answer">点击显示答案</div>' : '')
+        : (q.answer ? `<div class="q-answer">${escapeHtml(q.answer)}</div>` : '')}
+      <div class="q-actions">
+        <button type="button" class="btn btn-xs btn-outline" data-act="q-edit" data-id="${escapeHtml(q.id)}">编辑</button>
+        <button type="button" class="btn btn-xs btn-outline" style="color:var(--danger);border-color:rgba(239,68,68,0.25);" data-act="q-delete" data-id="${escapeHtml(q.id)}">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// 点击掌握度标签循环切换：没准备 → 不熟 → 还行 → 熟练 → 没准备
+function cycleQuestionMastery(id) {
+  const q = questions.find(x => String(x.id) === String(id));
+  if (!q) return;
+  const idx = MASTERY_LEVELS.findIndex(m => m.key === q.mastery);
+  q.mastery = MASTERY_LEVELS[(idx + 1) % MASTERY_LEVELS.length].key;
+  saveQuestions();
+  renderQuestions();
+}
+function toggleQuestionAnswer(el) {
+  el.classList.toggle('q-hidden');
+  el.textContent = el.classList.contains('q-hidden') ? '点击显示答案' : (el.dataset.full || el.textContent);
+}
+
+function openQuestionModal(id) {
+  buildQuestionCategoryFilter();
+  const q = id ? questions.find(x => String(x.id) === String(id)) : null;
+  document.getElementById('questionModalTitle').textContent = q ? '编辑题目' : '添加题目';
+  document.getElementById('qFormId').value = q ? q.id : '';
+  document.getElementById('qFormCompany').value = q ? (q.company || '') : '';
+  document.getElementById('qFormPosition').value = q ? (q.position || '') : '';
+  document.getElementById('qFormCategory').value = q ? q.category : 'other';
+  document.getElementById('qFormDate').value = q ? (q.date || '') : todayStr();
+  document.getElementById('qFormQuestion').value = q ? q.question : '';
+  document.getElementById('qFormAnswer').value = q ? (q.answer || '') : '';
+  document.getElementById('qFormMastery').value = q ? q.mastery : 'new';
+  document.getElementById('questionModal').style.display = 'flex';
+}
+function closeQuestionModal() {
+  const m = document.getElementById('questionModal');
+  if (m) m.style.display = 'none';
+}
+function saveQuestion() {
+  const id = document.getElementById('qFormId').value;
+  const data = {
+    company: document.getElementById('qFormCompany').value.trim(),
+    position: document.getElementById('qFormPosition').value.trim(),
+    category: document.getElementById('qFormCategory').value,
+    date: document.getElementById('qFormDate').value,
+    question: document.getElementById('qFormQuestion').value.trim(),
+    answer: document.getElementById('qFormAnswer').value.trim(),
+    mastery: document.getElementById('qFormMastery').value,
+  };
+  if (!data.question) { toast('题目内容为必填项'); return; }
+  if (id) {
+    const i = questions.findIndex(x => String(x.id) === String(id));
+    if (i >= 0) questions[i] = sanitizeQuestion({ ...questions[i], ...data }) || questions[i];
+  } else {
+    const q = sanitizeQuestion({ id: genId(), ...data, createdAt: new Date().toISOString() });
+    if (!q) { toast('题目内容为必填项'); return; }
+    questions.unshift(q);
+  }
+  saveQuestions();
+  renderQuestions();
+  closeQuestionModal();
+  toast(id ? '题目已更新' : '题目已添加');
+}
+function deleteQuestion(id) {
+  const q = questions.find(x => String(x.id) === String(id));
+  if (!q) return;
+  if (!confirm('确认删除这道题？\n' + String(q.question).slice(0, 60))) return;
+  questions = questions.filter(x => String(x.id) !== String(id));
+  saveQuestions();
+  renderQuestions();
+  toast('题目已删除');
+}
+
+// 导出为 Word（.doc）。刻意不用已移除的复盘右栏那套实现，
+// 这里是题库自己的独立导出，失败也只影响下载，不影响页面。
+function exportQuestionsWord() {
+  const list = getFilteredQuestions();
+  if (list.length === 0) { toast('当前没有可导出的题目'); return; }
+  const rows = list.map((q, i) => {
+    const m = masteryInfo(q.mastery);
+    return `<div class="q">
+      <div class="qh">${i + 1}. [${escapeHtml(categoryLabel(q.category))}] ${escapeHtml(m.label)}${q.company ? ' · ' + escapeHtml(q.company) : ''}${q.position ? ' · ' + escapeHtml(q.position) : ''}${q.date ? ' · ' + escapeHtml(q.date) : ''}</div>
+      <div class="qq">${escapeHtml(q.question)}</div>
+      ${q.answer ? `<div class="qa"><b>答：</b>${escapeHtml(q.answer).replace(/\n/g, '<br>')}</div>` : ''}
+    </div>`;
+  }).join('');
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>面经题库</title>'
+    + '<style>body{font-family:SimSun,serif;line-height:1.7;margin:36px auto;max-width:820px;padding:0 24px;color:#222;}'
+    + 'h1{font-size:20px;border-bottom:2px solid #333;padding-bottom:8px;}'
+    + '.q{margin:0 0 16px;page-break-inside:avoid;}'
+    + '.qh{font-size:13px;color:#555;margin-bottom:2px;}'
+    + '.qq{font-weight:700;margin-bottom:4px;}'
+    + '.qa{font-size:14px;color:#333;background:#f7f7f7;padding:6px 10px;border-left:3px solid #999;}'
+    + '<\/style></head><body><h1>面经题库（共 ' + list.length + ' 题）</h1>' + rows + '</body></html>';
+  try {
+    const blob = new Blob([html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '面经题库_' + todayStr() + '.doc';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('已导出 ' + list.length + ' 道题');
+  } catch (e) { toast('导出失败：' + e.message); }
+}
+
+// ==================== 投递转化统计 ====================
+// 回答"我的投递到底转化得怎么样"：漏斗各档人数与转化率、分维度成功率、
+// 以及按简历版本对比（哪版简历更有效）。
+//
+// 漏斗采用**单调递减**口径：每一档统计的是"至少走到这一档"的记录数。
+// 直接按 status 计数会得到非单调的漏斗（例如"已投递"档不含正在面试的人），
+// 那种图形是没有意义的。
+const FUNNEL_STEPS = [
+  { key: 'applied',    label: '已投递' },
+  { key: 'assessment', label: '进测评' },
+  { key: 'interview1', label: '进面试' },
+  { key: 'hr',         label: '进终面' },
+  { key: 'offer',      label: '拿 Offer' },
+];
+// 状态顺序表里的位置即"进度"，用它判断是否至少走到某一档
+function statusIndex(k) {
+  const i = STATUSES.findIndex(s => s.key === k);
+  return i < 0 ? 0 : i;
+}
+// 走到过这一档吗（含走得更远的；已挂/已拒绝按其真实进度算，不算倒退）
+function reachedStep(job, stepKey) {
+  const cur = statusIndex(job.status);
+  const need = statusIndex(stepKey);
+  if (cur >= need) return true;
+  // 已挂/已拒绝的排在 offer 之后，不能靠 index 比较，
+  // 用复盘里的阶段来兜底判断它到底走到过哪一步
+  if (job.status === 'failed' || job.status === 'rejected') {
+    const revs = (reviews || []).filter(r => r.company && companiesMatch(r.company, job.company));
+    return revs.some(r => statusIndex(r.stage) >= need);
+  }
+  return false;
+}
+
+function buildFunnel(list) {
+  const base = list.filter(j => j.status !== 'pending');   // 待投递不算进转化
+  if (base.length === 0) return { base: 0, steps: [] };
+  const steps = FUNNEL_STEPS.map(s => {
+    const n = base.filter(j => reachedStep(j, s.key)).length;
+    return { ...s, count: n, rate: base.length ? Math.round(n / base.length * 1000) / 10 : 0 };
+  });
+  return { base: base.length, steps };
+}
+
+// 分维度统计：条目 = { label, total, interview, offer, rate }
+function groupStats(list, keyFn, limit) {
+  const m = new Map();
+  list.filter(j => j.status !== 'pending').forEach(j => {
+    const k = String(keyFn(j) || '').trim() || '未标注';
+    if (!m.has(k)) m.set(k, { label: k, total: 0, interview: 0, offer: 0 });
+    const g = m.get(k);
+    g.total++;
+    if (reachedStep(j, 'interview1')) g.interview++;
+    if (reachedStep(j, 'offer')) g.offer++;
+  });
+  const arr = [...m.values()].map(g => ({
+    ...g,
+    rate: g.total ? Math.round(g.interview / g.total * 1000) / 10 : 0,
+  }));
+  // 样本太少的排后面，避免"投了 1 家进了面试"排在最上面误导判断
+  arr.sort((a, b) => (b.total - a.total) || (b.rate - a.rate));
+  return limit ? arr.slice(0, limit) : arr;
+}
+
+function renderStats() {
+  const body = document.getElementById('statsBody');
+  if (!body) return;
+  const all = jobs.slice();
+  const funnel = buildFunnel(all);
+
+  if (funnel.base === 0) {
+    body.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">投递管理里还没有「已投递」及以后的记录。<br>先把岗位加入投递并标记为已投递，这里就会开始统计。</p>';
+    return;
+  }
+
+  // 1) 漏斗：每档一条，条宽按占基数的比例
+  const funnelHtml = funnel.steps.map((s, i) => {
+    const prev = i === 0 ? funnel.base : funnel.steps[i - 1].count;
+    const stepRate = prev ? Math.round(s.count / prev * 1000) / 10 : 0;
+    return `<div class="fn-row">
+      <span class="fn-label">${escapeHtml(s.label)}</span>
+      <span class="fn-bar-wrap"><span class="fn-bar" style="width:${Math.max(2, s.rate)}%"></span></span>
+      <span class="fn-num"><b>${s.count}</b> <span class="fn-dim">/ ${funnel.base}（${s.rate}%）</span></span>
+      ${i > 0 ? `<span class="fn-step" title="相对上一档的转化率">↳ ${stepRate}%</span>` : '<span class="fn-step fn-dim">基数</span>'}
+    </div>`;
+  }).join('');
+
+  // 2) 结果分布
+  const resumed = all.filter(j => j.status !== 'pending');
+  const failedN = resumed.filter(j => j.status === 'failed' || j.status === 'rejected').length;
+  const offerN = resumed.filter(j => reachedStep(j, 'offer')).length;
+  const ongoingN = resumed.filter(j => !['failed', 'rejected', 'offer'].includes(j.status)).length;
+
+  // 3) 分维度
+  const byType = groupStats(all, j => j.companyType);
+  const byVersion = groupStats(all, j => j.resumeVersion);
+  const noVersion = all.filter(j => j.status !== 'pending' && !j.resumeVersion).length;
+
+  const renderTable = (rows, label) => {
+    if (rows.length === 0) return `<p class="fn-dim" style="font-size:12px;">没有可统计的${label}数据。</p>`;
+    return `<table class="fn-table"><thead><tr>
+        <th>${escapeHtml(label)}</th><th>投递</th><th>进面</th><th>Offer</th><th>进面率</th>
+      </tr></thead><tbody>${rows.map(r => `<tr>
+        <td>${escapeHtml(r.label)}</td>
+        <td>${r.total}</td>
+        <td>${r.interview}</td>
+        <td>${r.offer}</td>
+        <td><span class="fn-rate${r.rate >= 30 ? ' good' : (r.rate > 0 ? '' : ' zero')}">${r.rate}%</span></td>
+      </tr>`).join('')}</tbody></table>`;
+  };
+
+  body.innerHTML = `
+    <div class="fn-section">
+      <div class="fn-title">转化漏斗</div>
+      <div class="fn-funnel">${funnelHtml}</div>
+      <div class="fn-dim" style="font-size:11.5px;margin-top:6px;">
+        每档统计的是「至少走到这一步」的记录数（所以逐档递减）。待投递的 ${all.filter(j=>j.status==='pending').length} 条不计入。
+      </div>
+    </div>
+
+    <div class="fn-section">
+      <div class="fn-title">当前结果</div>
+      <div class="fn-cards">
+        <div class="fn-card"><div class="fn-card-n" style="color:var(--green)">${offerN}</div><div class="fn-card-l">Offer</div></div>
+        <div class="fn-card"><div class="fn-card-n" style="color:var(--accent)">${ongoingN}</div><div class="fn-card-l">进行中</div></div>
+        <div class="fn-card"><div class="fn-card-n" style="color:var(--danger)">${failedN}</div><div class="fn-card-l">已挂/已拒</div></div>
+        <div class="fn-card"><div class="fn-card-n">${resumed.length}</div><div class="fn-card-l">已投递总数</div></div>
+      </div>
+    </div>
+
+    <div class="fn-section">
+      <div class="fn-title">按公司性质</div>
+      ${renderTable(byType, '公司性质')}
+    </div>
+
+    <div class="fn-section">
+      <div class="fn-title">按简历版本</div>
+      ${renderTable(byVersion, '简历版本')}
+      ${noVersion > 0 ? `<div class="fn-dim" style="font-size:11.5px;margin-top:6px;">
+        还有 ${noVersion} 条投递没有填「这版投的简历」。在投递管理里编辑记录即可补上，补完后这里就能对比哪版简历更有效。
+      </div>` : ''}
+    </div>`;
+}
+
+function openStats() {
+  renderStats();
+  document.getElementById('statsModal').style.display = 'flex';
+}
+function closeStats() {
+  const m = document.getElementById('statsModal');
+  if (m) m.style.display = 'none';
+}
+
 // ==================== 数据持久化 ====================
 function loadJobs() { try { const r=lsGet(STORAGE_JOBS); jobs=(Array.isArray(r)?r:[]).map(sanitizeJob).filter(Boolean); } catch { jobs=[]; } }
 // 投递记录是个人隐私，只写本机 localStorage，没有任何上传路径
@@ -1971,6 +2712,11 @@ function switchTab(tab) {
     document.querySelector('.tab-btn:nth-child(4)').classList.add('active');
     document.getElementById('sectionReview').classList.add('active');
     renderReviews();
+  } else if (tab==='questions') {
+    document.querySelector('.tab-btn:nth-child(5)').classList.add('active');
+    document.getElementById('sectionQuestions').classList.add('active');
+    buildQuestionCategoryFilter();
+    renderQuestions();
   }
 }
 
@@ -2497,7 +3243,7 @@ function exploreRowHtml(j) {
     </td>
     <td class="expl-triage">${triageCell}</td>
     <td class="expl-update">${upd}</td>
-    <td>${companyCell}</td>
+    <td><div class="expl-co-wrap">${companyCell}<button type="button" class="tl-btn" data-act="open-timeline" data-company="${escapeHtml(j.company)}" title="查看这家公司的时间线（清单 + 投递 + 复盘串起来）">🕒</button></div></td>
     <td class="expl-link-cell">${noticeHtml}</td>
     <td class="expl-link-cell">${applyHtml}</td>
     <td class="expl-industry" title="${escapeHtml(industry)}">${escapeHtml(industry)||'<span class="expl-dim">-</span>'}</td>
@@ -2570,6 +3316,8 @@ function addToTrack(listId, initialStatus) {
     city: item.city || '',
     companyType: item.companyType || '',
     applyDate: status === 'applied' ? todayStr() : '',
+    lastContactAt: status === 'applied' ? todayStr() : '',   // 投出去的当天就算一次联系
+    resumeVersion: '',
     deadline: item.deadline || '',
     assessDeadline: '',
     aiDeadline: '',
@@ -2886,7 +3634,8 @@ function handleDrop(e, newStatus) {
   const id = e.dataTransfer.getData('text/plain');
   const j = jobs.find(j=>j.id===id);
   if (j && j.status!==newStatus) {
-    if (newStatus==='applied' && !j.applyDate) j.applyDate = resolveApplyDate(j);
+    if (newStatus==='applied') { if (!j.applyDate) j.applyDate = resolveApplyDate(j); j.lastContactAt = todayStr(); }
+    else if (newStatus==='interview1' || newStatus==='interview2' || newStatus==='hr') j.lastContactAt = todayStr();
     j.status=newStatus; refreshAfterJobChange(); toast(`状态已更新为「${getStatusLabel(newStatus)}」`);
   }
 }
@@ -2920,6 +3669,14 @@ const ACTIONS = {
   // 关注 / 忽略
   'triage-star':      el => { setTriage(el.dataset.id, 'star'); },
   'triage-ignore':    el => { setTriage(el.dataset.id, 'ignore'); },
+  // 公司时间线
+  'open-timeline':    el => openCompanyTimeline(el.dataset.company),
+  'tl-jump':          el => jumpFromTimeline(el.dataset.tab, el.dataset.id),
+  // 面经题库
+  'q-edit':           el => openQuestionModal(el.dataset.id),
+  'q-delete':         el => deleteQuestion(el.dataset.id),
+  'q-cycle-mastery':  el => cycleQuestionMastery(el.dataset.id),
+  'q-toggle-answer':  el => toggleQuestionAnswer(el),
 };
 // 索引型动作表：函数名 -> 处理器
 const IDX_ACTIONS = {
@@ -3011,7 +3768,7 @@ document.addEventListener('keydown', function(e) {
 // ==================== 投递岗位 CRUD ====================
 function openAddModal() {
   document.getElementById('modalTitle').textContent = '添加岗位';
-  ['formEditId','formCompany','formPosition','formCompanyType','formCity','formApplyDate','formDeadline','formAssessDeadline','formAiDeadline','formInterviewDate','formSalary','formLink','formNotes'].forEach(id=>document.getElementById(id).value='');
+  ['formEditId','formCompany','formPosition','formCompanyType','formCity','formApplyDate','formDeadline','formAssessDeadline','formAiDeadline','formInterviewDate','formSalary','formLink','formNotes','formLastContactAt','formResumeVersion'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('jobModal').style.display = 'flex';
 }
 
@@ -3028,6 +3785,8 @@ function openEditModal(id) {
   document.getElementById('formAssessDeadline').value = j.assessDeadline||'';
   document.getElementById('formAiDeadline').value = j.aiDeadline||'';
   document.getElementById('formInterviewDate').value = j.interviewDate||'';
+  document.getElementById('formLastContactAt').value = j.lastContactAt||'';
+  document.getElementById('formResumeVersion').value = j.resumeVersion||'';
   document.getElementById('formSalary').value = j.salary||'';
   document.getElementById('formLink').value = j.link||'';
   document.getElementById('formNotes').value = j.notes||'';
@@ -3046,6 +3805,8 @@ function saveJob() {
     assessDeadline: document.getElementById('formAssessDeadline').value,
     aiDeadline: document.getElementById('formAiDeadline').value,
     interviewDate: document.getElementById('formInterviewDate').value,
+    lastContactAt: document.getElementById('formLastContactAt').value,
+    resumeVersion: document.getElementById('formResumeVersion').value.trim(),
     salary: document.getElementById('formSalary').value.trim(),
     link: document.getElementById('formLink').value.trim(),
     notes: document.getElementById('formNotes').value.trim(),
@@ -3114,7 +3875,8 @@ function changeStatus() {
   const newStatus = document.getElementById('detailStatusSelect').value;
   const j = jobs.find(j=>j.id===detailJobId);
   if (j) {
-    if (newStatus==='applied' && !j.applyDate) j.applyDate = resolveApplyDate(j);
+    if (newStatus==='applied') { if (!j.applyDate) j.applyDate = resolveApplyDate(j); j.lastContactAt = todayStr(); }
+    else if (newStatus==='interview1' || newStatus==='interview2' || newStatus==='hr') j.lastContactAt = todayStr();
     j.status = newStatus; refreshAfterJobChange(); toast(`状态已更新为「${getStatusLabel(newStatus)}」`);
   }
 }
@@ -4546,6 +5308,7 @@ function initApp() {
   loadReviews();
   loadReminderSettings();
   loadTriage();
+  loadQuestions();
   fixAppliedDates();
   // 清理历史累积下来的重复岗位（同一公司+岗位+批次的多条公告）。
   // 老版本会把这些都留下来，所以启动时补做一次；已经干净时开销可忽略。

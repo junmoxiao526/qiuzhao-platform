@@ -5,6 +5,12 @@ var fns=['initApp','addedAtToDate','findTrackedSource','resolveApplyDate','fixAp
  'renderTrackView','renderTrackStats','renderExplore','renderTrack','renderBoard','renderList','renderStarMap',
  'stopStarMap','setTrackView','addToTrack','handleDrop','saveJob','deleteJob','changeStatus',
  'getTrackedStarJobIds','getTrackJobsByCompany','loadJobList','saveJobList','loadJobs','saveJobs',
+ // 新增功能（今日待办 / 分诊 / 跟进 / 时间线 / 面经题库 / 转化统计）
+ 'computeTodos','renderTodos','dueText','dueClass','daysUntil','gotoFromTodo','maybeNotifyTodos','openReminderSettings','saveReminderSettingsFromForm',
+ 'loadTriage','saveTriage','setTriage','bulkTriage','applyExploreFilters','getFilteredExploreJobs',
+ 'buildCompanyTimeline','openCompanyTimeline','closeTimeline','jumpFromTimeline',
+ 'loadQuestions','saveQuestions','renderQuestions','sanitizeQuestion','openQuestionModal','saveQuestion','deleteQuestion','cycleQuestionMastery','exportQuestionsWord','buildQuestionCategoryFilter',
+ 'renderStats','openStats','closeStats','buildFunnel','groupStats','reachedStep','statusIndex',
  'loadReviews','saveReviews','loadResumeData','saveResumeData','renderReviews','renderResume',
  'exportData','importData','buildBackup','syncQiuzhiFangzhou','qzTransformJobs','mergeQiuzhiList',
  'sanitizeJob','sanitizeReview','sanitizeJobList','safeHref','safeId','safeDataUrl','escapeHtml',

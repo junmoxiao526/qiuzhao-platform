@@ -107,7 +107,9 @@ return (async function () {
     origRaf.call(window, loop);
   });
   line('INFO :: 星图视图下，应用自身 600ms 内排了 ' + appRafCount + ' 帧（动画应在跑）');
-  chk('星图在运行时确实在排帧', appRafCount > 5, appRafCount);
+  // headless 下 rAF 会被节流（实测 600ms 只排 2~18 帧），所以这里只断言"确实在排帧"。
+  // 真正的判据是下面那条"离开星图后 0 帧"——它不受节流影响，才是回归的价值所在。
+  chk('星图在运行时确实在排帧', appRafCount >= 2, appRafCount);
 
   appRafCount = 0;
   measure('切回看板视图', function () { setTrackView('board'); });
