@@ -779,6 +779,51 @@ body {
   .resume-preview-panel, .resume-edit-panel { width:100%; min-width:auto; }
 }
 
+/* ==================== 今日待办 ==================== */
+.todo-bar {
+  margin:0 16px 10px; border:1px solid rgba(245,158,11,0.35);
+  background:rgba(245,158,11,0.08); border-radius:10px; padding:10px 14px;
+}
+.todo-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.todo-title { font-size:13.5px; font-weight:600; color:var(--text); }
+.todo-actions { display:flex; gap:6px; flex-shrink:0; }
+.todo-mini {
+  background:transparent; border:1px solid var(--border); color:var(--text-secondary);
+  border-radius:6px; padding:2px 8px; font-size:11.5px; cursor:pointer;
+  transition:border-color .15s, color .15s;
+}
+.todo-mini:hover { border-color:var(--accent); color:var(--accent); }
+.todo-list { margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+.todo-item { display:flex; align-items:center; gap:8px; font-size:12.5px; line-height:1.6; }
+.todo-due { flex-shrink:0; min-width:74px; font-weight:600; font-size:11.5px; padding:1px 6px; border-radius:5px; text-align:center; }
+.todo-due.due-over  { background:rgba(239,68,68,0.16);  color:#EF4444; }
+.todo-due.due-today { background:rgba(245,158,11,0.20); color:#D97706; }
+.todo-due.due-soon  { background:rgba(96,165,250,0.18); color:#3B82F6; }
+.todo-due.due-later { background:var(--surface-3);      color:var(--text-muted); }
+.todo-co { font-weight:600; color:var(--accent); cursor:pointer; flex-shrink:0; }
+.todo-co:hover { text-decoration:underline; }
+.todo-kind { color:var(--text); flex-shrink:0; }
+.todo-detail {
+  color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  min-width:0; flex:1;
+}
+.todo-more { margin-top:6px; font-size:11.5px; color:var(--text-muted); }
+.hint { font-size:11.5px; color:var(--text-muted); line-height:1.7; }
+
+/* 关注 / 忽略 标记 */
+.explore-table .expl-triage { white-space:nowrap; }
+.triage-cell { display:inline-flex; gap:2px; }
+.triage-btn {
+  background:transparent; border:none; cursor:pointer; font-size:14px; line-height:1;
+  padding:3px 5px; border-radius:5px; color:var(--text-muted); opacity:.55;
+  transition:opacity .15s, color .15s, background .15s;
+}
+.triage-btn:hover { opacity:1; background:var(--surface-3); }
+.triage-btn.on-star { color:#F59E0B; opacity:1; }
+.triage-btn.on-ignore { color:var(--danger); opacity:1; }
+.expl-row.expl-ignored { opacity:.45; }
+.expl-row.expl-starred td.expl-triage { box-shadow:inset 2px 0 0 #F59E0B; }
+
 /* 键盘可达焦点环：仅键盘导航时出现，不干扰鼠标用户 */
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .expl-row:focus-visible, .list-row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
@@ -800,10 +845,14 @@ body {
     </nav>
   </div>
   <div class="header-right">
+    <button class="btn btn-outline btn-sm" id="btnTodoBell" onclick="openReminderSettings()" title="今日待办与到期提醒设置">🔔</button>
     <button class="btn btn-outline btn-sm" id="btnTheme" onclick="toggleTheme()" title="切换深浅色主题">🌙</button>
     <button class="btn btn-outline btn-sm" onclick="syncQiuzhiFangzhou()" id="btnSyncQiuzhiFangzhou" title="从招聘方舟同步最新校园招聘岗位">🔄 同步招聘方舟</button>
   </div>
 </header>
+
+<!-- 今日待办（由已有日期自动推导，无需额外录入） -->
+<div class="todo-bar" id="todoBar" style="display:none;"></div>
 
 <!-- ============ 板块1: 岗位清单 ============ -->
 <section class="view-section active" id="sectionExplore">
@@ -823,6 +872,19 @@ body {
     <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;margin-left:auto;">
       <input type="checkbox" id="exploreUntracked" onchange="renderExplore()"> 仅未加入
     </label>
+    <select class="filter-select" id="exploreTriage" onchange="renderExplore()" title="按标记筛选" style="font-size:12px;">
+      <option value="">全部标记</option>
+      <option value="star">仅关注 ★</option>
+      <option value="hideIgnored">隐藏已忽略</option>
+    </select>
+  </div>
+  <!-- 分诊工具条：对付数千条岗位的信息过载 -->
+  <div class="toolbar triage-bar" style="padding-top:0;">
+    <span style="font-size:11.5px;color:var(--text-secondary);" id="triageSummary"></span>
+    <span style="flex:1;"></span>
+    <button class="btn btn-xs btn-outline" onclick="bulkTriage('star')" title="把当前筛选结果全部标为关注">★ 关注当前筛选</button>
+    <button class="btn btn-xs btn-outline" onclick="bulkTriage('ignore')" title="把当前筛选结果全部标为忽略（不删除数据）">⊘ 忽略当前筛选</button>
+    <button class="btn btn-xs btn-outline" onclick="bulkTriage('clearAll')" style="color:var(--danger);border-color:rgba(239,68,68,0.25);" title="清除当前筛选结果上的所有标记">✕ 清除标记</button>
   </div>
   <!-- Filter Panel -->
   <div class="filter-panel" id="filterPanel">
@@ -849,6 +911,7 @@ body {
       <thead>
         <tr>
           <th style="width:120px;">操作</th>
+          <th style="width:64px;">标记</th>
           <th>更新日期</th>
           <th>公司</th>
           <th>公告链接</th>
@@ -971,6 +1034,45 @@ body {
 </section>
 
 <!-- Review Modal -->
+<!-- 提醒设置弹窗 -->
+<div class="modal-overlay" id="reminderModal" style="display:none;">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header">
+      <h3>🔔 今日待办与提醒</h3>
+      <button class="modal-close" onclick="closeReminderSettings()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="remEnabled">
+        <label for="remEnabled" style="margin:0;">启用今日待办（页面顶部显示）</label>
+      </div>
+      <div class="form-group">
+        <label for="remLeadDays">提前几天开始提醒</label>
+        <input type="number" id="remLeadDays" min="0" max="30" step="1" style="width:110px;">
+        <div class="hint">例如填 3：只把「3 天内到期」的事放进待办。填 0 则只看今天和已逾期。</div>
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="remNotify">
+        <label for="remNotify" style="margin:0;">每天首次打开时推送系统通知</label>
+      </div>
+      <div class="hint" id="remNotifyHint" style="margin-top:-6px;"></div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="remShowJobs">
+        <label for="remShowJobs" style="margin:0;">把「岗位清单里临近截止的岗位」也计入待办</label>
+      </div>
+      <div class="hint" style="margin-top:-6px;">默认关闭：清单里有数千个岗位，全开会把真正要紧的事淹没。</div>
+      <div class="hint" style="background:var(--surface-2);padding:10px;border-radius:8px;line-height:1.7;">
+        待办项来自你已经填过的日期：投递截止、测评截止、AI 面截止、面试日期，以及复盘里写的「下一步」。
+        已挂 / 已拒绝 / 已 Offer 的记录不再提醒。
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeReminderSettings()">取消</button>
+      <button class="btn btn-primary btn-sm" onclick="saveReminderSettingsFromForm()">保存</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="reviewModal" style="display:none;">
   <div class="modal">
     <div class="modal-header">
@@ -1202,6 +1304,9 @@ const REVIEW_STAGES = [
   { key:'other',     label:'其他',   color:'#64748b' },
 ];
 const QIUZHI_META_KEY = 'qiuzhi_sync_meta';
+const STORAGE_REMINDER = 'qiuzhao_reminder';   // 提醒设置（今日待办）
+const STORAGE_QUESTIONS = 'qiuzhao_questions'; // 面经题库
+const STORAGE_TRIAGE = 'qiuzhao_triage';       // 关注/忽略标记
 const SJ_COMPANY_TYPE_TAGS = ['科技','互联网','央国企','金融','外企','游戏','在线教育','快消','其他','制造业'];
 
 // 招聘季年份：秋招季按"当年 7 月"为界，1-6 月仍属于上一年开启的那一届
@@ -1418,6 +1523,359 @@ function sanitizeJobList(items) {
   });
 }
 
+// ==================== 今日待办 / 到期提醒 ====================
+// 设计要点：
+//   · 待办项完全由**已有数据**推导，不需要使用者额外录入
+//     （投递记录的截止/测评/AI面/面试日期、复盘里写的"下一步"、岗位清单里临近截止的岗位）
+//   · 只提醒"还活着的"投递记录：已挂/已拒绝/已 Offer 的不再催
+//   · 通知按"日期+内容指纹"去重，同一天不会重复弹同一条
+const REMINDER_DEFAULT = {
+  enabled: true,
+  leadDays: 3,            // 提前几天开始提醒
+  notify: false,          // 浏览器通知（需授权）
+  showJobList: false,     // 是否把"清单里临近截止的岗位"也计入待办
+  notifyStamp: '',        // 上次通知的日期，用于每天只提醒一次
+};
+
+let reminderSettings = Object.assign({}, REMINDER_DEFAULT);
+let todos = [];           // 当前待办项
+let todoSnoozed = {};     // { 待办key: 'YYYY-MM-DD' } 当天不再显示
+
+function loadReminderSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_REMINDER) || '{}');
+    reminderSettings = Object.assign({}, REMINDER_DEFAULT, s && typeof s === 'object' ? s : {});
+  } catch (e) { reminderSettings = Object.assign({}, REMINDER_DEFAULT); }
+  try {
+    const sn = JSON.parse(localStorage.getItem(STORAGE_REMINDER + '_snooze') || '{}');
+    todoSnoozed = (sn && typeof sn === 'object') ? sn : {};
+  } catch (e) { todoSnoozed = {}; }
+}
+function saveReminderSettings() {
+  try { localStorage.setItem(STORAGE_REMINDER, JSON.stringify(reminderSettings)); } catch (e) {}
+  try { localStorage.setItem(STORAGE_REMINDER + '_snooze', JSON.stringify(todoSnoozed)); } catch (e) {}
+}
+
+// 今天 0 点的时间戳，作为所有天数比较的基准
+function todayStart() {
+  const d = new Date(); d.setHours(0, 0, 0, 0); return d;
+}
+// 'YYYY-MM-DD' → 与今天相差的天数（今天 = 0，昨天 = -1）；日期非法返回 null
+function daysUntil(dateStr) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr))) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return Math.round((d - todayStart()) / 86400000);
+}
+
+// 某条投递记录是否"还在进行中"（已挂/已拒绝/已 Offer 不再催办）
+const isActiveApplication = j => j && j.status !== 'failed' && j.status !== 'rejected' && j.status !== 'offer';
+
+// 收集当前所有待办
+// 返回 [{ key, kind, days, date, company, title, detail, jump }]
+function computeTodos() {
+  const out = [];
+  const lead = Number(reminderSettings.leadDays);
+  const leadDays = isNaN(lead) ? 3 : Math.max(0, Math.min(30, lead));
+  const push = (o) => { if (o.days !== null && o.days <= leadDays) out.push(o); };
+
+  // 1) 投递记录的各个截止/面试时间
+  (jobs || []).forEach(j => {
+    if (!isActiveApplication(j)) return;
+    const co = j.company || '未命名公司';
+    const pos = j.position || '';
+    push({ kind: 'deadline', date: j.deadline, days: daysUntil(j.deadline), company: co,
+           title: '投递截止', detail: pos, jump: ['track', j.id] });
+    push({ kind: 'assess', date: j.assessDeadline, days: daysUntil(j.assessDeadline), company: co,
+           title: '测评截止', detail: pos, jump: ['track', j.id] });
+    push({ kind: 'ai', date: j.aiDeadline, days: daysUntil(j.aiDeadline), company: co,
+           title: 'AI 面截止', detail: pos, jump: ['track', j.id] });
+    // 面试日期是"当天要做的事"，提前 1 天提醒即可
+    const ivd = daysUntil(j.interviewDate);
+    if (ivd !== null && ivd <= 1) {
+      out.push({ kind: 'interview', date: j.interviewDate, days: ivd, company: co,
+                 title: '面试', detail: pos, jump: ['track', j.id] });
+    }
+  });
+
+  // 2) 复盘里写了"下一步"、且日期落在提醒窗口内的。
+  //    逾期太久的不再提醒：一条 30 天前的"下一步"如果还没做，说明它已经无效了，
+  //    一直挂在待办里只会让待办列表失去可信度。
+  const REVIEW_STALE_DAYS = 7;
+  (reviews || []).forEach(r => {
+    const d = daysUntil(r.date);
+    if (d === null || d > leadDays || d < -REVIEW_STALE_DAYS) return;
+    if (!r.next) return;
+    out.push({ kind: 'reviewNext', date: r.date, days: d, company: r.company || '未命名复盘',
+               title: '复盘待办', detail: String(r.next).slice(0, 80), jump: ['review', r.id] });
+  });
+
+  // 3) 可选：岗位清单里临近截止的岗位（默认关闭，3954 条全开会淹没待办）
+  if (reminderSettings.showJobList) {
+    (jobList || []).forEach(j => {
+      const d = daysUntil(j.deadline);
+      if (d === null || d > leadDays) return;
+      out.push({ kind: 'jobDeadline', date: j.deadline, days: d, company: j.company || '未命名公司',
+                 title: '清单岗位临近截止', detail: (j.positionTypes || []).join('、').slice(0, 60), jump: ['explore', j.id] });
+    });
+  }
+
+  // 计算 key（用于忽略/稍后提醒），并过滤掉今天已被忽略的
+  const today = todayStr();
+  out.forEach(t => {
+    t.key = [t.kind, t.company, t.date, t.detail].join('\u0001');
+    t.snoozed = todoSnoozed[t.key] === today;
+  });
+  const visible = out.filter(t => !t.snoozed);
+  // 排序：逾期最先 → 今天 → 未来；同一天按类型紧迫度
+  const kindRank = { interview: 0, assess: 1, ai: 2, deadline: 3, reviewNext: 4, jobDeadline: 5 };
+  visible.sort((a, b) => {
+    if (a.days !== b.days) return a.days - b.days;
+    return (kindRank[a.kind] || 9) - (kindRank[b.kind] || 9);
+  });
+  return visible;
+}
+
+// 把差几天说成人话
+function dueText(days) {
+  if (days === null || days === undefined) return '';
+  if (days < 0) return '已逾期 ' + (-days) + ' 天';
+  if (days === 0) return '今天';
+  if (days === 1) return '明天';
+  if (days === 2) return '后天';
+  return days + ' 天后';
+}
+
+// 待办项的紧迫度样式类
+function dueClass(days) {
+  if (days === null || days === undefined) return '';
+  if (days < 0) return 'due-over';
+  if (days === 0) return 'due-today';
+  if (days <= 3) return 'due-soon';
+  return 'due-later';
+}
+
+function renderTodos() {
+  const box = document.getElementById('todoBar');
+  if (!box) return;
+  if (!reminderSettings.enabled) { box.innerHTML = ''; box.style.display = 'none'; return; }
+  todos = computeTodos();
+  if (todos.length === 0) {
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  box.style.display = 'block';
+  const overdue = todos.filter(t => t.days < 0).length;
+  const todayN = todos.filter(t => t.days === 0).length;
+  const head = overdue > 0
+    ? `⚠️ ${overdue} 项已逾期${todayN ? `，今天还有 ${todayN} 项` : ''}`
+    : (todayN > 0 ? `📌 今天有 ${todayN} 项要处理` : `📌 ${todos.length} 项临近`);
+  const show = todos.slice(0, 8);
+  box.innerHTML =
+    `<div class="todo-head"><span class="todo-title">${escapeHtml(head)}</span>
+      <span class="todo-actions">
+        <button type="button" class="todo-mini" data-act="todo-settings" title="提醒设置">⚙️ 设置</button>
+        <button type="button" class="todo-mini" data-act="todo-fold" title="收起/展开">收起</button>
+      </span></div>
+    <div class="todo-list">${show.map(t => `
+      <div class="todo-item">
+        <span class="todo-due ${dueClass(t.days)}">${escapeHtml(dueText(t.days))}</span>
+        <span class="todo-co" data-act="todo-jump" data-kind="${escapeHtml(t.kind)}" data-id="${escapeHtml((t.jump && t.jump[1]) || '')}" data-tab="${escapeHtml((t.jump && t.jump[0]) || '')}" role="button" tabindex="0" title="点击跳转">${escapeHtml(t.company)}</span>
+        <span class="todo-kind">${escapeHtml(t.title)}</span>
+        ${t.detail ? `<span class="todo-detail" title="${escapeHtml(t.detail)}">${escapeHtml(t.detail)}</span>` : ''}
+        <button type="button" class="todo-mini" data-act="todo-snooze" data-key="${escapeHtml(t.key)}" title="今天不再提醒这一项">稍后</button>
+      </div>`).join('')}
+    </div>${todos.length > show.length ? `<div class="todo-more">还有 ${todos.length - show.length} 项…</div>` : ''}`;
+}
+
+// 跳转到待办对应的位置
+function gotoFromTodo(kind, id, tab) {
+  if (tab === 'track') {
+    switchTab('track');
+    const j = (jobs || []).find(x => String(x.id) === String(id));
+    if (j) openDetail(id);
+  } else if (tab === 'review') {
+    switchTab('review');
+    const el = document.querySelector('.review-card[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+    if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('review-card-clickable'); }
+  } else {
+    switchTab('explore');
+    const s = document.getElementById('exploreSearch');
+    // 用公司名定位，避免依赖 id 是否在当前筛选结果里
+    const t = (todos || []).find(x => x.key === kind);
+    if (s && t) { s.value = t.company; renderExplore(); }
+  }
+}
+
+// 申请浏览器通知权限
+async function requestNotifyPermission() {
+  if (typeof Notification === 'undefined') { toast('当前浏览器不支持通知'); return false; }
+  try {
+    const p = await Notification.requestPermission();
+    return p === 'granted';
+  } catch (e) { return false; }
+}
+
+// 每天首次打开时，把最紧急的几项用系统通知推一次
+function maybeNotifyTodos() {
+  if (!reminderSettings.notify) return;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  const today = todayStr();
+  if (reminderSettings.notifyStamp === today) return;      // 每天只推一次
+  const urgent = (todos || []).filter(t => t.days <= 1);
+  if (urgent.length === 0) return;
+  const lines = urgent.slice(0, 4).map(t => `${dueText(t.days)}：${t.company} ${t.title}`);
+  const extra = urgent.length > 4 ? `\n…还有 ${urgent.length - 4} 项` : '';
+  try {
+    new Notification('秋招提醒：' + urgent.length + ' 项临近', {
+      body: lines.join('\n') + extra,
+      tag: 'qiuzhao-todo-' + today,   // 同一天同 tag 只保留一条
+    });
+    reminderSettings.notifyStamp = today;
+    saveReminderSettings();
+  } catch (e) { /* 通知失败不影响主流程 */ }
+}
+
+function openReminderSettings() {
+  const m = document.getElementById('reminderModal');
+  if (!m) return;
+  document.getElementById('remEnabled').checked = !!reminderSettings.enabled;
+  document.getElementById('remLeadDays').value = String(reminderSettings.leadDays);
+  document.getElementById('remNotify').checked = !!reminderSettings.notify;
+  document.getElementById('remShowJobs').checked = !!reminderSettings.showJobList;
+  updateNotifyHint();
+  m.style.display = 'flex';
+}
+function closeReminderSettings() {
+  const m = document.getElementById('reminderModal');
+  if (m) m.style.display = 'none';
+}
+function updateNotifyHint() {
+  const el = document.getElementById('remNotifyHint');
+  if (!el) return;
+  if (typeof Notification === 'undefined') { el.textContent = '当前浏览器不支持系统通知'; return; }
+  const p = Notification.permission;
+  el.textContent = p === 'granted' ? '已获得通知权限'
+    : p === 'denied' ? '通知权限被拒绝，需在浏览器站点设置里手动开启'
+    : '勾选后会请求通知权限';
+}
+async function saveReminderSettingsFromForm() {
+  const wantNotify = document.getElementById('remNotify').checked;
+  reminderSettings.enabled = document.getElementById('remEnabled').checked;
+  const ld = parseInt(document.getElementById('remLeadDays').value, 10);
+  reminderSettings.leadDays = isNaN(ld) ? 3 : Math.max(0, Math.min(30, ld));
+  reminderSettings.showJobList = document.getElementById('remShowJobs').checked;
+  // 只有真能拿到权限，才把 notify 落成 true，避免界面显示"已开启"却永远收不到
+  if (wantNotify) {
+    const ok = await requestNotifyPermission();
+    reminderSettings.notify = ok;
+    if (!ok) toast('未获得通知权限，已关闭系统通知（站内待办仍可用）');
+  } else {
+    reminderSettings.notify = false;
+  }
+  saveReminderSettings();
+  closeReminderSettings();
+  renderTodos();
+  toast('提醒设置已保存');
+}
+
+// 把待办折叠状态记在内存即可（刷新后默认展开，避免"看不到提醒"）
+let todoFolded = false;
+function toggleTodoFold() {
+  todoFolded = !todoFolded;
+  const list = document.querySelector('#todoBar .todo-list');
+  const more = document.querySelector('#todoBar .todo-more');
+  const btn = document.querySelector('#todoBar [data-act="todo-fold"]');
+  const hide = todoFolded ? 'none' : '';
+  if (list) list.style.display = hide;
+  if (more) more.style.display = hide;
+  if (btn) btn.textContent = todoFolded ? '展开' : '收起';
+}
+function snoozeTodo(key) {
+  todoSnoozed[key] = todayStr();
+  saveReminderSettings();
+  renderTodos();
+}
+
+// ==================== 关注 / 忽略（岗位分诊） ====================
+// 背景：岗位清单有数千条，每次打开都要重新面对全部。这里给使用者一个"我筛过了"的状态。
+// 设计要点：
+//   · 只记录 id（qiuzhiId 优先，退化到手动的 id），**不删除岗位数据**，随时可恢复
+//   · 忽略 = 我不想看到；关注 = 我打算投。两者互斥
+//   · 清单同步不会影响标记（标记按 qiuzhiId 存，与列表条目解耦）
+let triage = { starred: {}, ignored: {}, updatedAt: '' };
+
+function loadTriage() {
+  try {
+    const t = JSON.parse(localStorage.getItem(STORAGE_TRIAGE) || '{}');
+    triage = {
+      starred: (t && typeof t.starred === 'object' && t.starred) || {},
+      ignored: (t && typeof t.ignored === 'object' && t.ignored) || {},
+      updatedAt: (t && t.updatedAt) || '',
+    };
+  } catch (e) { triage = { starred: {}, ignored: {}, updatedAt: '' }; }
+}
+function saveTriage() {
+  triage.updatedAt = new Date().toISOString();
+  try { localStorage.setItem(STORAGE_TRIAGE, JSON.stringify(triage)); } catch (e) {}
+}
+// 一条岗位的分诊键：优先用远程 id（同一条岗位在多次同步间保持不变）
+const triageKey = j => j.qiuzhiId ? 'q:' + j.qiuzhiId : (j.id ? 'i:' + j.id : '');
+const isStarred = j => { const k = triageKey(j); return !!(k && triage.starred[k]); };
+const isIgnored = j => { const k = triageKey(j); return !!(k && triage.ignored[k]); };
+
+function setTriage(id, mark) {
+  const j = jobList.find(x => String(x.id) === String(id));
+  if (!j) return;
+  const k = triageKey(j);
+  if (!k) return;
+  if (mark === 'star') {
+    if (triage.starred[k]) { delete triage.starred[k]; }
+    else { triage.starred[k] = 1; delete triage.ignored[k]; }   // 关注与忽略互斥
+  } else if (mark === 'ignore') {
+    if (triage.ignored[k]) { delete triage.ignored[k]; }
+    else { triage.ignored[k] = 1; delete triage.starred[k]; }
+  } else if (mark === 'clear') {
+    delete triage.starred[k]; delete triage.ignored[k];
+  }
+  saveTriage();
+  refreshAfterTriageChange();
+}
+
+// 批量操作：把当前筛选结果里"还没有任何标记"的岗位一次性标记
+function bulkTriage(mark) {
+  const f = getExploreFilters();
+  const list = getFilteredExploreJobs(f);
+  let n = 0;
+  list.forEach(j => {
+    const k = triageKey(j);
+    if (!k) return;
+    if (mark === 'ignore') {
+      if (!triage.ignored[k]) { triage.ignored[k] = 1; delete triage.starred[k]; n++; }
+    } else if (mark === 'star') {
+      if (!triage.starred[k]) { triage.starred[k] = 1; delete triage.ignored[k]; n++; }
+    } else if (mark === 'clearAll') {
+      if (triage.starred[k] || triage.ignored[k]) { delete triage.starred[k]; delete triage.ignored[k]; n++; }
+    }
+  });
+  saveTriage();
+  refreshAfterTriageChange();
+  const label = mark === 'ignore' ? '忽略' : mark === 'star' ? '关注' : '清除标记';
+  toast(n > 0 ? `已${label} ${n} 个岗位` : `没有需要${label}的岗位`);
+}
+
+// 当前筛选结果（与 renderExplore 共用同一条筛选管线，供批量操作用）
+function getFilteredExploreJobs(f) {
+  return applyExploreFilters(jobList, f, getTrackedStarJobIds());
+}
+
+function refreshAfterTriageChange() {
+  saveTriage();
+  if (panelVisible('sectionExplore')) renderExplore();
+}
+
 // ==================== 数据持久化 ====================
 function loadJobs() { try { const r=lsGet(STORAGE_JOBS); jobs=(Array.isArray(r)?r:[]).map(sanitizeJob).filter(Boolean); } catch { jobs=[]; } }
 // 投递记录是个人隐私，只写本机 localStorage，没有任何上传路径
@@ -1559,9 +2017,11 @@ function getProvinceForCity(city) {
 function getExploreFilters() {
   const search = document.getElementById('exploreSearch').value.toLowerCase();
   const untracked = document.getElementById('exploreUntracked').checked;
+  const triageSel = document.getElementById('exploreTriage');
   return {
     search,
     untracked,
+    triage: triageSel ? triageSel.value : '',
     provinces: exploreFilters.provinces,
     types: exploreFilters.types,
     dateFrom: exploreFilters.dateFrom,
@@ -1849,42 +2309,36 @@ function gotoTrackCompany(name) {
   if (s) { s.value = name; renderTrack(); }
 }
 
-function renderExplore() {
-  const f = getExploreFilters();
-  // 筛选条件变化时把分批渲染的进度重置回第一批，
-  // 否则上一次「加载更多」的展开量会带到新条件下（例如只剩 5 条却仍按 800 渲染）
-  const filterSig = JSON.stringify([f.search, f.untracked, [...f.provinces].sort(), [...f.types].sort(), f.dateFrom, f.dateTo, exploreSort]);
-  if (filterSig !== exploreLastFilterSig) {
-    exploreLastFilterSig = filterSig;
-    exploreRenderLimit = EXPLORE_PAGE_SIZE;
-  }
-  const tracked = getTrackedStarJobIds();
-  let filtered = [...jobList];
-
-  if (f.search) filtered = filtered.filter(j=>
-    j.company.toLowerCase().includes(f.search)
-  );
-  if (f.untracked) filtered = filtered.filter(j=>{
-    const k = j.qiuzhiId ? 'q:'+j.qiuzhiId : (j.starjobId ? 's:'+j.starjobId : '');
+// 岗位清单的筛选管线：**只有这一份实现**。
+// renderExplore 与「批量标记当前筛选」都走它，避免两处逻辑不一致
+// （抽函数时漏掉搜索词，导致"批量忽略当前筛选"实际忽略了全部岗位）。
+function applyExploreFilters(list, f, tracked) {
+  let out = list.slice();
+  if (f.search) out = out.filter(j => (j.company || '').toLowerCase().includes(f.search));
+  if (f.untracked) out = out.filter(j => {
+    const k = j.qiuzhiId ? 'q:' + j.qiuzhiId : (j.starjobId ? 's:' + j.starjobId : '');
     if (k) return !tracked.has(k);
     return true;
   });
+  // 分诊筛选：关注 = 只看标记过的；隐藏已忽略 = 把忽略的拿掉
+  if (f.triage === 'star') out = out.filter(isStarred);
+  else if (f.triage === 'hideIgnored') out = out.filter(j => !isIgnored(j));
 
-  // Province filter
+  // Province filter（走预建索引，O(1) 查表）
   if (f.provinces.size > 0) {
-    filtered = filtered.filter(j=>{
+    out = out.filter(j => {
       const jobProvinces = new Set();
-      (j.cities||[]).forEach(c=>{ const p=getProvinceForCity(c); if(p) jobProvinces.add(p); });
-      return [...f.provinces].some(p=>jobProvinces.has(p));
+      (j.cities || []).forEach(c => { const p = getProvinceForCity(c); if (p) jobProvinces.add(p); });
+      return [...f.provinces].some(p => jobProvinces.has(p));
     });
   }
 
   // Type filter（与性质列一致：优先 typeTags）
   if (f.types.size > 0) {
-    filtered = filtered.filter(j=>{
+    out = out.filter(j => {
       const tagList = (j.typeTags && j.typeTags.length) ? j.typeTags
-        : (j.companyType||'').split(' / ').map(s=>s.trim()).filter(Boolean);
-      return [...f.types].some(t=>tagList.includes(t));
+        : (j.companyType || '').split(' / ').map(s => s.trim()).filter(Boolean);
+      return [...f.types].some(t => tagList.includes(t));
     });
   }
 
@@ -1892,7 +2346,7 @@ function renderExplore() {
   // 日期都是 YYYY-MM-DD，字典序与时间序一致，因此直接比字符串，
   // 避免为每条数据构造 Date 对象（4104 条时是明显的白付开销）
   if (f.dateFrom || f.dateTo) {
-    filtered = filtered.filter(j => {
+    out = out.filter(j => {
       const d = j.openingDate;
       if (!d) return false;
       if (f.dateFrom && d < f.dateFrom) return false;
@@ -1900,6 +2354,20 @@ function renderExplore() {
       return true;
     });
   }
+  return out;
+}
+
+function renderExplore() {
+  const f = getExploreFilters();
+  // 筛选条件变化时把分批渲染的进度重置回第一批，
+  // 否则上一次「加载更多」的展开量会带到新条件下（例如只剩 5 条却仍按 800 渲染）
+  const filterSig = JSON.stringify([f.search, f.untracked, f.triage, [...f.provinces].sort(), [...f.types].sort(), f.dateFrom, f.dateTo, exploreSort]);
+  if (filterSig !== exploreLastFilterSig) {
+    exploreLastFilterSig = filterSig;
+    exploreRenderLimit = EXPLORE_PAGE_SIZE;
+  }
+  const tracked = getTrackedStarJobIds();
+  let filtered = applyExploreFilters(jobList, f, tracked);
 
   // Sort
   if (exploreSort === 'opened') {
@@ -1966,6 +2434,15 @@ function renderExplore() {
             : '');
     }
   }
+  // 分诊汇总：让使用者随时知道"我筛掉了多少"
+  const sumEl = document.getElementById('triageSummary');
+  if (sumEl) {
+    const starN = jobList.filter(isStarred).length;
+    const ignN = jobList.filter(isIgnored).length;
+    sumEl.textContent = (starN || ignN)
+      ? `已关注 ${starN} 个 · 已忽略 ${ignN} 个 · 当前显示 ${filtered.length} 条`
+      : `共 ${jobList.length} 条，可用 ☆ 关注 / ⊘ 忽略 分诊`;
+  }
   // 延迟构建筛选面板（避免每次render都重建）
   if (document.getElementById('filterPanel').classList.contains('show')) buildFilterPanel();
 }
@@ -1998,7 +2475,16 @@ function exploreRowHtml(j) {
   const companyCell = trkCnt>0
     ? `<div class="expl-company"><span class="expl-company-link" role="link" tabindex="0" data-act="goto-track-company" data-company="${escapeHtml(j.company)}">${escapeHtml(j.company)}</span>${badgeHtml}</div>`
     : `<div class="expl-company"><span>${escapeHtml(j.company)}</span></div>`;
-  return `<tr class="expl-row" data-act="open-explore" data-id="${escapeHtml(j.id)}" tabindex="0">
+  // 关注 / 忽略：只记 id，不删数据；两者互斥
+  const starred = isStarred(j);
+  const ignored = isIgnored(j);
+  const triageCell = `<span class="triage-cell">
+    <button type="button" class="triage-btn${starred ? ' on-star' : ''}" data-act="triage-star" data-id="${escapeHtml(j.id)}"
+      title="${starred ? '取消关注' : '关注（可切到「仅关注」只看这些）'}">${starred ? '★' : '☆'}</button>
+    <button type="button" class="triage-btn${ignored ? ' on-ignore' : ''}" data-act="triage-ignore" data-id="${escapeHtml(j.id)}"
+      title="${ignored ? '取消忽略' : '忽略（不删除，可随时恢复）'}">${ignored ? '✕' : '⊘'}</button>
+  </span>`;
+  return `<tr class="expl-row${ignored ? ' expl-ignored' : ''}${starred ? ' expl-starred' : ''}" data-act="open-explore" data-id="${escapeHtml(j.id)}" tabindex="0">
     <td class="expl-act">
       ${trkCnt>0
         ? `<span class="tracked-badge ${hasApplied ? '' : 'tracked-badge-pending'}" title="该企业在投递管理中有 ${trkCnt} 条记录">${hasApplied ? '已投递' : '已加入'}</span>`
@@ -2009,6 +2495,7 @@ function exploreRowHtml(j) {
            </select>`
       }
     </td>
+    <td class="expl-triage">${triageCell}</td>
     <td class="expl-update">${upd}</td>
     <td>${companyCell}</td>
     <td class="expl-link-cell">${noticeHtml}</td>
@@ -2196,6 +2683,7 @@ function refreshAfterJobChange(opts) {
   if (t) t.textContent = jobs.length;
   const e = document.getElementById('exploreCount');
   if (e) e.textContent = jobList.length;
+  renderTodos();   // 投递日期变了，待办也要跟着变
 }
 
 // 岗位清单数据发生变化（新增/更新/删除岗位本身，而非投递状态）
@@ -2205,6 +2693,7 @@ function refreshAfterJobListChange(opts) {
   if (panelVisible('sectionExplore')) renderExplore();
   const cnt = document.getElementById('exploreCount');
   if (cnt) cnt.textContent = jobList.length;
+  renderTodos();
 }
 
 function renderTrack() { renderTrackView(); renderTrackStats(); }
@@ -2423,6 +2912,14 @@ const ACTIONS = {
   },
   'review-toggle':    el => toggleReviewContent(el.dataset.id, el),
   'review-delete':    el => deleteReview(el.dataset.id),
+  // 今日待办
+  'todo-settings':    () => openReminderSettings(),
+  'todo-fold':        () => toggleTodoFold(),
+  'todo-snooze':      el => snoozeTodo(el.dataset.key),
+  'todo-jump':        el => gotoFromTodo(el.dataset.kind, el.dataset.id, el.dataset.tab),
+  // 关注 / 忽略
+  'triage-star':      el => { setTriage(el.dataset.id, 'star'); },
+  'triage-ignore':    el => { setTriage(el.dataset.id, 'ignore'); },
 };
 // 索引型动作表：函数名 -> 处理器
 const IDX_ACTIONS = {
@@ -4047,6 +4544,8 @@ function initApp() {
   loadJobs();
   loadJobList();
   loadReviews();
+  loadReminderSettings();
+  loadTriage();
   fixAppliedDates();
   // 清理历史累积下来的重复岗位（同一公司+岗位+批次的多条公告）。
   // 老版本会把这些都留下来，所以启动时补做一次；已经干净时开销可忽略。
@@ -4062,6 +4561,9 @@ function initApp() {
   renderTrack();
   renderReviews();
   updateFilterOptions();
+  // 今日待办：数据读完之后才算，否则会算出空待办
+  renderTodos();
+  maybeNotifyTodos();
   // 没有任何后端存储：岗位清单靠使用者点「🔄 同步招聘方舟」自行抓取到本机
   console.log('[数据存储] 纯本地模式：岗位清单与个人数据都只保存在本机浏览器，不上传任何服务器');
 }
