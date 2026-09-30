@@ -64,18 +64,12 @@ return (async function () {
   chk('渲染出条目', document.querySelectorAll('#timelineBody .tl-item').length > 0);
   closeTimeline();
 
-  section('功能5 面经题库（真实公司名）');
-  questions = [
-    sanitizeQuestion({ id:'qq1', company:target, position:'开发', category:'algorithm', date:off(-1), question:'手写快排', answer:'分治', mastery:'new' }),
-    sanitizeQuestion({ id:'qq2', company:target, position:'开发', category:'project', date:off(-2), question:'讲讲你的项目', answer:'STAR 法则', mastery:'solid' })
-  ];
-  saveQuestions();
-  switchTab('questions');
-  chk('题库页签渲染出 2 张卡', document.querySelectorAll('#questionList .q-card').length === 2,
-      document.querySelectorAll('#questionList .q-card').length);
-  chk('统计卡显示总数 2', document.getElementById('questionStats').textContent.indexOf('2') !== -1);
-  chk('分类下拉已构建', document.getElementById('questionCategoryFilter').options.length === 11,
-      document.getElementById('questionCategoryFilter').options.length);
+  section('面经题库已移除');
+  chk('无题库页签', !document.querySelector('[onclick*="questions"]'));
+  chk('无题库区块', !document.getElementById('sectionQuestions'));
+  chk('无题目列表', !document.getElementById('questionList'));
+  chk('无题库弹窗', !document.getElementById('questionModal'));
+  chk('题库函数已删除', typeof renderQuestions === 'undefined' && typeof sanitizeQuestion === 'undefined');
 
   section('功能6 转化统计（真实数据）');
   openStats();
@@ -89,7 +83,7 @@ return (async function () {
 
   section('清理');
   triage = { starred:{}, ignored:{}, updatedAt:'' }; saveTriage();
-  jobs = []; questions = []; saveQuestions();
+  jobs = [];
   jobList = []; renderExplore(); renderTodos();
   chk('清理完成', jobList.length === 0);
   return R;

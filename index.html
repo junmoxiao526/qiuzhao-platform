@@ -192,6 +192,19 @@ body {
   font-size:10.5px; font-weight:700; color:var(--text-muted);
   text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;
 }
+.filter-section-hint { text-transform:none; letter-spacing:0; font-weight:400; margin-left:8px; opacity:.8; }
+/* 截止日期分档：按紧迫度着色，一眼看出哪些快到了 */
+.deadline-tag { padding:3px 9px; border-radius:6px; font-size:11px; cursor:pointer;
+  border:1px solid var(--border); background:var(--surface-2); color:var(--text-secondary);
+  transition:all var(--transition); user-select:none; }
+.deadline-tag:hover { border-color:var(--accent); color:var(--accent); }
+.deadline-tag .dt-n { opacity:.65; margin-left:3px; font-variant-numeric:tabular-nums; }
+.deadline-tag.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.deadline-tag.active .dt-n { opacity:.85; }
+.deadline-tag.dt-over  { color:var(--text-muted); }
+.deadline-tag.dt-today { color:var(--danger); border-color:rgba(239,68,68,0.3); }
+.deadline-tag.dt-soon  { color:var(--amber);  border-color:rgba(245,158,11,0.3); }
+.deadline-tag.dt-over.active, .deadline-tag.dt-today.active, .deadline-tag.dt-soon.active { color:#fff; }
 .filter-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 .province-grid { display:flex; flex-wrap:wrap; gap:4px; max-height:130px; overflow-y:auto; }
 .province-tag {
@@ -849,33 +862,6 @@ body {
 .tl-title[data-act]:hover { color:var(--accent); text-decoration:underline; cursor:pointer; }
 .tl-detail { font-size:12px; color:var(--text-secondary); line-height:1.6; word-break:break-word; }
 
-/* ==================== 面经题库 ==================== */
-#sectionQuestions { display:none; flex-direction:column; flex:1; overflow-y:auto; padding-bottom:24px; }
-#sectionQuestions.active { display:flex; }
-#sectionQuestions .toolbar { padding:0 16px 12px; }
-#sectionQuestions .stats-bar { padding:16px 16px 12px; }
-.question-list { display:flex; flex-direction:column; gap:10px; padding:0 16px; }
-.q-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
-.q-card:hover { border-color:var(--border-strong); }
-.q-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:11.5px; }
-.q-mastery { padding:2px 8px; border-radius:999px; cursor:pointer; font-weight:600; user-select:none; }
-.q-mastery.m-new   { background:rgba(239,68,68,0.14);  color:#EF4444; }
-.q-mastery.m-shaky { background:rgba(245,158,11,0.16); color:#D97706; }
-.q-mastery.m-ok    { background:rgba(96,165,250,0.16); color:#3B82F6; }
-.q-mastery.m-solid { background:rgba(74,222,128,0.16); color:#16A34A; }
-.q-cat { padding:1px 7px; border-radius:5px; background:var(--surface-3); color:var(--text-secondary); }
-.q-co { color:var(--accent); cursor:pointer; font-weight:600; }
-.q-co:hover { text-decoration:underline; }
-.q-pos { color:var(--text-muted); }
-.q-date { color:var(--text-muted); font-variant-numeric:tabular-nums; }
-.q-question { font-size:14px; font-weight:600; color:var(--text); line-height:1.6; word-break:break-word; }
-.q-answer {
-  font-size:13px; color:var(--text-secondary); line-height:1.7; white-space:pre-wrap;
-  background:var(--surface-2); border-radius:8px; padding:8px 10px; word-break:break-word;
-}
-.q-answer.q-hidden { cursor:pointer; color:var(--text-muted); font-style:italic; text-align:center; }
-.q-actions { display:flex; gap:6px; }
-
 /* ==================== 投递转化统计 ==================== */
 .fn-section { margin-bottom:22px; }
 .fn-title { font-size:13px; font-weight:700; color:var(--text); margin-bottom:10px; }
@@ -935,7 +921,6 @@ body {
       <button class="tab-btn" onclick="switchTab('track')">📋 投递管理<span class="tab-count" id="trackCount">0</span></button>
           <button class="tab-btn" onclick="switchTab('resume')">📄 简历管理</button>
           <button class="tab-btn" onclick="switchTab('review')">📝 复盘<span class="tab-count" id="reviewCount">0</span></button>
-          <button class="tab-btn" onclick="switchTab('questions')">🎯 面经题库<span class="tab-count" id="questionCount">0</span></button>
     </nav>
   </div>
   <div class="header-right">
@@ -999,6 +984,10 @@ body {
         <input type="date" id="dateTo" class="filter-select" style="font-size:12px;min-width:auto;width:140px;" onchange="onDateFilterChange()" title="结束日期">
         <button class="btn btn-xs btn-outline" onclick="clearDateFilter()" style="display:none;" id="btnClearDate">✕ 清除</button>
       </div>
+    </div>
+    <div class="filter-section" id="deadlineSection">
+      <div class="filter-section-title">⏳ 截止日期<span class="filter-section-hint">点一下只看快截止的，括号内为当前数量</span></div>
+      <div class="filter-row" id="deadlineTags"></div>
     </div>
   </div>
   <div class="explore-table-wrap">
@@ -1130,32 +1119,6 @@ body {
   </div>
 </section>
 
-<!-- ============ 面经题库：把面试问题结构化，变成可复习的材料 ============ -->
-<section class="view-section" id="sectionQuestions">
-  <div class="stats-bar" id="questionStats"></div>
-  <div class="toolbar">
-    <div class="search-box">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="questionSearch" placeholder="搜索题目、答案、公司..." oninput="debouncedRenderQuestions()">
-    </div>
-    <select class="filter-select" id="questionCategoryFilter" onchange="renderQuestions()"></select>
-    <select class="filter-select" id="questionMasteryFilter" onchange="renderQuestions()">
-      <option value="">全部掌握度</option>
-      <option value="new">🆕 没准备</option>
-      <option value="shaky">😬 不熟</option>
-      <option value="ok">🙂 还行</option>
-      <option value="solid">💪 熟练</option>
-    </select>
-    <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-      <input type="checkbox" id="questionReviewMode" onchange="renderQuestions()"> 复习模式（只显示答案标题）
-    </label>
-    <span style="flex:1;"></span>
-    <button class="btn btn-outline btn-sm" onclick="exportQuestionsWord()" title="导出为 Word 文档便于打印复习">📄 导出题库</button>
-    <button class="btn btn-primary btn-sm" onclick="openQuestionModal()">+ 添加题目</button>
-  </div>
-  <div class="question-list" id="questionList"></div>
-</section>
-
 <!-- Review Modal -->
 <!-- 投递转化统计 -->
 <div class="modal-overlay" id="statsModal" style="display:none;">
@@ -1167,45 +1130,6 @@ body {
     <div class="modal-body" id="statsBody"></div>
     <div class="modal-footer">
       <button class="btn btn-sm" onclick="closeStats()">关闭</button>
-    </div>
-  </div>
-</div>
-
-<!-- 面经题目编辑弹窗 -->
-<div class="modal-overlay" id="questionModal" style="display:none;">
-  <div class="modal" style="max-width:640px;">
-    <div class="modal-header">
-      <h3 id="questionModalTitle">添加题目</h3>
-      <button class="modal-close" onclick="closeQuestionModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="qFormId">
-      <div class="form-row">
-        <div class="form-group"><label>公司</label><input type="text" id="qFormCompany" list="questionCompanyList" placeholder="如: 字节跳动"></div>
-        <div class="form-group"><label>岗位 / 方向</label><input type="text" id="qFormPosition" placeholder="如: 后端开发"></div>
-        <datalist id="questionCompanyList"></datalist>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>分类</label>
-          <select id="qFormCategory"></select>
-        </div>
-        <div class="form-group"><label>面试日期</label><input type="date" id="qFormDate"></div>
-      </div>
-      <div class="form-group"><label>题目 *</label><textarea id="qFormQuestion" rows="2" placeholder="面试官问的原话，越具体越好"></textarea></div>
-      <div class="form-group"><label>我的回答 / 参考答案</label><textarea id="qFormAnswer" rows="4" placeholder="怎么答的、事后觉得该怎么答"></textarea></div>
-      <div class="form-group"><label>掌握度</label>
-        <select id="qFormMastery">
-          <option value="new">🆕 没准备</option>
-          <option value="shaky">😬 不熟</option>
-          <option value="ok">🙂 还行</option>
-          <option value="solid">💪 熟练</option>
-        </select>
-      </div>
-      <div class="hint">同一个问题在多场面试里反复出现是很常见的，沉淀成题库后可以在面试前快速过一遍。</div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline btn-sm" onclick="closeQuestionModal()">取消</button>
-      <button class="btn btn-primary btn-sm" onclick="saveQuestion()">保存</button>
     </div>
   </div>
 </div>
@@ -1504,7 +1428,6 @@ const REVIEW_STAGES = [
 ];
 const QIUZHI_META_KEY = 'qiuzhi_sync_meta';
 const STORAGE_REMINDER = 'qiuzhao_reminder';   // 提醒设置（今日待办）
-const STORAGE_QUESTIONS = 'qiuzhao_questions'; // 面经题库
 const STORAGE_TRIAGE = 'qiuzhao_triage';       // 关注/忽略标记
 const SJ_COMPANY_TYPE_TAGS = ['科技','互联网','央国企','金融','外企','游戏','在线教育','快消','其他','制造业'];
 
@@ -1587,6 +1510,7 @@ let exploreSort = 'updated';
 let exploreFilters = {
   provinces: new Set(),
   types: new Set(),
+  deadlineBuckets: new Set(),   // 截止日期分档（快截止筛选）
   dateFrom: '',  // YYYY-MM-DD
   dateTo: '',    // YYYY-MM-DD
 };
@@ -1626,7 +1550,6 @@ function debounce(fn, wait) {
 const debouncedRenderExplore = debounce(renderExplore, 150);
 const debouncedRenderTrack = debounce(renderTrack, 150);
 const debouncedRenderReviews = debounce(renderReviews, 150);
-const debouncedRenderQuestions = debounce(renderQuestions, 150);
 function escapeHtml(s) { if(!s) return ''; const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}; return String(s).replace(/[&<>"']/g,c=>m[c]); }
 function getStatusLabel(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).label; }
 function getStatusDot(k) { return (STATUSES.find(s=>s.key===k)||STATUSES[0]).dot; }
@@ -2221,269 +2144,6 @@ function jumpFromTimeline(tab, id) {
   else { switchTab('explore'); }
 }
 
-// ==================== 面经题库 ====================
-// 复盘记录的是"这场面试怎么样"，而真正能反复用的是"被问到了什么"。
-// 这里把面试问题单独结构化，跨公司汇总、按分类与掌握度筛选、还能导出打印。
-const QUESTION_CATEGORIES = [
-  { key:'algorithm', label:'算法/手撕' },
-  { key:'backend',   label:'后端/服务' },
-  { key:'frontend',  label:'前端' },
-  { key:'database',  label:'数据库' },
-  { key:'network',   label:'网络/操作系统' },
-  { key:'project',   label:'项目经历' },
-  { key:'internship',label:'实习经历' },
-  { key:'behavior',  label:'行为/软素质' },
-  { key:'company',   label:'公司/岗位理解' },
-  { key:'other',     label:'其他' },
-];
-const MASTERY_LEVELS = [
-  { key:'new',   label:'没准备', icon:'🆕' },
-  { key:'shaky', label:'不熟',   icon:'😬' },
-  { key:'ok',    label:'还行',   icon:'🙂' },
-  { key:'solid', label:'熟练',   icon:'💪' },
-];
-const masteryInfo = k => MASTERY_LEVELS.find(m => m.key === k) || MASTERY_LEVELS[0];
-const categoryLabel = k => (QUESTION_CATEGORIES.find(c => c.key === k) || {}).label || '其他';
-
-let questions = [];
-let questionReviewMode = false;
-
-function sanitizeQuestion(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const q = { ...raw };
-  q.id = safeId(q.id);
-  ['company','position','question','answer','date'].forEach(k => {
-    if (typeof q[k] !== 'string') q[k] = q[k] == null ? '' : String(q[k]);
-  });
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(q.date)) q.date = '';
-  const catOk = QUESTION_CATEGORIES.some(c => c.key === q.category);
-  q.category = catOk ? q.category : 'other';
-  const mOk = MASTERY_LEVELS.some(m => m.key === q.mastery);
-  q.mastery = mOk ? q.mastery : 'new';
-  // 题目本身是必填的，清洗阶段就丢掉空题，避免渲染出空白卡片
-  if (!q.question.trim()) return null;
-  return q;
-}
-
-function loadQuestions() {
-  try {
-    const r = lsGet(STORAGE_QUESTIONS);
-    questions = (Array.isArray(r) ? r : []).map(sanitizeQuestion).filter(Boolean);
-  } catch (e) { questions = []; }
-}
-function saveQuestions() {
-  if (!lsSet(STORAGE_QUESTIONS, questions)) {
-    try { alert('面经题库本地保存失败：localStorage 空间不足，已保留内存数据但刷新后可能丢失。'); } catch (e) {}
-  }
-}
-
-function getQuestionFilters() {
-  const s = document.getElementById('questionSearch');
-  const c = document.getElementById('questionCategoryFilter');
-  const m = document.getElementById('questionMasteryFilter');
-  const r = document.getElementById('questionReviewMode');
-  return {
-    search: s ? s.value.toLowerCase() : '',
-    category: c ? c.value : '',
-    mastery: m ? m.value : '',
-    review: r ? r.checked : false,
-  };
-}
-
-function getFilteredQuestions() {
-  const f = getQuestionFilters();
-  let list = questions.slice();
-  if (f.search) list = list.filter(q =>
-    (q.question || '').toLowerCase().includes(f.search) ||
-    (q.answer || '').toLowerCase().includes(f.search) ||
-    (q.company || '').toLowerCase().includes(f.search) ||
-    (q.position || '').toLowerCase().includes(f.search));
-  if (f.category) list = list.filter(q => q.category === f.category);
-  if (f.mastery) list = list.filter(q => q.mastery === f.mastery);
-  // 掌握度低的排前面：复习时先看不会的
-  const rank = { new: 0, shaky: 1, ok: 2, solid: 3 };
-  list.sort((a, b) => {
-    const ra = rank[a.mastery] === undefined ? 9 : rank[a.mastery];
-    const rb = rank[b.mastery] === undefined ? 9 : rank[b.mastery];
-    if (ra !== rb) return ra - rb;
-    return String(b.date || '').localeCompare(String(a.date || ''));
-  });
-  return list;
-}
-
-function buildQuestionCategoryFilter() {
-  const sel = document.getElementById('questionCategoryFilter');
-  if (!sel) return;
-  const cur = sel.value;
-  const counts = {};
-  questions.forEach(q => { counts[q.category] = (counts[q.category] || 0) + 1; });
-  sel.innerHTML = '<option value="">全部分类</option>' + QUESTION_CATEGORIES.map(c =>
-    `<option value="${c.key}">${escapeHtml(c.label)}${counts[c.key] ? '（' + counts[c.key] + '）' : ''}</option>`).join('');
-  sel.value = cur;
-  // 弹窗里的分类下拉
-  const fsel = document.getElementById('qFormCategory');
-  if (fsel && fsel.options.length === 0) {
-    fsel.innerHTML = QUESTION_CATEGORIES.map(c => `<option value="${c.key}">${escapeHtml(c.label)}</option>`).join('');
-  }
-  const cl = document.getElementById('questionCompanyList');
-  if (cl) {
-    const cos = [...new Set(questions.map(q => q.company).filter(Boolean))].sort();
-    cl.innerHTML = cos.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
-  }
-}
-
-function renderQuestions() {
-  const list = document.getElementById('questionList');
-  if (!list) return;
-  const f = getQuestionFilters();
-  const filtered = getFilteredQuestions();
-
-  // 统计条
-  const statsEl = document.getElementById('questionStats');
-  if (statsEl) {
-    const byMastery = {};
-    questions.forEach(q => { byMastery[q.mastery] = (byMastery[q.mastery] || 0) + 1; });
-    statsEl.innerHTML =
-      `<div class="stat-card"><div class="stat-label">题目总数</div><div class="stat-value" style="color:var(--accent)">${questions.length}</div></div>` +
-      MASTERY_LEVELS.map(m => `<div class="stat-card" title="掌握度：${escapeHtml(m.label)}">
-        <div class="stat-label">${m.icon} ${escapeHtml(m.label)}</div>
-        <div class="stat-value">${byMastery[m.key] || 0}</div></div>`).join('');
-  }
-  const cnt = document.getElementById('questionCount');
-  if (cnt) cnt.textContent = questions.length;
-
-  if (filtered.length === 0) {
-    list.innerHTML = questions.length === 0
-      ? '<div class="empty-state"><div class="empty-icon">🎯</div><p>还没有题目</p><p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">每场面试结束后，把被问到的问题记进来，面试前就能快速过一遍</p></div>'
-      : '<div class="empty-state"><div class="empty-icon">🔍</div><p>没有匹配的题目</p></div>';
-    return;
-  }
-  list.innerHTML = filtered.map(q => {
-    const m = masteryInfo(q.mastery);
-    return `<div class="q-card" data-id="${escapeHtml(q.id)}">
-      <div class="q-head">
-        <span class="q-mastery m-${escapeHtml(q.mastery)}" data-act="q-cycle-mastery" data-id="${escapeHtml(q.id)}"
-              role="button" tabindex="0" title="点击切换掌握度">${m.icon} ${escapeHtml(m.label)}</span>
-        <span class="q-cat">${escapeHtml(categoryLabel(q.category))}</span>
-        ${q.company ? `<span class="q-co" data-act="open-timeline" data-company="${escapeHtml(q.company)}" role="button" tabindex="0" title="查看该公司时间线">${escapeHtml(q.company)}</span>` : ''}
-        ${q.position ? `<span class="q-pos">${escapeHtml(q.position)}</span>` : ''}
-        <span style="flex:1;"></span>
-        <span class="q-date">${escapeHtml(q.date || '')}</span>
-      </div>
-      <div class="q-question">${escapeHtml(q.question)}</div>
-      ${f.review
-        ? (q.answer ? '<div class="q-answer q-hidden" data-act="q-toggle-answer">点击显示答案</div>' : '')
-        : (q.answer ? `<div class="q-answer">${escapeHtml(q.answer)}</div>` : '')}
-      <div class="q-actions">
-        <button type="button" class="btn btn-xs btn-outline" data-act="q-edit" data-id="${escapeHtml(q.id)}">编辑</button>
-        <button type="button" class="btn btn-xs btn-outline" style="color:var(--danger);border-color:rgba(239,68,68,0.25);" data-act="q-delete" data-id="${escapeHtml(q.id)}">删除</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// 点击掌握度标签循环切换：没准备 → 不熟 → 还行 → 熟练 → 没准备
-function cycleQuestionMastery(id) {
-  const q = questions.find(x => String(x.id) === String(id));
-  if (!q) return;
-  const idx = MASTERY_LEVELS.findIndex(m => m.key === q.mastery);
-  q.mastery = MASTERY_LEVELS[(idx + 1) % MASTERY_LEVELS.length].key;
-  saveQuestions();
-  renderQuestions();
-}
-function toggleQuestionAnswer(el) {
-  el.classList.toggle('q-hidden');
-  el.textContent = el.classList.contains('q-hidden') ? '点击显示答案' : (el.dataset.full || el.textContent);
-}
-
-function openQuestionModal(id) {
-  buildQuestionCategoryFilter();
-  const q = id ? questions.find(x => String(x.id) === String(id)) : null;
-  document.getElementById('questionModalTitle').textContent = q ? '编辑题目' : '添加题目';
-  document.getElementById('qFormId').value = q ? q.id : '';
-  document.getElementById('qFormCompany').value = q ? (q.company || '') : '';
-  document.getElementById('qFormPosition').value = q ? (q.position || '') : '';
-  document.getElementById('qFormCategory').value = q ? q.category : 'other';
-  document.getElementById('qFormDate').value = q ? (q.date || '') : todayStr();
-  document.getElementById('qFormQuestion').value = q ? q.question : '';
-  document.getElementById('qFormAnswer').value = q ? (q.answer || '') : '';
-  document.getElementById('qFormMastery').value = q ? q.mastery : 'new';
-  document.getElementById('questionModal').style.display = 'flex';
-}
-function closeQuestionModal() {
-  const m = document.getElementById('questionModal');
-  if (m) m.style.display = 'none';
-}
-function saveQuestion() {
-  const id = document.getElementById('qFormId').value;
-  const data = {
-    company: document.getElementById('qFormCompany').value.trim(),
-    position: document.getElementById('qFormPosition').value.trim(),
-    category: document.getElementById('qFormCategory').value,
-    date: document.getElementById('qFormDate').value,
-    question: document.getElementById('qFormQuestion').value.trim(),
-    answer: document.getElementById('qFormAnswer').value.trim(),
-    mastery: document.getElementById('qFormMastery').value,
-  };
-  if (!data.question) { toast('题目内容为必填项'); return; }
-  if (id) {
-    const i = questions.findIndex(x => String(x.id) === String(id));
-    if (i >= 0) questions[i] = sanitizeQuestion({ ...questions[i], ...data }) || questions[i];
-  } else {
-    const q = sanitizeQuestion({ id: genId(), ...data, createdAt: new Date().toISOString() });
-    if (!q) { toast('题目内容为必填项'); return; }
-    questions.unshift(q);
-  }
-  saveQuestions();
-  renderQuestions();
-  closeQuestionModal();
-  toast(id ? '题目已更新' : '题目已添加');
-}
-function deleteQuestion(id) {
-  const q = questions.find(x => String(x.id) === String(id));
-  if (!q) return;
-  if (!confirm('确认删除这道题？\n' + String(q.question).slice(0, 60))) return;
-  questions = questions.filter(x => String(x.id) !== String(id));
-  saveQuestions();
-  renderQuestions();
-  toast('题目已删除');
-}
-
-// 导出为 Word（.doc）。刻意不用已移除的复盘右栏那套实现，
-// 这里是题库自己的独立导出，失败也只影响下载，不影响页面。
-function exportQuestionsWord() {
-  const list = getFilteredQuestions();
-  if (list.length === 0) { toast('当前没有可导出的题目'); return; }
-  const rows = list.map((q, i) => {
-    const m = masteryInfo(q.mastery);
-    return `<div class="q">
-      <div class="qh">${i + 1}. [${escapeHtml(categoryLabel(q.category))}] ${escapeHtml(m.label)}${q.company ? ' · ' + escapeHtml(q.company) : ''}${q.position ? ' · ' + escapeHtml(q.position) : ''}${q.date ? ' · ' + escapeHtml(q.date) : ''}</div>
-      <div class="qq">${escapeHtml(q.question)}</div>
-      ${q.answer ? `<div class="qa"><b>答：</b>${escapeHtml(q.answer).replace(/\n/g, '<br>')}</div>` : ''}
-    </div>`;
-  }).join('');
-  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>面经题库</title>'
-    + '<style>body{font-family:SimSun,serif;line-height:1.7;margin:36px auto;max-width:820px;padding:0 24px;color:#222;}'
-    + 'h1{font-size:20px;border-bottom:2px solid #333;padding-bottom:8px;}'
-    + '.q{margin:0 0 16px;page-break-inside:avoid;}'
-    + '.qh{font-size:13px;color:#555;margin-bottom:2px;}'
-    + '.qq{font-weight:700;margin-bottom:4px;}'
-    + '.qa{font-size:14px;color:#333;background:#f7f7f7;padding:6px 10px;border-left:3px solid #999;}'
-    + '<\/style></head><body><h1>面经题库（共 ' + list.length + ' 题）</h1>' + rows + '</body></html>';
-  try {
-    const blob = new Blob([html], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = '面经题库_' + todayStr() + '.doc';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast('已导出 ' + list.length + ' 道题');
-  } catch (e) { toast('导出失败：' + e.message); }
-}
-
 // ==================== 投递转化统计 ====================
 // 回答"我的投递到底转化得怎么样"：漏斗各档人数与转化率、分维度成功率、
 // 以及按简历版本对比（哪版简历更有效）。
@@ -2731,11 +2391,6 @@ function switchTab(tab) {
     document.querySelector('.tab-btn:nth-child(4)').classList.add('active');
     document.getElementById('sectionReview').classList.add('active');
     renderReviews();
-  } else if (tab==='questions') {
-    document.querySelector('.tab-btn:nth-child(5)').classList.add('active');
-    document.getElementById('sectionQuestions').classList.add('active');
-    buildQuestionCategoryFilter();
-    renderQuestions();
   }
 }
 
@@ -2789,6 +2444,7 @@ function getExploreFilters() {
     triage: triageSel ? triageSel.value : '',
     provinces: exploreFilters.provinces,
     types: exploreFilters.types,
+    deadlineBuckets: exploreFilters.deadlineBuckets,
     dateFrom: exploreFilters.dateFrom,
     dateTo: exploreFilters.dateTo,
   };
@@ -2846,6 +2502,17 @@ function buildFilterPanel() {
   document.getElementById('dateFrom').value = exploreFilters.dateFrom;
   document.getElementById('dateTo').value = exploreFilters.dateTo;
   updateDateFilterUI();
+
+  // Deadline buckets：带数量，点一下只看快截止的
+  const dlDiv = document.getElementById('deadlineTags');
+  const dlCounts = {};
+  jobList.forEach(j => { const k = deadlineBucketOf(j); dlCounts[k] = (dlCounts[k] || 0) + 1; });
+  dlDiv.innerHTML = DEADLINE_BUCKETS.map(b => {
+    const active = exploreFilters.deadlineBuckets.has(b.key) ? ' active' : '';
+    const n = dlCounts[b.key] || 0;
+    return `<span class="deadline-tag${b.cls ? ' ' + b.cls : ''}${active}" data-val="${b.key}"
+      onclick="toggleFilter(this,'deadlineBuckets')" title="${escapeHtml(b.label)}：${n} 个岗位">${escapeHtml(b.label)}<span class="dt-n">${n}</span></span>`;
+  }).join('');
 
   updateFilterCount();
 }
@@ -2964,7 +2631,8 @@ function updateDateFilterUI() {
 }
 
 function updateFilterCount() {
-  const cnt = exploreFilters.provinces.size + exploreFilters.types.size + (exploreFilters.dateFrom || exploreFilters.dateTo ? 1 : 0);
+  const cnt = exploreFilters.provinces.size + exploreFilters.types.size + exploreFilters.deadlineBuckets.size
+            + (exploreFilters.dateFrom || exploreFilters.dateTo ? 1 : 0);
   const badge = document.getElementById('filterCount');
   if (cnt > 0) { badge.style.display = 'inline'; badge.textContent = cnt; }
   else { badge.style.display = 'none'; }
@@ -2977,6 +2645,7 @@ function updateFilterCount() {
 function clearAllFilters() {
   exploreFilters.provinces.clear();
   exploreFilters.types.clear();
+  exploreFilters.deadlineBuckets.clear();
   exploreFilters.dateFrom = '';
   exploreFilters.dateTo = '';
   document.getElementById('dateFrom').value = '';
@@ -3033,6 +2702,26 @@ function deadlineCell(j) {
   if (d <= 7) return `<span class="expl-deadline dl-soon" title="${title}">${label}<b>${d}天</b></span>`;
   return `<span class="expl-deadline" title="${title}">${label}</span>`;
 }
+
+// 截止日期分档：用来快速筛出「快截止」的岗位。
+// 各档**互不重叠**，覆盖全部情况（含无截止日期），所以多选就是简单的并集，
+// 而且标签上的数量加起来等于总数 —— 不会出现"选了3天内又选今天，数字对不上"的困惑。
+const DEADLINE_BUCKETS = [
+  { key: 'overdue', label: '已截止',    cls: 'dt-over',  test: d => d !== null && d < 0 },
+  { key: 'today',   label: '今天截止',  cls: 'dt-today', test: d => d === 0 },
+  { key: 'd3',      label: '1-3 天',    cls: 'dt-soon',  test: d => d !== null && d > 0 && d <= 3 },
+  { key: 'd7',      label: '4-7 天',    cls: 'dt-soon',  test: d => d !== null && d > 3 && d <= 7 },
+  { key: 'd30',     label: '8-30 天',   cls: '',         test: d => d !== null && d > 7 && d <= 30 },
+  { key: 'far',     label: '30 天以上', cls: '',         test: d => d !== null && d > 30 },
+  { key: 'none',    label: '无截止日期', cls: '',        test: d => d === null },
+];
+// 某条岗位属于哪个截止档（用 daysFromToday，不读提醒设置）
+function deadlineBucketOf(j) {
+  const d = daysFromToday(j.deadline);
+  const b = DEADLINE_BUCKETS.find(x => x.test(d));
+  return b ? b.key : 'none';
+}
+
 function tagClass(t) {
   if (!t) return 'chip-other';
   if (t.indexOf('央企')>=0 || t.indexOf('国企')>=0 || t.indexOf('国央企')>=0) return 'chip-orange';
@@ -3138,6 +2827,11 @@ function applyExploreFilters(list, f, tracked) {
     });
   }
 
+  // 截止日期分档筛选（「快截止」）：各档互不重叠，多选即并集
+  if (f.deadlineBuckets && f.deadlineBuckets.size > 0) {
+    out = out.filter(j => f.deadlineBuckets.has(deadlineBucketOf(j)));
+  }
+
   // Date filter（按自选日期范围筛选）
   // 日期都是 YYYY-MM-DD，字典序与时间序一致，因此直接比字符串，
   // 避免为每条数据构造 Date 对象（4104 条时是明显的白付开销）
@@ -3157,7 +2851,7 @@ function renderExplore() {
   const f = getExploreFilters();
   // 筛选条件变化时把分批渲染的进度重置回第一批，
   // 否则上一次「加载更多」的展开量会带到新条件下（例如只剩 5 条却仍按 800 渲染）
-  const filterSig = JSON.stringify([f.search, f.untracked, f.triage, [...f.provinces].sort(), [...f.types].sort(), f.dateFrom, f.dateTo, exploreSort]);
+  const filterSig = JSON.stringify([f.search, f.untracked, f.triage, [...f.provinces].sort(), [...f.types].sort(), [...f.deadlineBuckets].sort(), f.dateFrom, f.dateTo, exploreSort]);
   if (filterSig !== exploreLastFilterSig) {
     exploreLastFilterSig = filterSig;
     exploreRenderLimit = EXPLORE_PAGE_SIZE;
@@ -3733,11 +3427,6 @@ const ACTIONS = {
   // 公司时间线
   'open-timeline':    el => openCompanyTimeline(el.dataset.company),
   'tl-jump':          el => jumpFromTimeline(el.dataset.tab, el.dataset.id),
-  // 面经题库
-  'q-edit':           el => openQuestionModal(el.dataset.id),
-  'q-delete':         el => deleteQuestion(el.dataset.id),
-  'q-cycle-mastery':  el => cycleQuestionMastery(el.dataset.id),
-  'q-toggle-answer':  el => toggleQuestionAnswer(el),
 };
 // 索引型动作表：函数名 -> 处理器
 const IDX_ACTIONS = {
@@ -5369,7 +5058,6 @@ function initApp() {
   loadReviews();
   loadReminderSettings();
   loadTriage();
-  loadQuestions();
   fixAppliedDates();
   // 清理历史累积下来的重复岗位（同一公司+岗位+批次的多条公告）。
   // 老版本会把这些都留下来，所以启动时补做一次；已经干净时开销可忽略。

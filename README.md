@@ -69,6 +69,7 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
 | `.startup-data-test.js` | **启动数据链路**：写入→重载→读回（投递/清单/复盘四处渲染） |
 | `.startup-dedupe-test.js` | **老数据自动清理**：遗留重复在启动时被合并并落盘 |
 | `.probe-review.js` | 复盘页：右侧工作区已移除、卡片点击开弹窗、附件芯片纯展示、左栏占满 |
+| `.probe-deadlinefilter.js` | 「快截止」筛选：7 个互不重叠分档、多选并集、面板标签带数量、计数与清空 |
 | `.probe-deadline.js` | 岗位清单「截止日期」列：紧急度分级、无截止占位、列位置、转义 |
 | `.probe-deadlinesort.js` | 「临近截止」排序：由近到远、无截止排最后、切换排序 |
 | `.probe-deadline2.js` | 截止列逐行核对（真实数据 60 行）+ 紧急度机制生效 |
@@ -77,7 +78,6 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
 | `.probe-triage.js` | 关注/忽略：互斥、再点取消、按 qiuzhiId 存活于重新同步、三种筛选、批量只作用于当前筛选 |
 | `.probe-followup.js` | 跟进提醒：只针对「已投递」、按上次联系算天数、阈值可配、排序位置 |
 | `.probe-timeline.js` | 公司时间线：汇总四块数据、时间倒序、公司别名匹配、空数据容错 |
-| `.probe-questions.js` | 面经题库：清洗容错、增删改、掌握度循环、筛选、复习模式、导出 .doc |
 | `.probe-stats2.js` | 转化统计：漏斗单调递减、已挂记录用复盘阶段兜底、分维度、按简历版本 |
 | `.probe-realdata2.js` | 用真实 API 数据验证六个新功能（含真实公司名） |
 | `.probe-body.js` | 主套件：消毒函数、记录规范化、XSS 回归、事件委托、拖拽、键盘可达、导出 Word、**本地同步只写本机**、源码无上传路径 |
