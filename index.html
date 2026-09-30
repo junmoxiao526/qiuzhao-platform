@@ -904,13 +904,11 @@ body {
 .explore-table .expl-deadline-cell { white-space:nowrap; }
 .expl-deadline {
   font-variant-numeric:tabular-nums; color:var(--text-secondary);
-  display:inline-flex; align-items:baseline; gap:1px;
+  display:inline-flex; align-items:baseline;
 }
-/* 年份用更小的字号，让 2027-04-25 这类跨届日期不至于把列撑得很宽 */
-.expl-deadline > i { font-style:normal; font-size:10px; opacity:.7; margin-right:1px; }
 .expl-deadline b {
   font-size:10.5px; font-weight:600; padding:0 5px; border-radius:4px; line-height:1.6;
-  margin-left:4px;
+  margin-left:5px;
 }
 .expl-deadline.dl-urgent { color:var(--danger); font-weight:600; }
 .expl-deadline.dl-urgent b { background:rgba(239,68,68,0.15); color:var(--danger); }
@@ -1011,7 +1009,7 @@ body {
           <th style="width:64px;">标记</th>
           <th>开放日期</th>
           <th>公司</th>
-          <th style="width:150px;">截止日期</th>
+          <th style="width:138px;">截止日期</th>
           <th>公告链接</th>
           <th>投递链接</th>
           <th>行业</th>
@@ -3017,16 +3015,14 @@ function daysFromToday(dateStr) {
 }
 
 // 「截止日期」列：企业的投递截止时间。
-// 显示 年-月-日（年份用浅色小字，避免整列太宽），超过 7 天才不加紧急度提示。
+// 显示完整日期 YYYY-MM-DD；超过 7 天才不加紧急度提示。
 function deadlineCell(j) {
   const dl = j.deadline;
   if (!dl) return '<span class="expl-dim" title="该岗位没有截止日期">-</span>';
   const d = daysFromToday(dl);
   const m = String(dl).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  // 可解析 → 年 + 月-日；不可解析 → 原样转义显示
-  const label = m
-    ? `${m[1]}<i>年</i>${m[2]}-${m[3]}`
-    : escapeHtml(String(dl));
+  // 可解析 → YYYY-MM-DD；不可解析 → 原样转义显示
+  const label = m ? `${m[1]}-${m[2]}-${m[3]}` : escapeHtml(String(dl));
   const iso = escapeHtml(dl);
   const rest = d === null ? '' : (d < 0 ? `（已过 ${-d} 天）` : d === 0 ? '（今天）' : `（还剩 ${d} 天）`);
   const title = `截止 ${iso}${rest}`;
