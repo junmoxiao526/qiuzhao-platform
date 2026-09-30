@@ -51,10 +51,31 @@ return (async function () {
   var far = deadlineCell({ deadline: '2027-06-30' });
   chk('远期截止安静显示', far.indexOf('<b>') === -1, far);
 
-  section('E 显示格式是 MM-DD');
+  section('E 显示格式带年份');
   var fmt = deadlineCell({ deadline: '2026-11-24' });
   chk('显示 11-24', fmt.indexOf('11-24') !== -1, fmt);
+  chk('★ 显示年份 2026', fmt.indexOf('2026') !== -1, fmt);
+  chk('年份用独立小字包裹', fmt.indexOf('2026<i>年</i>') !== -1, fmt);
   chk('title 里有完整日期', fmt.indexOf('2026-11-24') !== -1, fmt);
+
+  section('E2 各紧急度下年份都在');
+  [off(-3), off(0), off(2), off(5), off(30), '2027-04-25'].forEach(function (dl) {
+    var yr = String(dl).slice(0, 4);
+    var cell = deadlineCell({ deadline: dl });
+    chk('截止 ' + dl + ' 显示年份 ' + yr, cell.indexOf(yr) !== -1, cell);
+  });
+
+  section('E3 跨年份仍可区分');
+  var thisYear = deadlineCell({ deadline: '2026-09-04' });
+  var nextYear = deadlineCell({ deadline: '2027-09-04' });
+  chk('★ 同年月日的不同年份显示不同', thisYear !== nextYear);
+  chk('一个显示 2026', thisYear.indexOf('2026') !== -1, thisYear);
+  chk('另一个显示 2027', nextYear.indexOf('2027') !== -1, nextYear);
+
+  section('E4 非法日期不硬套年份');
+  var bad = deadlineCell({ deadline: '待定' });
+  chk('原样显示且不注入', bad.indexOf('待定') !== -1 && bad.indexOf('<script') === -1, bad);
+  chk('非法日期不带年字', bad.indexOf('年') === -1, bad);
 
   section('F 渲染进表格、位置在公司右边');
   jobList = sanitizeJobList([
