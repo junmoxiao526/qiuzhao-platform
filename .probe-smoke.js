@@ -10,7 +10,7 @@ var fns=['initApp','addedAtToDate','findTrackedSource','resolveApplyDate','fixAp
  'loadTriage','saveTriage','setTriage','bulkTriage','applyExploreFilters','getFilteredExploreJobs',
  'buildCompanyTimeline','openCompanyTimeline','closeTimeline','jumpFromTimeline',
  'renderStats','openStats','closeStats','buildFunnel','groupStats','reachedStep','statusIndex',
- 'deadlineCell','daysFromToday','getExploreUpdateLabel','setSort','deadlineBucketOf','buildFilterPanel','toggleFilter','clearAllFilters',
+ 'deadlineCell','daysFromToday','getExploreUpdateLabel','setSort','deadlineBucketOf','buildFilterPanel','toggleFilter','clearAllFilters','toggleQuickDeadline','isQuickDeadlineOn','updateQuickDeadlineButton',
  'loadReviews','saveReviews','loadResumeData','saveResumeData','renderReviews','renderResume',
  'exportData','importData','buildBackup','syncQiuzhiFangzhou','qzTransformJobs','mergeQiuzhiList',
  'sanitizeJob','sanitizeReview','sanitizeJobList','safeHref','safeId','safeDataUrl','escapeHtml',

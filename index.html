@@ -886,6 +886,16 @@ body {
 .fn-rate.good { color:var(--green); }
 .fn-rate.zero { color:var(--text-muted); }
 
+/* 「快截止」一键按钮 */
+.quick-deadline-btn { white-space:nowrap; }
+.quick-deadline-btn.active {
+  background:rgba(239,68,68,0.16) !important;
+  border-color:rgba(239,68,68,0.5) !important;
+  color:var(--danger) !important;
+  font-weight:600;
+}
+.quick-deadline-btn span { opacity:.75; font-variant-numeric:tabular-nums; }
+
 /* 「截止日期」列：一周内才加紧急度提示，平时保持安静 */
 .explore-table .expl-deadline-cell { white-space:nowrap; }
 .expl-deadline {
@@ -943,6 +953,7 @@ body {
     </div>
     <span class="filter-toggle" onclick="toggleFilterPanel()">⚙ 筛选<span class="filter-count" id="filterCount" style="display:none;">0</span></span>
     <button class="btn btn-sm btn-outline" onclick="clearAllFilters()" style="color:var(--danger);border-color:rgba(239,68,68,0.25);display:none;" id="btnClearFilters">✕ 清空</button>
+    <button class="btn btn-sm btn-outline quick-deadline-btn" id="btnQuickDeadline" onclick="toggleQuickDeadline()" title="一周内截止的岗位（含已截止），按截止日期由近到远排">⚡ 快截止<span id="quickDeadlineCount"></span></button>
     <div class="sort-row">
       <span style="font-size:11px;color:var(--text-secondary);">排序:</span>
       <button class="sort-btn active" data-sort="updated" onclick="setSort(this)">最近更新</button>
@@ -2630,6 +2641,42 @@ function updateDateFilterUI() {
   btn.style.display = (exploreFilters.dateFrom || exploreFilters.dateTo) ? '' : 'none';
 }
 
+// 「快截止」一键视图：一周内截止 **加上已截止**。
+// 特意包含「已截止」：使用者要看"手头这些快到期/已过期"的全貌，
+// 只说"今天/3天内"会把刚过期的那批藏起来，反而看不到最该注意的。
+// 但它属于筛选状态，所以再点一次即可取消；细粒度控制仍在筛选面板里。
+const QUICK_DEADLINE_BUCKETS = ['overdue', 'today', 'd3', 'd7'];
+
+function isQuickDeadlineOn() {
+  return QUICK_DEADLINE_BUCKETS.every(k => exploreFilters.deadlineBuckets.has(k));
+}
+function toggleQuickDeadline() {
+  if (isQuickDeadlineOn()) {
+    QUICK_DEADLINE_BUCKETS.forEach(k => exploreFilters.deadlineBuckets.delete(k));
+  } else {
+    QUICK_DEADLINE_BUCKETS.forEach(k => exploreFilters.deadlineBuckets.add(k));
+    // 顺带切到「临近截止」排序，让最紧急的排最前面
+    const btn = document.querySelector('.sort-btn[data-sort="deadline"]');
+    if (btn && !btn.classList.contains('active')) setSort(btn);
+  }
+  updateDateFilterUI();
+  updateFilterCount();
+  if (document.getElementById('filterPanel').classList.contains('show')) buildFilterPanel();
+  renderExplore();
+}
+
+// 同步「快截止」按钮的文案与选中态
+function updateQuickDeadlineButton() {
+  const btn = document.getElementById('btnQuickDeadline');
+  if (!btn) return;
+  const on = isQuickDeadlineOn();
+  btn.classList.toggle('active', on);
+  const n = jobList.filter(j => QUICK_DEADLINE_BUCKETS.indexOf(deadlineBucketOf(j)) !== -1).length;
+  const span = document.getElementById('quickDeadlineCount');
+  if (span) span.textContent = n > 0 ? ' ' + n : '';
+  btn.title = (on ? '取消「快截止」筛选（当前 ' + n + ' 个岗位）' : '只看一周内截止的岗位（含已截止），共 ' + n + ' 个');
+}
+
 function updateFilterCount() {
   const cnt = exploreFilters.provinces.size + exploreFilters.types.size + exploreFilters.deadlineBuckets.size
             + (exploreFilters.dateFrom || exploreFilters.dateTo ? 1 : 0);
@@ -2640,6 +2687,7 @@ function updateFilterCount() {
   btn.style.display = cnt > 0 ? '' : 'none';
   const thHead = document.querySelector('.th-type-head');
   if (thHead) thHead.classList.toggle('filtering', exploreFilters.types.size > 0);
+  updateQuickDeadlineButton();
 }
 
 function clearAllFilters() {
@@ -2715,12 +2763,24 @@ const DEADLINE_BUCKETS = [
   { key: 'far',     label: '30 天以上', cls: '',         test: d => d !== null && d > 30 },
   { key: 'none',    label: '无截止日期', cls: '',        test: d => d === null },
 ];
-// 某条岗位属于哪个截止档（用 daysFromToday，不读提醒设置）
+// 某条岗位属于哪个截止档。
+// 带按天的缓存：renderExplore / 筛选面板 / 快截止计数都会遍历整个清单，
+// 每次都重建 Date 对象在 4000 条上要几毫秒。用 WeakMap 挂在记录对象上，
+// 同一天内重复查询是 O(1)；跨天自动失效（缓存按 todayStr 分组）。
+let _dlBucketCache = { day: '', map: null };
 function deadlineBucketOf(j) {
+  const today = todayStr();
+  if (_dlBucketCache.day !== today) _dlBucketCache = { day: today, map: new WeakMap() };
+  const hit = _dlBucketCache.map.get(j);
+  if (hit !== undefined) return hit;
   const d = daysFromToday(j.deadline);
   const b = DEADLINE_BUCKETS.find(x => x.test(d));
-  return b ? b.key : 'none';
+  const key = b ? b.key : 'none';
+  _dlBucketCache.map.set(j, key);
+  return key;
 }
+// 把缓存清掉（清单被整体替换 / 同步之后调用，避免拿到旧的判定）
+function resetDeadlineBucketCache() { _dlBucketCache = { day: '', map: null }; }
 
 function tagClass(t) {
   if (!t) return 'chip-other';
@@ -2945,6 +3005,8 @@ function renderExplore() {
   }
   // 延迟构建筛选面板（避免每次render都重建）
   if (document.getElementById('filterPanel').classList.contains('show')) buildFilterPanel();
+  // 「快截止」按钮的数量取决于清单本身，清单变了这里也要跟着刷新（数量走缓存，开销可忽略）
+  updateQuickDeadlineButton();
 }
 
 // 渲染岗位清单的一行。
@@ -3830,6 +3892,9 @@ function mergeQiuzhiList() {
     seen.set(j.qiuzhiId, true);
     return true;
   });
+  // 合并过程会**原地更新**已有记录（例如补上/修正 deadline），
+  // 所以截止分档的缓存必须清掉，否则会继续用旧判定。
+  resetDeadlineBucketCache();
   dedupeJobList();
   saveJobList();
 }

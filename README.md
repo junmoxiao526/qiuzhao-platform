@@ -69,7 +69,9 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
 | `.startup-data-test.js` | **启动数据链路**：写入→重载→读回（投递/清单/复盘四处渲染） |
 | `.startup-dedupe-test.js` | **老数据自动清理**：遗留重复在启动时被合并并落盘 |
 | `.probe-review.js` | 复盘页：右侧工作区已移除、卡片点击开弹窗、附件芯片纯展示、左栏占满 |
-| `.probe-deadlinefilter.js` | 「快截止」筛选：7 个互不重叠分档、多选并集、面板标签带数量、计数与清空 |
+| `.probe-deadlinefilter.js` | 截止日期筛选：7 个互不重叠分档、多选并集、面板标签带数量、计数与清空 |
+| `.probe-quickdeadline.js` | 「⚡ 快截止」一键视图：含已截止、自动切排序、与面板联动、再点取消 |
+| `.probe-quickdeadline2.js` | 真实数据下快截止数量一致、已截止必在结果内、分档缓存性能 |
 | `.probe-deadline.js` | 岗位清单「截止日期」列：紧急度分级、无截止占位、列位置、转义 |
 | `.probe-deadlinesort.js` | 「临近截止」排序：由近到远、无截止排最后、切换排序 |
 | `.probe-deadline2.js` | 截止列逐行核对（真实数据 60 行）+ 紧急度机制生效 |
