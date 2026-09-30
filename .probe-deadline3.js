@@ -1,4 +1,4 @@
-﻿return (async function () {
+return (async function () {
   var R=[]; function chk(n,c,e){ R.push((c?"PASS":"FAIL")+" :: "+n+(e!==undefined&&!c?" :: "+e:"")); }
   function section(t){ R.push('-- '+t+' --'); }
   await syncQiuzhiFangzhou();
@@ -18,8 +18,12 @@
   var over = document.querySelectorAll('.dl-over').length;
   var soon = document.querySelectorAll('.dl-soon').length;
   R.push('INFO :: 临近截止排序前 200 行：紧急(≤3天)=' + urgent + ' 较近(≤7天)=' + soon + ' 已截止=' + over);
-  chk('★ 已截止和紧急项浮到首屏', urgent > 0, urgent);
-  chk('首屏能看到「已截止」标记', over > 0, over);
+  chk('★ 紧急项浮到首屏', urgent > 0, urgent);
+  // 同步会自动清理已截止岗位，所以这里已截止应当为 0（不是缺陷，是预期行为）
+  chk('★ 已截止已被自动清理（不在清单里）', over === 0, over);
+  chk('★ 今天截止的没有被误删', (function () {
+    var n = 0; jobList.forEach(function (j) { if (deadlineBucketOf(j) === 'today') n++; }); return n > 0;
+  })());
 
   section('首屏内容确实是最近截止的');
   var rows = document.querySelectorAll('.explore-table tbody tr');

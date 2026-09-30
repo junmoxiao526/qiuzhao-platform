@@ -2782,6 +2782,26 @@ function deadlineBucketOf(j) {
 // 把缓存清掉（清单被整体替换 / 同步之后调用，避免拿到旧的判定）
 function resetDeadlineBucketCache() { _dlBucketCache = { day: '', map: null }; }
 
+// ==================== 已截止岗位自动清理 ====================
+// 岗位清单是「可投递机会」的池子，过了截止日期就投不了了，留着只会干扰浏览
+// （实测 4062 条里有 30 条已截止，排在前面挡住真正还能投的）。
+//
+// 三条安全边界，宁可不删也不误删：
+//   1) 只删**严格早于今天**的（deadline < 今天）。今天截止的仍然有效，必须保留。
+//   2) 没有截止日期、或日期不合法的记录一律不动 —— 判断不了就不删。
+//   3) 复用 deadlineBucketOf 的判定（与截止日期列、筛选面板同一份口径），
+//      不会出现"表格说已截止、清理却不删"这种不一致。
+function pruneExpiredJobs() {
+  const before = jobList.length;
+  jobList = jobList.filter(j => deadlineBucketOf(j) !== 'overdue');
+  const removed = before - jobList.length;
+  if (removed > 0) {
+    resetDeadlineBucketCache();   // 缓存里还挂着被删掉的对象
+    saveJobList();
+  }
+  return removed;
+}
+
 function tagClass(t) {
   if (!t) return 'chip-other';
   if (t.indexOf('央企')>=0 || t.indexOf('国企')>=0 || t.indexOf('国央企')>=0) return 'chip-orange';
@@ -4059,6 +4079,9 @@ async function syncQiuzhiFangzhou() {
     const _keptCos = [...new Set(jobList.slice(_beforeCount).map(j => j.company).filter(Boolean))];
     newCos.length = 0;
     _keptCos.forEach(c => newCos.push(c));
+    // 同步后顺手清掉已截止的（本次新抓到的数据里也可能有已过期的）
+    const expiredCount = pruneExpiredJobs();
+    if (expiredCount > 0) console.log('已清理 ' + expiredCount + ' 条已截止岗位');
     saveJobList();
     renderExplore();
 
@@ -4067,7 +4090,7 @@ async function syncQiuzhiFangzhou() {
       <div style="flex:1;text-align:center;padding:12px;background:rgba(74,222,128,0.10);border-radius:8px;border:1px solid rgba(74,222,128,0.22)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:24px;font-weight:700;color:var(--text-muted)">${skipCount}</div><div style="font-size:12px;color:var(--text-muted)">已存在</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:rgba(96,165,250,0.10);border-radius:8px;border:1px solid rgba(96,165,250,0.22)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
-    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}　·　数据已存入本机浏览器，仅你自己可见${dupCount>0?`　·　已合并 ${dupCount} 条同公司同岗位的重复公告`:''}</p>`;
+    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}　·　数据已存入本机浏览器，仅你自己可见${dupCount>0?`　·　已合并 ${dupCount} 条同公司同岗位的重复公告`:''}${expiredCount>0?`　·　已清理 ${expiredCount} 个已截止岗位`:''}</p>`;
 
     let listHtml = '';
     if (newCos.length>0) {
@@ -5128,6 +5151,14 @@ function initApp() {
   // 老版本会把这些都留下来，所以启动时补做一次；已经干净时开销可忽略。
   const _dupRemoved = dedupeJobList();
   if (_dupRemoved > 0) console.log('已合并 ' + _dupRemoved + ' 条重复岗位（同公司+岗位+批次）');
+  // 清理已截止的岗位（过了截止日期就投不了了）。
+  // 放在启动时做一次：老版本会把它们一直留着，越积越多。
+  const _expiredRemoved = pruneExpiredJobs();
+  if (_expiredRemoved > 0) {
+    console.log('已清理 ' + _expiredRemoved + ' 条已截止岗位');
+    // 首次清理时提示一下，避免使用者觉得岗位"莫名少了"
+    toast('已自动清理 ' + _expiredRemoved + ' 个已截止岗位');
+  }
   // 清理历史 StarJob 来源岗位（已停用 StarJob 同步）
   {
   const _before = jobList.length;

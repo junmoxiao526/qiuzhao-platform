@@ -71,7 +71,9 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
 | `.probe-review.js` | 复盘页：右侧工作区已移除、卡片点击开弹窗、附件芯片纯展示、左栏占满 |
 | `.probe-deadlinefilter.js` | 截止日期筛选：7 个互不重叠分档、多选并集、面板标签带数量、计数与清空 |
 | `.probe-quickdeadline.js` | 「⚡ 快截止」一键视图：含已截止、自动切排序、与面板联动、再点取消 |
-| `.probe-quickdeadline2.js` | 真实数据下快截止数量一致、已截止必在结果内、分档缓存性能 |
+| `.probe-quickdeadline2.js` | 真实数据下快截止数量一致、已截止已被清理、分档缓存性能 |
+| `.probe-prune.js` | 已截止自动清理：边界（今天截止必留、无/非法日期不删）、幂等、落盘、与去重协作 |
+| `.probe-prune2.js` | 真实数据下清理生效（4062→4032）、今天截止保留、面板与按钮同步、落盘一致 |
 | `.probe-deadline.js` | 岗位清单「截止日期」列：紧急度分级、无截止占位、列位置、转义 |
 | `.probe-deadlinesort.js` | 「临近截止」排序：由近到远、无截止排最后、切换排序 |
 | `.probe-deadline2.js` | 截止列逐行核对（真实数据 60 行）+ 紧急度机制生效 |
@@ -105,6 +107,10 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
   两个入口都只渲染**当前可见**的面板，避免在岗位清单页重建看板/星图。
 - 岗位清单每行的 HTML 由 `exploreRowHtml(job)` 统一生成，全量渲染与局部更新共用。
 - 省份查询走 `CITY_TO_PROVINCE` 预建索引，不要再去遍历 `PROVINCE_MAP`。
+- **岗位清单会自动清理已截止的岗位**（`pruneExpiredJobs`，启动时与每次同步后各一次）。
+  判定复用 `deadlineBucketOf` 的「已截止」档，边界是：只删**严格早于今天**的；
+  今天截止的必须保留；没有截止日期或日期不合法的一律不删。
+  清理会在控制台、启动提示、同步结果里各报一次数量。
 
 用两个独立 profile 做隔离验证：
 
