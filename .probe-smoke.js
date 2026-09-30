@@ -11,6 +11,7 @@ var fns=['initApp','addedAtToDate','findTrackedSource','resolveApplyDate','fixAp
  'buildCompanyTimeline','openCompanyTimeline','closeTimeline','jumpFromTimeline',
  'loadQuestions','saveQuestions','renderQuestions','sanitizeQuestion','openQuestionModal','saveQuestion','deleteQuestion','cycleQuestionMastery','exportQuestionsWord','buildQuestionCategoryFilter',
  'renderStats','openStats','closeStats','buildFunnel','groupStats','reachedStep','statusIndex',
+ 'deadlineCell','daysFromToday','getExploreUpdateLabel','setSort',
  'loadReviews','saveReviews','loadResumeData','saveResumeData','renderReviews','renderResume',
  'exportData','importData','buildBackup','syncQiuzhiFangzhou','qzTransformJobs','mergeQiuzhiList',
  'sanitizeJob','sanitizeReview','sanitizeJobList','safeHref','safeId','safeDataUrl','escapeHtml',
