@@ -77,6 +77,8 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
 | `.probe-internship.js` | 实习岗清理：只按批次判定（不碰职位名）、提前批不误删、开关、落盘 |
 | `.probe-internship2.js` | 真实数据下实习岗清零、提前批与秋招保留、落盘一致、二次同步不重复清理 |
 | `.probe-starring.js` | 星图等距：弧长查表器、**任意相位下都等弧长**、渲染与公转后仍等距、拆子环 |
+| `.probe-starzoom.js` | 星图固定居中 + 只缩放：拖拽不移位、滚轮/按钮缩放、上下限、视口自适应高度 |
+| `.layoutverify.js` | 真实视口（1600x950/1440x900/1280x800）下星图布局与居中校验，非探针，需 CDP 起浏览器 |
 | `.probe-deadline.js` | 岗位清单「截止日期」列：紧急度分级、无截止占位、列位置、转义 |
 | `.probe-deadlinesort.js` | 「临近截止」排序：由近到远、无截止排最后、切换排序 |
 | `.probe-deadline2.js` | 截止列逐行核对（真实数据 60 行）+ 紧急度机制生效 |
@@ -110,6 +112,12 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
   两个入口都只渲染**当前可见**的面板，避免在岗位清单页重建看板/星图。
 - 岗位清单每行的 HTML 由 `exploreRowHtml(job)` 统一生成，全量渲染与局部更新共用。
 - 省份查询走 `CITY_TO_PROVINCE` 预建索引，不要再去遍历 `PROVINCE_MAP`。
+- **星图固定在画布正中，只允许缩放，不允许平移**（`zoom` 里没有 pan 字段，拖拽不生效）。
+  缩放锚点就是画布中心，所以任何操作后星图都还在正中。
+  缩放范围 0.4x ~ 4x，滚轮或左下角 `.star-zoom` 按钮均可，控件由 `renderStarMap` 在 JS 里创建
+  （`starCanvasWrap` 每次渲染都被 `innerHTML` 清空，写在 HTML 里会被抹掉）。
+- 星图区域高度用 `fitStarViewHeight()` 按"视口高 − 星图顶部偏移"实算，
+  **不要再用写死的 `calc(100vh - 140px)`** —— 顶部实际约 237px，写死会让底部被切掉约 100px。
 - 星图星球的位置与公转**必须沿弧长推进，不能按角度推进**（`makeEllipseArcMap` 提供弧长↔角度换算）。
   椭圆不是旋转对称的：在角度上加减会破坏"等弧长"，星球间距立刻变得疏密不均
   （实测 a=68.4,b=42.4,n=7 时 phase=0 → max/min=1.000，phase=1.0 → 1.868）。

@@ -913,6 +913,19 @@ body {
 .expl-deadline.dl-over { color:var(--text-muted); }
 .expl-deadline.dl-over b { background:var(--surface-3); color:var(--text-muted); }
 
+/* 星图缩放控件：固定在左下角，不随画布内容移动 */
+.star-zoom { position:absolute; left:14px; bottom:14px; display:flex; align-items:center; gap:6px;
+  background:rgba(6,14,36,0.72); border:1px solid rgba(148,163,184,0.22);
+  border-radius:8px; padding:5px 8px; z-index:20; backdrop-filter:blur(4px); }
+.star-zoom button {
+  width:26px; height:26px; border-radius:6px; cursor:pointer; font-size:14px; line-height:1;
+  background:transparent; border:1px solid rgba(148,163,184,0.28); color:#cbd5e1;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .15s, border-color .15s, color .15s;
+}
+.star-zoom button:hover { background:rgba(123,97,255,0.22); border-color:rgba(123,97,255,0.5); color:#fff; }
+.star-zoom-val { font-size:11.5px; color:#94a3b8; font-variant-numeric:tabular-nums; min-width:38px; text-align:right; }
+
 /* 键盘可达焦点环：仅键盘导航时出现，不干扰鼠标用户 */
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .expl-row:focus-visible, .list-row:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
@@ -1077,6 +1090,7 @@ body {
   <div class="star-view" id="starView">
     <div class="star-canvas-wrap" id="starCanvasWrap">
       <button class="star-back-btn" onclick="setTrackView('board')" title="返回看板">← 返回</button>
+      <!-- 缩放控件由 renderStarMap 在 JS 里创建：这个容器每次渲染会被 innerHTML 清空 -->
     </div>
     <div class="star-panel" id="starPanel">
       <div class="sp-placeholder">点击轨道上的星球<br>查看投递详情</div>
@@ -3403,7 +3417,21 @@ function setTrackView(view) {
   document.getElementById('listView').style.display = view==='list'?'block':'none';
   document.getElementById('starView').classList.toggle('active', view==='star');
   if (view !== 'star') stopStarMap();   // 离开星图立即停掉动画循环
+  if (view === 'star') fitStarViewHeight();
   renderTrack();
+}
+
+// 让星图区域正好填满"工具栏以下的视口高度"。
+// 原来 .star-view 写死 height:calc(100vh - 140px)，但顶部实际占 237px，
+// 于是星图底部会被切掉 ~100px（页面还得滚动才能看全），
+// 星图也就不是真正居中。改为按实际位置算，窗口变化时同样成立。
+function fitStarViewHeight() {
+  const sv = document.getElementById('starView');
+  if (!sv || !sv.classList.contains('active')) return;
+  const docTop = sv.getBoundingClientRect().top + window.scrollY;
+  const h = Math.max(360, Math.round(window.innerHeight - docTop));
+  sv.style.height = h + 'px';
+  sv.style.minHeight = '360px';   // 覆盖 CSS 的 600px，短窗口下才不会又被撑到视口外
 }
 
 // 按投递日期由新到旧（YYYY-MM-DD 字符串直接比较；无日期排最后）
@@ -3581,6 +3609,10 @@ const ACTIONS = {
   // 公司时间线
   'open-timeline':    el => openCompanyTimeline(el.dataset.company),
   'tl-jump':          el => jumpFromTimeline(el.dataset.tab, el.dataset.id),
+  // 星图缩放（星图固定在中央，只有缩放）
+  'star-zoom-in':     () => { if (starZoomApi) starZoomApi.in(); },
+  'star-zoom-out':    () => { if (starZoomApi) starZoomApi.out(); },
+  'star-zoom-reset':  () => { if (starZoomApi) starZoomApi.reset(); },
 };
 // 索引型动作表：函数名 -> 处理器
 const IDX_ACTIONS = {
@@ -4191,6 +4223,21 @@ let starAnimId = null;
 let starStars = [];
 let starClusterMap = null;   // string coord → { count, jobs }
 let starSelectedClusters = null;
+// 缩放接口：renderStarMap 每次渲染时重建，供页面上的缩放按钮调用。
+// 星图**只缩放不平移**，所以这里没有任何 pan 相关的东西。
+let starZoomApi = null;
+// 窗口尺寸变化：星图的画布尺寸与圆环位置都是渲染时算好的一份快照，
+// 不重算就会拉伸/错位。之前完全没有 resize 处理，这里补上（防抖 150ms）。
+let _starResizeTimer = null;
+window.addEventListener('resize', function () {
+  if (_starResizeTimer) clearTimeout(_starResizeTimer);
+  _starResizeTimer = setTimeout(function () {
+    _starResizeTimer = null;
+    if (trackView === 'star' && document.getElementById('starView').classList.contains('active')) {
+      renderStarMap();
+    }
+  }, 150);
+});
 
 const STAGE_COLORS = {
   'pending':   '#94a3b8',
@@ -4298,6 +4345,9 @@ function renderStarMap() {
   const pendingJobs = stageJobs['pending'] || [];
 
   // --- Canvas in left wrap ---
+  // 先按视口把星图区域的高度算准，再测量画布尺寸 ——
+  // 否则会按被切掉的高度布局，星图中心就不是视口中心。
+  fitStarViewHeight();
   const wrap = document.getElementById('starCanvasWrap');
   wrap.innerHTML = '';
   const canvas = document.createElement('canvas');
@@ -4305,6 +4355,15 @@ function renderStarMap() {
   tooltip.className = 'star-tooltip';
   wrap.appendChild(canvas);
   wrap.appendChild(tooltip);
+  // 缩放控件也在这里建：wrap 每次渲染都被清空，写在 HTML 里会被抹掉
+  const zoomBox = document.createElement('div');
+  zoomBox.className = 'star-zoom';
+  zoomBox.innerHTML = '<button type="button" data-act="star-zoom-in" title="放大（也可用滚轮）">＋</button>'
+    + '<button type="button" data-act="star-zoom-out" title="缩小（也可用滚轮）">－</button>'
+    + '<button type="button" data-act="star-zoom-reset" title="恢复到 100%">⟲</button>'
+    + '<span class="star-zoom-val">100%</span>';
+  wrap.appendChild(zoomBox);
+  const zoomValEl = zoomBox.querySelector('.star-zoom-val');
   const oldBelt = wrap.querySelector('.explore-belt');
   if (oldBelt) oldBelt.remove();
 
@@ -4318,7 +4377,9 @@ function renderStarMap() {
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
 
-  const cx = W * 0.44, cy = H * 0.48;
+  // 星图固定在画布正中央：不接受平移，只接受缩放（缩放也以这个中心为锚点）。
+  // 右侧详情面板是独立的一列（360px），不含在 W 里，所以 W/2 就是它的视觉正中。
+  const cx = W * 0.5, cy = H * 0.5;
   const stageOrder = STATUSES.map(s => s.key);
   const activeStages = stageOrder.filter(k => stageJobs[k] && stageJobs[k].length > 0);
   const maxR = Math.min(cx, cy, W - cx - 20, H - cy - 10) + 15;
@@ -4408,7 +4469,6 @@ function renderStarMap() {
   // --- Mouse ---
   let hoveredStars = [];
   canvas.onmousemove = function(e) {
-    if (isDragging) return;
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -4436,7 +4496,6 @@ function renderStarMap() {
     }
   };
   canvas.onclick = function() {
-    if (wasDragging) { wasDragging = false; return; }
     if (hoveredStars.length === 1) {
       openStarPanel(hoveredStars[0].job);
     } else if (hoveredStars.length > 1) {
@@ -4475,41 +4534,33 @@ function renderStarMap() {
     return '#' + rr + gg + bb;
   }
 
-  // --- Animation loop ---
-  const zoom = { scale: 1, panX: 0, panY: 0 };
-  let isDragging = false, dragStartX = 0, dragStartY = 0, dragPanX = 0, dragPanY = 0;
-  let wasDragging = false;
-
-  canvas.style.cursor = 'grab';
-  canvas.addEventListener('mousedown', function(e) {
-    if (e.button !== 0) return;
-    isDragging = true; wasDragging = false;
-    dragStartX = e.clientX; dragStartY = e.clientY;
-    dragPanX = zoom.panX; dragPanY = zoom.panY;
-    canvas.style.cursor = 'grabbing';
-  });
-  window.addEventListener('mousemove', function(e) {
-    if (!isDragging) return;
-    const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
-    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) wasDragging = true;
-    zoom.panX = dragPanX + dx;
-    zoom.panY = dragPanY + dy;
-  });
-  window.addEventListener('mouseup', function() {
-    if (isDragging) { isDragging = false; canvas.style.cursor = 'grab'; }
-  });
+  // --- 缩放（只有缩放，没有平移）---
+  // 星图**固定在画布中央**：拖拽不再移动它，缩放也以中心为锚点，
+  // 所以任何操作之后它都还在正中，不会跑到画布外面找不回来。
+  const zoom = { scale: 1 };
+  const ZOOM_MIN = 0.4, ZOOM_MAX = 4;
+  function setZoom(next) {
+    zoom.scale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));
+    if (zoomValEl) zoomValEl.textContent = Math.round(zoom.scale * 100) + '%';
+  }
+  zoom.set = setZoom;
+  zoom.get = function () { return { scale: zoom.scale, min: ZOOM_MIN, max: ZOOM_MAX }; };
+  canvas.style.cursor = 'default';
 
   canvas.addEventListener('wheel', function(e) {
     e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const factor = e.deltaY < 0 ? 1.15 : 0.87;
-    const newScale = Math.max(0.35, Math.min(5, zoom.scale * factor));
-    zoom.panX = mx - (mx - zoom.panX) * (newScale / zoom.scale);
-    zoom.panY = my - (my - zoom.panY) * (newScale / zoom.scale);
-    zoom.scale = newScale;
+    setZoom(zoom.scale * (e.deltaY < 0 ? 1.15 : 0.87));
   }, { passive: false });
+
+  // 供页面上的 ＋ / − / 复位 按钮调用（按钮就在这个 wrap 里）
+  starZoomApi = {
+    in: function () { setZoom(zoom.scale * 1.25); },
+    out: function () { setZoom(zoom.scale / 1.25); },
+    reset: function () { setZoom(1); },
+    get: function () { return zoom.scale; },
+    min: ZOOM_MIN, max: ZOOM_MAX
+  };
+  setZoom(1);
 
   // Use the drag-aware click handler
   let lastT = performance.now();
@@ -4527,7 +4578,7 @@ function renderStarMap() {
     });
 
     // Orbit rings - solid thin lines matching screenshot
-    const effCx = cx + zoom.panX, effCy = cy + zoom.panY;
+    const effCx = cx, effCy = cy;   // 星图固定居中，不做平移
     activeStages.forEach((key, idx) => {
       const r = (ringInfos[idx] ? ringInfos[idx].r : 100) * zoom.scale;
       const col = STAGE_COLORS[key] || '#64748b';
@@ -4544,8 +4595,8 @@ function renderStarMap() {
     starStars.forEach(st => {
       st.arcAdvance += st.arcSpeed * dt;
       st.angle = st.ringMap.angleAt(st.baseArc + st.phaseArc + st.arcAdvance);
-      st.screenX = st.cx + zoom.panX + st.rx * zoom.scale * Math.cos(st.angle);
-      st.screenY = st.cy + zoom.panY + st.ry * zoom.scale * Math.sin(st.angle);
+      st.screenX = st.cx + st.rx * zoom.scale * Math.cos(st.angle);
+      st.screenY = st.cy + st.ry * zoom.scale * Math.sin(st.angle);
     });
 
     // Cluster detection: group stars within threshold
