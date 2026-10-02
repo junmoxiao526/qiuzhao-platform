@@ -1,4 +1,4 @@
-﻿// 在真实视口尺寸下校验星图布局（1600x950 / 1440x900 / 1280x800 三档）
+// 在真实视口尺寸下校验星图布局（1600x950 / 1440x900 / 1280x800 三档）
 const http=require('http');
 function j(u){return new Promise((res,rej)=>{http.get(u,r=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>{try{res(JSON.parse(b))}catch(e){rej(e)}})}).on('error',rej)})}
 (async()=>{
@@ -29,22 +29,45 @@ function j(u){return new Promise((res,rej)=>{http.get(u,r=>{let b='';r.on('data'
       var svr=sv.getBoundingClientRect(), wr=wrap.getBoundingClientRect();
       var box=wrap.querySelector('.star-zoom'), zr=box?box.getBoundingClientRect():null;
       var cx=starStars[0].cx, cy=starStars[0].cy;
-      chk('星图底部不超出视口', svr.bottom<=window.innerHeight+1, Math.round(svr.bottom)+' vs '+window.innerHeight);
-      chk('页面不需要滚动', document.documentElement.scrollHeight<=window.innerHeight+2,
-          document.documentElement.scrollHeight+' vs '+window.innerHeight);
+      // 高度 = max(600, 视口高 - 星图顶部偏移)。可用高度不足 600 时保底 600，
+      // 于是页面可以上下滚动 —— 这是刻意的：滚动的空间换来星图的绘制空间。
+      var avail = window.innerHeight - Math.round(svr.top + window.scrollY);
+      var expectH = Math.max(600, avail);
+      chk('高度 = max(600, 可用高度)', Math.abs(svr.height-expectH)<=1, Math.round(svr.height)+' vs '+expectH);
+      if (avail >= 600) {
+        chk('空间足够时星图完整落在视口内', svr.bottom<=window.innerHeight+1,
+            Math.round(svr.bottom)+' vs '+window.innerHeight);
+        chk('空间足够时页面不需要滚动', document.documentElement.scrollHeight<=window.innerHeight+2,
+            document.documentElement.scrollHeight+' vs '+window.innerHeight);
+      } else {
+        chk('空间不足时页面可以上下滚动', document.documentElement.scrollHeight>window.innerHeight+2,
+            document.documentElement.scrollHeight+' vs '+window.innerHeight);
+      }
       chk('圆心 x = 画布正中', Math.abs(cx-wr.width/2)<1, cx.toFixed(1)+' vs '+(wr.width/2).toFixed(1));
       chk('圆心 y = 画布正中', Math.abs(cy-wr.height/2)<1, cy.toFixed(1)+' vs '+(wr.height/2).toFixed(1));
+      // 100% 时平移必须被钳为 0（星图钉在正中、拖不动）
+      var pan = starZoomApi && starZoomApi.pan ? starZoomApi.pan() : null;
+      chk('100% 时平移量为 0（钉在正中）', pan && pan.x===0 && pan.y===0, JSON.stringify(pan));
+      chk('100% 时不可拖动', starZoomApi && starZoomApi.canPan && starZoomApi.canPan()===false,
+          starZoomApi&&starZoomApi.canPan?String(starZoomApi.canPan()):'n/a');
       chk('缩放控件在视口内', zr && zr.top>=0 && zr.bottom<=window.innerHeight+1 && zr.right<=window.innerWidth+1,
           zr? (Math.round(zr.top)+'~'+Math.round(zr.bottom)+' right='+Math.round(zr.right)) : 'null');
-      var hit = zr ? document.elementFromPoint(zr.left+zr.width/2, zr.top+zr.height/2) : null;
-      chk('控件未被画布遮挡', hit && hit.tagName==='BUTTON', hit?hit.tagName:'null');
+      if (zr) {
+        var hit = document.elementFromPoint(zr.left+zr.width/2, zr.top+zr.height/2);
+        chk('控件未被画布遮挡', hit && hit.tagName==='BUTTON', hit?hit.tagName:'null');
+      }
       chk('缩放控件存在且显示 100%', box && box.querySelector('.star-zoom-val').textContent==='100%');
+      // 星图应该用掉画布的较大比例（原来只占中间一小块）
+      var rs=Array.from(new Set(starStars.map(function(s){return s.rx;}))).sort(function(a,b){return b-a;});
+      var pct = rs[0]*2/wr.width*100;
+      chk('最外环宽度占画布 ≥ 35%（原来约 22%）', pct>=35, pct.toFixed(1)+'%');
       return {w:window.innerWidth,h:window.innerHeight,warn:window.__errs||[],out:out,
               canvas:Math.round(wr.width)+'x'+Math.round(wr.height),
-              center:Math.round(cx)+','+Math.round(cy), scrollH:document.documentElement.scrollHeight};
+              center:Math.round(cx)+','+Math.round(cy), scrollH:document.documentElement.scrollHeight,
+              outer:pct.toFixed(0)+'%'};
     })()`,returnByValue:true},sessionId);
     const v=r.result.value;
-    console.log('\n视口 '+v.w+'x'+v.h+'  画布 '+v.canvas+'  圆心 '+v.center+'  scrollHeight '+v.scrollH);
+    console.log('\n视口 '+v.w+'x'+v.h+'  画布 '+v.canvas+'  圆心 '+v.center+'  最外环占宽 '+v.outer+'  scrollHeight '+v.scrollH);
     for(const o of v.out){ total++; if(!o.ok) fails++; console.log('  '+(o.ok?'✅':'❌')+' '+o.nm+(o.detail?'  ('+o.detail+')':'')); }
   }
   await send('Target.closeTarget',{targetId}); ws.close();

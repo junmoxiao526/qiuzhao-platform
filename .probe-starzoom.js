@@ -141,8 +141,9 @@ return (async function () {
   // 用绝对尺寸判断（画布可能很窄，占比阈值会误判）：控件本身就该是个小条
   chk('控件尺寸很小（≤ 200×60）', zr.width <= 200 && zr.height <= 60,
       zr.width.toFixed(0) + 'x' + zr.height.toFixed(0));
-  chk('控件在左下角', (zr.left - cr.left) < cr.width * 0.3 && (cr.bottom - zr.bottom) < cr.height * 0.3,
-      'leftGap=' + (zr.left - cr.left).toFixed(0) + ' bottomGap=' + (cr.bottom - zr.bottom).toFixed(0));
+  // 控件在左上角：星图区域可能比视口高（页面可滚动），贴底会落到折线以下
+  chk('控件在左上角', (zr.left - cr.left) < cr.width * 0.3 && (zr.top - cr.top) < cr.height * 0.3,
+      'leftGap=' + (zr.left - cr.left).toFixed(0) + ' topGap=' + (zr.top - cr.top).toFixed(0));
   chk('控件完整落在画布内（不溢出）',
       zr.left >= cr.left - 1 && zr.right <= cr.right + 1 && zr.top >= cr.top - 1 && zr.bottom <= cr.bottom + 1,
       JSON.stringify({ l: zr.left - cr.left, r: cr.right - zr.right, t: zr.top - cr.top, b: cr.bottom - zr.bottom }));
@@ -155,14 +156,17 @@ return (async function () {
   R.push('INFO :: 视口 ' + window.innerWidth + 'x' + window.innerHeight +
          '，星图顶部文档坐标 ' + docTop + '，可用高度 ' + avail +
          '，星图 ' + Math.round(svr.top) + '~' + Math.round(svr.bottom) + '（高 ' + Math.round(svr.height) + '）');
-  // 核心：高度必须等于"视口 − 星图顶部偏移"（可用高度不足 360 时保底 360）
-  var expectH = Math.max(360, avail);
-  chk('★ 高度 = max(360, 视口高 − 顶部偏移)', Math.abs(svr.height - expectH) <= 1,
+  // 核心：高度 = max(600, 视口高 − 星图顶部偏移)。
+  // 下限 600 是刻意的：窗口很矮时不硬压扁画布（岗位一多就挤成一团），
+  // 而是让页面可以上下滚动 —— 滚动的空间换来星图的绘制空间。
+  var STAR_MIN_H = 600;
+  var expectH = Math.max(STAR_MIN_H, avail);
+  chk('★ 高度 = max(600, 视口高 − 顶部偏移)', Math.abs(svr.height - expectH) <= 1,
       Math.round(svr.height) + ' vs ' + expectH);
   R.push('INFO :: 原来的写死值是 calc(100vh-140px) = ' + (window.innerHeight - 140) +
          'px，与实际可用 ' + avail + 'px 不符 —— 这正是底部被切掉的原因');
 
-  if (avail >= 360) {
+  if (avail >= STAR_MIN_H) {
     chk('★ 空间足够时星图完整落在视口内', svr.bottom <= window.innerHeight + 1,
         Math.round(svr.bottom) + ' vs ' + window.innerHeight);
     chk('★ 星图视图下页面不需要滚动',
@@ -174,9 +178,12 @@ return (async function () {
         Math.abs(starStars[0].cy - expectedCy) < 4,
         starStars[0].cy.toFixed(1) + ' vs ' + expectedCy.toFixed(1));
   } else {
-    R.push('INFO :: 当前视口过小（可用 ' + avail + 'px < 360），星图保底 360px，' +
-           '此时页面需要滚动才能看全 —— 这是极小窗口下的取舍，不视为缺陷');
-    chk('★ 极小视口下守住 360px 下限', svr.height >= 360, Math.round(svr.height));
+    R.push('INFO :: 当前视口过小（可用 ' + avail + 'px < 600），星图保底 600px，' +
+           '此时页面需要滚动才能看全 —— 这是刻意的取舍（换来更大的绘制空间）');
+    chk('★ 空间不足时页面可以上下滚动',
+        document.documentElement.scrollHeight > window.innerHeight + 2,
+        document.documentElement.scrollHeight + ' vs ' + window.innerHeight);
+    chk('★ 极小视口下守住 600px 下限', svr.height >= STAR_MIN_H, Math.round(svr.height));
   }
 
   section('K ★ 缩放控件可点');

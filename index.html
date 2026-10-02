@@ -916,8 +916,8 @@ body {
 .expl-deadline.dl-over { color:var(--text-muted); }
 .expl-deadline.dl-over b { background:var(--surface-3); color:var(--text-muted); }
 
-/* 星图缩放控件：固定在左下角，不随画布内容移动 */
-.star-zoom { position:absolute; left:14px; bottom:14px; display:flex; align-items:center; gap:6px;
+/* 星图缩放控件：固定在左上角（页面可滚动时底部会落到折线以下） */
+.star-zoom { position:absolute; left:14px; top:14px; display:flex; align-items:center; gap:6px;
   background:rgba(6,14,36,0.72); border:1px solid rgba(148,163,184,0.22);
   border-radius:8px; padding:5px 8px; z-index:20; backdrop-filter:blur(4px); }
 .star-zoom button {
@@ -3424,17 +3424,19 @@ function setTrackView(view) {
   renderTrack();
 }
 
-// 让星图区域正好填满"工具栏以下的视口高度"。
-// 原来 .star-view 写死 height:calc(100vh - 140px)，但顶部实际占 237px，
-// 于是星图底部会被切掉 ~100px（页面还得滚动才能看全），
-// 星图也就不是真正居中。改为按实际位置算，窗口变化时同样成立。
+// 让星图区域填满"工具栏以下的视口高度"，但至少留 STAR_MIN_H。
+// 原来 .star-view 写死 height:calc(100vh - 140px)，140 是过时值（顶部实际约 237px），
+// 于是星图底部被切掉 ~100px。改为按实际位置算。
+// 同时保留一个下限：窗口很矮时不再硬压扁画布（岗位一多就挤成一团），
+// 而是让页面可以上下滚动——滚动的空间换来了星图的绘制空间。
+const STAR_MIN_H = 600;
 function fitStarViewHeight() {
   const sv = document.getElementById('starView');
   if (!sv || !sv.classList.contains('active')) return;
   const docTop = sv.getBoundingClientRect().top + window.scrollY;
-  const h = Math.max(360, Math.round(window.innerHeight - docTop));
+  const h = Math.max(STAR_MIN_H, Math.round(window.innerHeight - docTop));
   sv.style.height = h + 'px';
-  sv.style.minHeight = '360px';   // 覆盖 CSS 的 600px，短窗口下才不会又被撑到视口外
+  sv.style.minHeight = STAR_MIN_H + 'px';
 }
 
 // 按投递日期由新到旧（YYYY-MM-DD 字符串直接比较；无日期排最后）
@@ -4229,6 +4231,15 @@ let starSelectedClusters = null;
 // 缩放接口：renderStarMap 每次渲染时重建，供页面上的缩放按钮调用。
 // 星图**只缩放不平移**，所以这里没有任何 pan 相关的东西。
 let starZoomApi = null;
+// 缩放/平移状态放在模块级，跨次重渲染保留（否则窗口一改大小缩放就跳回 100%）。
+// panX/panY 只在**放大到装不下**时才有可能非 0，见 clampStarPan()：
+// 100%（刚好适配全图）时上限会被算成 0，于是星图被牢牢钉在正中、拖也拖不动。
+let starViewXform = { scale: 1, panX: 0, panY: 0 };
+// 星环椭圆的纵向压扁比例（ry = RING_RATIO * rx）。
+// 它同时决定"环半径上限"和"环间距够不够放星球"，所以必须只有一份。
+const RING_RATIO = 0.62;
+// 上一次渲染的标签统计：岗位多时靠它判断"标签是不是糊成一片"
+let starLabelStats = { drawn: 0, skipped: 0, truncated: 0, planets: 0 };
 // 窗口尺寸变化：星图的画布尺寸与圆环位置都是渲染时算好的一份快照，
 // 不重算就会拉伸/错位。之前完全没有 resize 处理，这里补上（防抖 150ms）。
 let _starResizeTimer = null;
@@ -4385,38 +4396,62 @@ function renderStarMap() {
   const cx = W * 0.5, cy = H * 0.5;
   const stageOrder = STATUSES.map(s => s.key);
   const activeStages = stageOrder.filter(k => stageJobs[k] && stageJobs[k].length > 0);
-  const maxR = Math.min(cx, cy, W - cx - 20, H - cy - 10) + 15;
   const spread = 28;
-  const gap = 26;
   const minInner = 70;
-  const usableMax = maxR - 20;
+  // 相邻环的**视觉**间距 = gap * RING_RATIO，必须容得下星球直径，
+  // 否则不同环上的球会叠在一起（原来 gap=26 → 纵向只有 16px，必然重叠）。
+  const gap = 46;
+  // 环是椭圆（纵向压扁到 RING_RATIO），纵向占位只有 0.62r ——
+  // 原来 maxR 按"圆"取 min(横向, 纵向)，严重低估了可用的横向半径，
+  // 结果整张星图只占画布中间一小块，星球全挤在一起。
+  // 这里把纵向限制换算成等效的横向半径再取最小。
+  // 纵向余量：只留星球半径即可 —— 靠"下半部分的星球把标签放到球上方"
+  // 让标签始终朝画布内侧排，不需要为标签预留空间（预留会让整张星图变小、反而更挤）。
+  const V_MARGIN = 24;
+  const maxRxFromHeight = (Math.min(cy, H - cy) - V_MARGIN) / RING_RATIO;
+  const maxRxFromWidth = Math.min(cx, W - cx) - 26;
+  const usableMax = Math.max(minInner + 60, Math.min(maxRxFromHeight, maxRxFromWidth));
   const ringInfos = activeStages.map((key, idx) => {
     const jobsArr = stageJobs[key];
     const cnt = jobsArr.length;
     const subRings = cnt > 18 ? 3 : (cnt > 9 ? 2 : 1);
-    return { key, idx, jobsArr, cnt, subRings,
-      halfWidth: ((subRings - 1) / 2) * spread,
-      subRingWidth: (subRings - 1) * spread };
+    return { key, idx, jobsArr, cnt, subRings, halfWidth: 0, subRingWidth: 0, r: 0 };
   });
-  const totalSpan = ringInfos.reduce((s, info) => s + info.subRingWidth, 0) + (ringInfos.length > 1 ? (ringInfos.length - 1) * gap : 0);
-  const available = Math.max(0, usableMax - minInner);
-  const gapActual = ringInfos.length > 1
-    ? gap + Math.max(0, (available - totalSpan) / (ringInfos.length - 1))
-    : gap;
-  let rCursor = usableMax;
-  if (ringInfos.length === 1) {
+  // 环间距 / 子环间距：把可用的半径跨度当**一份预算**按比例分给两者。
+  // 旧写法是"gap 放不下就压缩"，但子环间距 spread 不参与压缩 ——
+  // 岗位极多时会出现 gapActual 被压到 4、子环间距还是 28 的畸形布局。
+  // 另一个致命点：旧的压缩公式 minInner + (r - minInner) * k 在 r < minInner 时
+  // 会算出**负半径**，ctx.ellipse 收到负半径直接抛 IndexSizeError，
+  // 把整个动画循环打死（画布一片空白、星球完全不动）。这里从根上避免。
+  const nRings = ringInfos.length;
+  const spanTotal = Math.max(0, usableMax - minInner);          // 内外圈可用的半径跨度
+  const needGap = Math.max(0, nRings - 1) * gap;
+  const needSub = ringInfos.reduce((s, i) => s + (i.subRings - 1) * spread, 0);
+  const budget = needGap + needSub;
+  const k = budget > 0 ? Math.min(1, spanTotal / budget) : 1;
+  const gapActual = nRings > 1 ? Math.max(3, gap * k) : gap;
+  const spreadActual = Math.max(5, spread * k);
+  ringInfos.forEach(info => {
+    info.halfWidth = ((info.subRings - 1) / 2) * spreadActual;
+    info.subRingWidth = (info.subRings - 1) * spreadActual;
+  });
+  if (nRings === 1) {
     // 单轨道时居中放置，避免贴边
-    ringInfos[0].r = minInner + (usableMax - minInner) * 0.62;
+    ringInfos[0].r = minInner + spanTotal * 0.62;
   } else {
+    let rCursor = usableMax;
     ringInfos.forEach((info, i) => {
       info.r = rCursor - info.halfWidth;
-      rCursor -= info.subRingWidth + (i === ringInfos.length - 1 ? 0 : gapActual);
+      rCursor -= info.subRingWidth + (i === nRings - 1 ? 0 : gapActual);
     });
   }
-  if (rCursor < minInner) {
-    const scale = (usableMax - minInner) / (usableMax - rCursor);
-    ringInfos.forEach(info => { info.r = minInner + (info.r - minInner) * scale; });
-  }
+  // 兜底：任何情况下都不允许出现非正的半径（宁可挤在一起，也不能让渲染循环崩掉）
+  ringInfos.forEach(info => { if (!(info.r > 1)) info.r = minInner; });
+  // 相邻环的"视觉"间距：椭圆纵向压扁后只剩 gapActual * RING_RATIO。
+  // 星球尺寸必须同时服从**同环间距**和**跨环间距**，否则相邻两环的球会叠在一起
+  // （环数多、画布小时 gapActual 会被压得很小，这时只能把球缩小）。
+  const crossGapVisual = gapActual * RING_RATIO;
+  const sizeCapByRingGap = Math.max(3.5, crossGapVisual * 0.45);
 
   // --- Build stars with cluster support ---
   starClusterMap = {};
@@ -4433,20 +4468,27 @@ function renderStarMap() {
     const groups = Array.from({ length: subRings }, () => []);
     jobsArr.forEach((j, ji) => groups[ji % subRings].push(j));
     groups.forEach((group, gi) => {
-      const ringR = r + (gi - (subRings - 1) / 2) * spread;
+      const ringR = r + (gi - (subRings - 1) / 2) * spreadActual;
       const n = group.length;
       // 每个环建一份弧长查表器：位置与公转都在弧长上推进，保证星球始终等距
-      const ringMap = makeEllipseArcMap(ringR, ringR * 0.62);
+      const ringMap = makeEllipseArcMap(ringR, ringR * RING_RATIO);
       const step = ringMap.S / n;
       const phaseArc = (orbitPhase + gi * (Math.PI / Math.max(n, 1))) / (Math.PI * 2) * ringMap.S;
       // 公转速度换成"弧长/毫秒"：同环共享同一速度，间距才不会被拉散。
       // 原本是角度速度，外环看起来更快；这里乘 ringR 保持相近的视觉速度。
       const arcSpeed = (0.00018 / Math.max(idx + 1, 1)) * ringR;
+      // 星球大小要同时服从三个约束：同环相邻间距（step）、跨环间距、以及
+      // 同阶段子环之间的间距（spread，岗位特别多时才用得上）。
+      // 岗位多的时候（例如 50 个）这是最明显的拥挤来源，所以按环自适应缩小。
+      const localGap = subRings > 1 ? Math.min(spreadActual, gapActual) : gapActual;
+      const sizeCapHere = Math.max(3.5, localGap * RING_RATIO * 0.45);
+      const baseSize = 12 + (cnt < 8 ? 6 : 0);
+      const ringSize = Math.max(3.5, Math.min(baseSize, step * 0.42, sizeCapHere));
       group.forEach((j, k) => {
         const baseArc = k * step + step * 0.5;   // 等分点（相邻间隔恒为 step）
         starStars.push({
           job: j, stage: key, color, cx, cy,
-          rx: ringR, ry: ringR * 0.62,
+          rx: ringR, ry: ringR * RING_RATIO,
           ringMap: ringMap,
           baseArc: baseArc,
           phaseArc: phaseArc,               // 整环的相位偏移（同样落在弧长上）
@@ -4454,7 +4496,7 @@ function renderStarMap() {
           arcSpeed: arcSpeed,
           // 创建时就反算出角度，保证"渲染完"与"第一帧"之间状态自洽
           angle: ringMap.angleAt(baseArc + phaseArc),
-          size: 12 + (cnt < 8 ? 6 : 0),
+          size: ringSize,
           screenX: 0, screenY: 0
         });
       });
@@ -4471,6 +4513,9 @@ function renderStarMap() {
 
   // --- Mouse ---
   let hoveredStars = [];
+  // 拖拽状态与 hoveredStars 一起声明（onclick 会用到 dragMoved，
+  // 放在后面声明虽然运行时不报错，但中间一旦抛异常就会变成 TDZ 陷阱）
+  let dragFrom = null, dragMoved = false;
   canvas.onmousemove = function(e) {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
@@ -4499,6 +4544,8 @@ function renderStarMap() {
     }
   };
   canvas.onclick = function() {
+    // 放大后拖动查看时，不要把"拖动"误当成"点选星球"
+    if (dragMoved) { dragMoved = false; return; }
     if (hoveredStars.length === 1) {
       openStarPanel(hoveredStars[0].job);
     } else if (hoveredStars.length > 1) {
@@ -4537,33 +4584,84 @@ function renderStarMap() {
     return '#' + rr + gg + bb;
   }
 
-  // --- 缩放（只有缩放，没有平移）---
-  // 星图**固定在画布中央**：拖拽不再移动它，缩放也以中心为锚点，
-  // 所以任何操作之后它都还在正中，不会跑到画布外面找不回来。
-  const zoom = { scale: 1 };
+  // --- 缩放 / 平移 ---
+  // 默认（100% 刚好适配全图）星图**钉在画布正中**：此时平移上限算出来是 0，
+  // 拖拽完全不动它 —— 满足"固定在中央不动"。
+  // 一旦放大到装不下，就允许拖动查看边缘（否则放大后只能看到最密的内环，
+  // 也就是使用者反馈"挤在一块看不清"的真正原因）。
+  const zoom = starViewXform;
   const ZOOM_MIN = 0.4, ZOOM_MAX = 4;
+  // 平移上限直接由**内容实际占用范围**推导（最外环 + 星球半径 + 标签余量）。
+  // usableMax 的选取保证了 scale=1 时 contentHalfX/Y 不超过画布一半，
+  // 于是 100% 时两个上限都算成 0 → 星图钉死在正中、拖不动；
+  // 只有放大到装不下，上限才变正，才允许拖动看边缘。
+  const maxRingRx = ringInfos.reduce((m, i) => Math.max(m, i.r + i.halfWidth), 0);
+  const contentHalfX = maxRingRx + 20;
+  const contentHalfY = maxRingRx * RING_RATIO + 22;
+  function panLimits() {
+    return {
+      x: Math.max(0, contentHalfX * zoom.scale - W / 2),
+      y: Math.max(0, contentHalfY * zoom.scale - H / 2)
+    };
+  }
+  function clampPan() {
+    const lim = panLimits();
+    zoom.panX = Math.max(-lim.x, Math.min(lim.x, zoom.panX));
+    zoom.panY = Math.max(-lim.y, Math.min(lim.y, zoom.panY));
+  }
+  function canPan() {
+    const lim = panLimits();
+    return lim.x > 0.5 || lim.y > 0.5;
+  }
   function setZoom(next) {
     zoom.scale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next));
+    clampPan();   // 缩回装得下时 pan 归零 → 自动回到正中
     if (zoomValEl) zoomValEl.textContent = Math.round(zoom.scale * 100) + '%';
+    canvas.style.cursor = canPan() ? 'grab' : 'default';
   }
   zoom.set = setZoom;
   zoom.get = function () { return { scale: zoom.scale, min: ZOOM_MIN, max: ZOOM_MAX }; };
-  canvas.style.cursor = 'default';
+  zoom.canPan = canPan;
+  zoom.panLimits = panLimits;
+  clampPan();
 
   canvas.addEventListener('wheel', function(e) {
     e.preventDefault();
+    // 以画布中心为锚点：不做"绕光标"的重算，避免缩放把星图推离中心
     setZoom(zoom.scale * (e.deltaY < 0 ? 1.15 : 0.87));
   }, { passive: false });
+
+  // 拖拽：只有在放大到装不下时才生效
+  canvas.addEventListener('mousedown', function(e) {
+    if (e.button !== 0 || !canPan()) return;
+    dragFrom = { x: e.clientX, y: e.clientY, px: zoom.panX, py: zoom.panY };
+    dragMoved = false;
+    canvas.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!dragFrom) return;
+    const dx = e.clientX - dragFrom.x, dy = e.clientY - dragFrom.y;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
+    zoom.panX = dragFrom.px + dx;
+    zoom.panY = dragFrom.py + dy;
+    clampPan();
+  });
+  window.addEventListener('mouseup', function() {
+    if (dragFrom) { dragFrom = null; canvas.style.cursor = canPan() ? 'grab' : 'default'; }
+  });
 
   // 供页面上的 ＋ / − / 复位 按钮调用（按钮就在这个 wrap 里）
   starZoomApi = {
     in: function () { setZoom(zoom.scale * 1.25); },
     out: function () { setZoom(zoom.scale / 1.25); },
-    reset: function () { setZoom(1); },
+    reset: function () { zoom.panX = 0; zoom.panY = 0; setZoom(1); },
     get: function () { return zoom.scale; },
+    canPan: canPan,
+    pan: function () { return { x: zoom.panX, y: zoom.panY }; },
+    panLimits: panLimits,
     min: ZOOM_MIN, max: ZOOM_MAX
   };
-  setZoom(1);
+  if (zoomValEl) zoomValEl.textContent = Math.round(zoom.scale * 100) + '%';
 
   // Use the drag-aware click handler
   let lastT = performance.now();
@@ -4581,12 +4679,16 @@ function renderStarMap() {
     });
 
     // Orbit rings - solid thin lines matching screenshot
-    const effCx = cx, effCy = cy;   // 星图固定居中，不做平移
+    // 默认 pan 为 0（钉在正中）；只有放大到装不下时才可能非 0
+    const effCx = cx + zoom.panX, effCy = cy + zoom.panY;
     activeStages.forEach((key, idx) => {
       const r = (ringInfos[idx] ? ringInfos[idx].r : 100) * zoom.scale;
+      // 保险：ctx.ellipse 收到非正半径会抛 IndexSizeError，
+      // 而 frame() 一旦抛错就再也不会自我调度 —— 整个星图变空白且永不恢复。
+      if (!(r > 0.5)) return;
       const col = STAGE_COLORS[key] || '#64748b';
       ctx.save(); ctx.beginPath();
-      ctx.ellipse(effCx, effCy, r, r * 0.62, 0, 0, Math.PI * 2);
+      ctx.ellipse(effCx, effCy, r, r * RING_RATIO, 0, 0, Math.PI * 2);
       ctx.strokeStyle = col;
       ctx.globalAlpha = 0.18; ctx.lineWidth = 1.2; ctx.stroke();
       ctx.restore();
@@ -4598,8 +4700,8 @@ function renderStarMap() {
     starStars.forEach(st => {
       st.arcAdvance += st.arcSpeed * dt;
       st.angle = st.ringMap.angleAt(st.baseArc + st.phaseArc + st.arcAdvance);
-      st.screenX = st.cx + st.rx * zoom.scale * Math.cos(st.angle);
-      st.screenY = st.cy + st.ry * zoom.scale * Math.sin(st.angle);
+      st.screenX = st.cx + zoom.panX + st.rx * zoom.scale * Math.cos(st.angle);
+      st.screenY = st.cy + zoom.panY + st.ry * zoom.scale * Math.sin(st.angle);
     });
 
     // Cluster detection: group stars within threshold
@@ -4672,6 +4774,7 @@ function renderStarMap() {
     // Draw non-clustered stars with collision-free labels
     const nclFontSz = Math.max(8, 10 * Math.min(zoom.scale, 2.5));
     const labelItems = [];
+    const planetRects = [];   // 星球占位：标签不允许压在球上
     starStars.forEach(st => {
       const inAnyCluster = Object.values(starClusterMap).some(c => c.ids.includes(st.job.id));
       if (inAnyCluster) return; // cluster stars drawn above (collapsed proxy or expanded)
@@ -4681,28 +4784,81 @@ function renderStarMap() {
       ctx.beginPath(); ctx.arc(st.screenX, st.screenY, sz*2.5, 0, Math.PI*2);
       ctx.fillStyle = glow; ctx.fill();
       draw3DSphere(ctx, st.screenX, st.screenY, sz, st.color, '#f8fafc');
-      labelItems.push({ text: st.job.company, x: st.screenX, y: st.screenY + sz + 14 * zoom.scale, fontSz: nclFontSz });
+      const br = sz * 1.05;
+      const ownIdx = planetRects.length;
+      planetRects.push({ x: st.screenX - br, y: st.screenY - br, w: br * 2, h: br * 2 });
+      // 标签给上下两个候选位置：默认放球的下方，球在下半部分时改放上方
+      // （朝画布内侧排，不会被边缘切掉）；下面排不下时再试另一个。
+      const labelBelow = st.screenY <= effCy + st.ry * 0.55;
+      const yBelow = st.screenY + sz + 13 * zoom.scale;
+      const yAbove = st.screenY - sz - 5 * zoom.scale;
+      labelItems.push({ text: st.job.company, x: st.screenX,
+        y: labelBelow ? yBelow : yAbove,
+        yAlt: labelBelow ? yAbove : yBelow,
+        star: st, jobId: st.job.id, ownIdx: ownIdx });
     });
-    // greedy collision avoidance: draw labels top-first, skip overlapped ones
+
+    // 标签避让：优先级 = 被悬停/被选中 > 外环（外环更空）。
+    // 原来只按 y 排序，且只检查标签之间是否重叠，不检查有没有压住星球，
+    // 所以岗位一多就糊成一片。现在星球也算障碍物，并且长公司名会截断。
+    const hoveredIds = new Set(hoveredStars.map(s => s.job.id));
+    const labelPriority = it => (hoveredIds.has(it.jobId) ? 2 : 0) + (it.jobId === starDetailJobId ? 1 : 0);
+    labelItems.sort((a, b) => {
+      const pa = labelPriority(a), pb = labelPriority(b);
+      if (pa !== pb) return pb - pa;
+      return b.star.rx - a.star.rx;
+    });
+
     ctx.font = '500 ' + nclFontSz + 'px system-ui, sans-serif';
     ctx.fillStyle = '#cbd5e1';
     ctx.textAlign = 'center';
+    // 单个标签的最大宽度：名字太长会横跨半个屏幕，截断后用 tooltip / 右侧面板看全名
+    const maxLabelW = Math.max(88, Math.min(180, W * 0.15));
+    const fitLabel = t => {
+      if (ctx.measureText(t).width <= maxLabelW) return t;
+      let s = t;
+      while (s.length > 1 && ctx.measureText(s + '…').width > maxLabelW) s = s.slice(0, -1);
+      return s + '…';
+    };
+    const hits = (rect, list) => list.some(r =>
+      rect.x < r.x + r.w && rect.x + rect.w > r.x && rect.y < r.y + r.h && rect.y + rect.h > r.y);
+    // 标签就在自己星球的正下方，所以"自己那颗球"必须从障碍里排除，
+    // 否则每个标签都会被自己的星球挡掉（第一版就是这么写的，结果是 0 个标签能显示）。
+    const blocked = (rect, ownIdx) => {
+      for (let i = 0; i < planetRects.length; i++) {
+        if (i !== ownIdx && hits(rect, [planetRects[i]])) return true;
+      }
+      return hits(rect, labelRects);
+    };
+
+    // 星球占位先占住，标签再往下排
     const labelRects = [];
-    labelItems.sort((a, b) => a.y - b.y);
+    // rects 也留着：这是验证"标签有没有互相压/越界"的唯一客观依据
+    starLabelStats = { drawn: 0, skipped: 0, truncated: 0, planets: planetRects.length, rects: labelRects };
+    ctx.save();
+    ctx.shadowColor = 'rgba(2,6,23,0.95)';
+    ctx.shadowBlur = 4;
     for (const item of labelItems) {
-      const tw = ctx.measureText(item.text).width;
-      const rect = { x: item.x - tw / 2 - 2, y: item.y - nclFontSz, w: tw + 4, h: nclFontSz + 2 };
-      let overlap = false;
-      for (const r of labelRects) {
-        if (rect.x < r.x + r.w && rect.x + rect.w > r.x && rect.y < r.y + r.h && rect.y + rect.h > r.y) {
-          overlap = true; break;
-        }
+      const text = fitLabel(item.text);
+      if (text !== item.text) starLabelStats.truncated++;
+      const tw = ctx.measureText(text).width;
+      const w = tw + 4, h = nclFontSz + 3;
+      const rectAt = y => ({ x: item.x - tw / 2 - 2, y: y - nclFontSz, w: w, h: h });
+      const inside = r => r.x >= -1 && r.x + r.w <= W + 1 && r.y >= -1 && r.y + r.h <= H + 1;
+      const forced = labelPriority(item) > 0;   // 悬停/选中的一定显示
+      // 两个候选位置依次试：装得下且不撞星球/不撞已放标签的那一个
+      let rect = null;
+      for (const y of [item.y, item.yAlt]) {
+        const r = rectAt(y);
+        if (!inside(r)) continue;
+        if (forced || !blocked(r, item.ownIdx)) { rect = r; break; }
       }
-      if (!overlap) {
-        labelRects.push(rect);
-        ctx.fillText(item.text, item.x, item.y);
-      }
+      if (!rect) { starLabelStats.skipped++; continue; }
+      labelRects.push(rect);
+      starLabelStats.drawn++;
+      ctx.fillText(text, item.x, rect.y + nclFontSz);
     }
+    ctx.restore();
 
     // Pulsing core
     const pulse = 1 + 0.06 * Math.sin(now * 0.0022);
