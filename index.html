@@ -489,7 +489,10 @@ body {
 .tab-btn.active .tab-count { background:rgba(123,97,255,0.18); color:#C9BDFF; }
 
 /* ═══════ Star View ═══════ */
-.star-view { width:100%; height:calc(100vh - 140px); min-height:600px;
+/* 高度只是 JS 生效前的兜底：真实值由 fitStarViewHeight() 按
+   "视口高 − 星图顶部偏移"算出来。原先写死 calc(100vh - 140px)（140 是过时值，
+   顶部实际约 237px），会让星图底部被切掉约 100px 并且页面被迫滚动。 */
+.star-view { width:100%; height:70vh; min-height:0;
   display:none; overflow:hidden; user-select:none; border-top:1px solid var(--border); }
 .star-view.active { display:flex; }
 .star-back-btn { display:none; }
