@@ -77,6 +77,7 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
 | `.probe-internship.js` | 实习岗清理：只按批次判定（不碰职位名）、提前批不误删、开关、落盘 |
 | `.probe-internship2.js` | 真实数据下实习岗清零、提前批与秋招保留、落盘一致、二次同步不重复清理 |
 | `.probe-starring.js` | 星图等距：弧长查表器、**任意相位下都等弧长**、渲染与公转后仍等距、拆子环 |
+| `.probe-backup.js` | 备份/恢复全链路：导出含全部 7 类数据、走真实 importData 的往返、合并语义、旧版与损坏文件 |
 | `.probe-starzoom.js` | 星图固定居中 + 缩放：100% 拖不动、放大后可拖动、上下限、视口自适应高度 |
 | `.probe-starcrowd.js` | 星图拥挤度：星球零重叠、标签零重叠零越界、平移夹取、**渲染循环必须活着**、200 岗位压力 |
 | `.layoutverify.js` | 真实视口（1600x950/1440x900/1280x800）下星图布局与居中校验，非探针，需 CDP 起浏览器 |
@@ -135,6 +136,13 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
   用滚动的空间换星图的绘制空间。
 - 星图缩放比例/平移量存在模块级的 `starViewXform` 里，跨次重渲染保留
   （否则窗口一改大小缩放就跳回 100%）。
+- `lsGet` 解压后**不能直接 JSON.parse 就当失败**：`lsSet` 对字符串是原样压缩的
+  （投递总结就是纯文本），解析失败时要返回解压出来的原文。
+  写回 JSON.parse 会让"纯文本值永远读不回来"——数据在存储里、读出来却是 null。
+- **增量数据要同步加进 `buildBackup()` / `importData()`**。目前打包 7 类：
+  jobs / jobList / reviews / resume / summary / triage / reminder。
+  新加一类持久化数据（新的 localStorage key）时必须一并加进去，否则
+  "导出 → 换环境 → 导入"会静默丢数据（`.probe-backup.js` 会守住这条）。
 - 星图星球的位置与公转**必须沿弧长推进，不能按角度推进**（`makeEllipseArcMap` 提供弧长↔角度换算）。
   椭圆不是旋转对称的：在角度上加减会破坏"等弧长"，星球间距立刻变得疏密不均
   （实测 a=68.4,b=42.4,n=7 时 phase=0 → max/min=1.000，phase=1.0 → 1.868）。

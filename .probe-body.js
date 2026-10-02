@@ -114,7 +114,9 @@ chk('无遗留 onclick 属性(全局)', document.querySelectorAll('[onclick]').l
 section('H 完整备份结构');
 var b = buildBackup();
 chk('备份含 format 标记', b.format === 'qiuzhao-platform-backup', b.format);
-chk('备份版本为 2', b.version === 2, b.version);
+chk('备份版本为 3（v3 起含 triage / reminder）', b.version === 3, b.version);
+chk('★ 备份含 triage（关注/忽略）', !!b.triage && typeof b.triage === 'object');
+chk('★ 备份含 reminder（提醒设置）', !!b.reminder && typeof b.reminder === 'object');
 chk('备份含 jobs', Array.isArray(b.jobs) && b.jobs.length === 2, b.jobs && b.jobs.length);
 chk('备份含 jobList', Array.isArray(b.jobList));
 chk('备份含 reviews', Array.isArray(b.reviews));

@@ -1415,7 +1415,11 @@ function lsGet(key) {
   try {
     var dec = LZString.decompressFromUTF16(r);
     if (dec === null || dec === undefined || dec === '') return null;
-    return JSON.parse(dec);
+    // 解压结果**不一定是 JSON**：lsSet 对字符串是原样压缩的（例如「投递总结」的纯文本）。
+    // 以前这里直接 JSON.parse，纯文本会抛错 → 整个读取返回 null，
+    // 数据明明一直在存储里却读不回来，表现为"总结保存后一刷新就空了"。
+    // 所以解析失败时把解压出来的原文返回，而不是丢掉。
+    try { return JSON.parse(dec); } catch (e2) { return dec; }
   } catch (e) { return null; }
 }
 </script>
@@ -3827,7 +3831,7 @@ function closeDetail() { document.getElementById('detailModal').style.display = 
 // ==================== 导入/导出 ====================
 // 导出完整数据包：旧版只导 jobs，导致复盘（含附件 base64）和简历无法备份，这里补齐
 const EXPORT_FORMAT = 'qiuzhao-platform-backup';
-const EXPORT_VERSION = 2;
+const EXPORT_VERSION = 3;   // 3: 备份加入 triage / reminder
 function buildBackup() {
   return {
     format: EXPORT_FORMAT,
@@ -3838,6 +3842,11 @@ function buildBackup() {
     reviews: reviews,
     resume: loadResumeData(),
     summary: lsGet(STORAGE_SUMMARY) || '',
+    // 分诊（关注/忽略）与提醒设置也是"我的数据"：
+    // 换浏览器、换设备（例如在 DSH 的侧边栏浏览器里打开）时，
+    // 少了两者会让关注标记和提醒偏好（含自动清理开关）全部回到默认值。
+    triage: triage,
+    reminder: { settings: reminderSettings, snoozed: todoSnoozed },
   };
 }
 function exportData() {
@@ -3877,8 +3886,10 @@ function importData() {
       const inReviews = Array.isArray(backup.reviews) ? backup.reviews.map(sanitizeReview).filter(Boolean) : [];
       const inSummary = typeof backup.summary === 'string' ? backup.summary : '';
       const inResume = (backup.resume && typeof backup.resume === 'object') ? backup.resume : null;
+      const inTriage = (backup.triage && typeof backup.triage === 'object') ? backup.triage : null;
+      const inReminder = (backup.reminder && typeof backup.reminder === 'object') ? backup.reminder : null;
 
-      if (!inJobs.length && !inJobList.length && !inReviews.length && !inResume && !inSummary) {
+      if (!inJobs.length && !inJobList.length && !inReviews.length && !inResume && !inSummary && !inTriage && !inReminder) {
         toast('备份文件里没有可导入的数据');
         return;
       }
@@ -3889,6 +3900,8 @@ function importData() {
       if (inReviews.length) parts.push(`${inReviews.length} 条复盘`);
       if (inResume) parts.push('简历');
       if (inSummary) parts.push('总结');
+      if (inTriage) parts.push('关注/忽略标记');
+      if (inReminder) parts.push('提醒设置');
       if (!window.confirm(`即将导入：${parts.join(' / ')}。\n\n同 id 的记录会按更新时间取较新的一份，不会删除你现有的其他数据。\n\n确定继续吗？`)) return;
 
       let added = 0;
@@ -3898,7 +3911,37 @@ function importData() {
       if (inSummary) { lsSet(STORAGE_SUMMARY, inSummary); const el=document.getElementById('summaryText'); if (el) el.value = inSummary; }
       if (inResume) { saveResumeData(inResume); renderResume(); }
 
+      // 分诊：并集合并（只加不减），与"不会删除你现有的其他数据"一致。
+      // 键是 q:<远程id> / i:<本地id>，在两次同步之间保持稳定，所以能跨实例对齐。
+      let triageAdded = 0;
+      if (inTriage) {
+        const st = (inTriage.starred && typeof inTriage.starred === 'object') ? inTriage.starred : {};
+        const ig = (inTriage.ignored && typeof inTriage.ignored === 'object') ? inTriage.ignored : {};
+        Object.keys(st).forEach(k => { if (st[k] && !triage.starred[k]) { triage.starred[k] = true; triageAdded++; } });
+        Object.keys(ig).forEach(k => { if (ig[k] && !triage.ignored[k]) { triage.ignored[k] = true; triageAdded++; } });
+        if (triageAdded) saveTriage();
+      }
+
+      // 提醒设置：备份里的值覆盖当前值（迁移场景下这正是想要的），
+      // 缺失字段回落到默认值，所以旧备份也不会把设置弄坏。
+      let reminderApplied = false;
+      if (inReminder) {
+        const s = (inReminder.settings && typeof inReminder.settings === 'object') ? inReminder.settings : null;
+        if (s) { reminderSettings = Object.assign({}, REMINDER_DEFAULT, s); reminderApplied = true; }
+        const sn = (inReminder.snoozed && typeof inReminder.snoozed === 'object') ? inReminder.snoozed : null;
+        if (sn) { todoSnoozed = sn; reminderApplied = true; }
+        if (reminderApplied) saveReminderSettings();
+      }
+
       renderExplore(); renderTrack(); renderReviews();
+      updateFilterOptions();
+      renderTodos();
+      // 清理规则可能被导入的设置改写，按新规则跑一次（关掉时不会删任何东西）
+      const prunedOnImport = pruneJobList();
+      if (panelVisible('sectionExplore')) renderExplore();
+      if (triageAdded) toast(`已合并 ${triageAdded} 条关注/忽略标记`);
+      if (reminderApplied) toast('提醒设置已随备份恢复');
+      if (prunedOnImport.total > 0) toast('已按恢复的清理规则处理 ' + pruneSummaryText(prunedOnImport));
       toast(`导入完成：新增 ${added} 条记录`);
     };
     reader.readAsText(file);
