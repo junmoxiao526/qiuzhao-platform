@@ -1149,7 +1149,7 @@ body {
 <div class="modal-overlay" id="reminderModal" style="display:none;">
   <div class="modal" style="max-width:520px;">
     <div class="modal-header">
-      <h3>🔔 今日待办与提醒</h3>
+      <h3>⚙️ 设置：提醒与自动清理</h3>
       <button class="modal-close" onclick="closeReminderSettings()">×</button>
     </div>
     <div class="modal-body">
@@ -1181,6 +1181,23 @@ body {
         待办项来自你已经填过的日期：投递截止、测评截止、AI 面截止、面试日期，以及复盘里写的「下一步」。
         已挂 / 已拒绝 / 已 Offer 的记录不再提醒。
       </div>
+
+      <div style="border-top:1px solid var(--border);margin:6px 0 2px;"></div>
+      <div style="font-weight:700;font-size:13px;color:var(--text);">🧹 岗位清单自动清理</div>
+      <div class="hint" style="margin-top:-2px;">
+        这两项会在<b>打开页面时</b>和<b>每次同步后</b>执行。注意：清理不可逆 ——
+        本地删除后，滑出抓取窗口的岗位不会再同步回来。
+      </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="remCleanExpired">
+        <label for="remCleanExpired" style="margin:0;">自动清理<b>已截止</b>的岗位</label>
+      </div>
+      <div class="hint" style="margin-top:-6px;">只清严格早于今天的；<b>今天截止的会保留</b>。没有截止日期或日期不合法的也不动。</div>
+      <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="remCleanInternship">
+        <label for="remCleanInternship" style="margin:0;">自动清理<b>批次含「实习」</b>的岗位</label>
+      </div>
+      <div class="hint" style="margin-top:-6px;">例如「日常实习」「27届实习」。只按批次字段判断，不碰职位名；「提前批」不含"实习"二字，不受影响。</div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline btn-sm" onclick="closeReminderSettings()">取消</button>
@@ -1671,6 +1688,9 @@ const REMINDER_DEFAULT = {
   showJobList: false,     // 是否把"清单里临近截止的岗位"也计入待办
   followUpDays: 14,       // 投递后多少天没进展就提醒跟进
   notifyStamp: '',        // 上次通知的日期，用于每天只提醒一次
+  // 岗位清单自动清理（破坏性，所以给开关；默认开启）
+  autoCleanExpired: true,      // 清掉已截止的
+  autoCleanInternship: true,   // 清掉批次含「实习」的
 };
 
 let reminderSettings = Object.assign({}, REMINDER_DEFAULT);
@@ -1911,6 +1931,8 @@ function openReminderSettings() {
   document.getElementById('remFollowUpDays').value = String(reminderSettings.followUpDays);
   document.getElementById('remNotify').checked = !!reminderSettings.notify;
   document.getElementById('remShowJobs').checked = !!reminderSettings.showJobList;
+  document.getElementById('remCleanExpired').checked = reminderSettings.autoCleanExpired !== false;
+  document.getElementById('remCleanInternship').checked = reminderSettings.autoCleanInternship !== false;
   updateNotifyHint();
   m.style.display = 'flex';
 }
@@ -1935,6 +1957,12 @@ async function saveReminderSettingsFromForm() {
   const fud = parseInt(document.getElementById('remFollowUpDays').value, 10);
   reminderSettings.followUpDays = isNaN(fud) ? 14 : Math.max(1, Math.min(120, fud));
   reminderSettings.showJobList = document.getElementById('remShowJobs').checked;
+  const cleanExpired = document.getElementById('remCleanExpired').checked;
+  const cleanInternship = document.getElementById('remCleanInternship').checked;
+  const wasExpired = reminderSettings.autoCleanExpired !== false;
+  const wasInternship = reminderSettings.autoCleanInternship !== false;
+  reminderSettings.autoCleanExpired = cleanExpired;
+  reminderSettings.autoCleanInternship = cleanInternship;
   // 只有真能拿到权限，才把 notify 落成 true，避免界面显示"已开启"却永远收不到
   if (wantNotify) {
     const ok = await requestNotifyPermission();
@@ -1946,7 +1974,16 @@ async function saveReminderSettingsFromForm() {
   saveReminderSettings();
   closeReminderSettings();
   renderTodos();
-  toast('提醒设置已保存');
+  // 刚把某项清理打开时，立即执行一次，不用等到下次同步
+  const turnedOn = (cleanExpired && !wasExpired) || (cleanInternship && !wasInternship);
+  if (turnedOn) {
+    const r = pruneJobList();
+    if (panelVisible('sectionExplore')) renderExplore();
+    updateFilterOptions();
+    toast(r.total > 0 ? '已按新规则清理 ' + pruneSummaryText(r) : '设置已保存');
+  } else {
+    toast('设置已保存');
+  }
 }
 
 // 把待办折叠状态记在内存即可（刷新后默认展开，避免"看不到提醒"）
@@ -2782,24 +2819,59 @@ function deadlineBucketOf(j) {
 // 把缓存清掉（清单被整体替换 / 同步之后调用，避免拿到旧的判定）
 function resetDeadlineBucketCache() { _dlBucketCache = { day: '', map: null }; }
 
-// ==================== 已截止岗位自动清理 ====================
-// 岗位清单是「可投递机会」的池子，过了截止日期就投不了了，留着只会干扰浏览
-// （实测 4062 条里有 30 条已截止，排在前面挡住真正还能投的）。
+// ==================== 岗位清单自动清理 ====================
+// 岗位清单是「可投递机会」的池子，两类内容会持续积累成噪声：
+//   ① 已截止 —— 过了截止日期就投不了了
+//   ② 实习   —— 与秋招正式岗混在一起，批次字段已经标明了（"日常实习" 92 条、"27届实习" 1 条）
+// 两者都在启动时与每次同步后各清理一次。
 //
-// 三条安全边界，宁可不删也不误删：
-//   1) 只删**严格早于今天**的（deadline < 今天）。今天截止的仍然有效，必须保留。
-//   2) 没有截止日期、或日期不合法的记录一律不动 —— 判断不了就不删。
-//   3) 复用 deadlineBucketOf 的判定（与截止日期列、筛选面板同一份口径），
-//      不会出现"表格说已截止、清理却不删"这种不一致。
-function pruneExpiredJobs() {
+// 安全边界（宁可不删也不误删）：
+//   ① 已截止：只删**严格早于今天**的。**今天截止的仍然有效，必须保留**。
+//      没有截止日期、或日期不合法的记录一律不动。
+//      判定复用 deadlineBucketOf，与截止日期列、筛选面板同一份口径。
+//   ② 实习：**只按「批次」字段匹配，不碰职位名**。实测"批次为空但职位名含实习"的有 0 条，
+//      而按职位名匹配会误伤正文里提到实习的正式岗。
+//      "提前批"不含"实习"二字，因此不会被误删。
+
+// 通用的按条件清理：返回删除条数
+function pruneJobsBy(predicate) {
   const before = jobList.length;
-  jobList = jobList.filter(j => deadlineBucketOf(j) !== 'overdue');
+  jobList = jobList.filter(j => !predicate(j));
   const removed = before - jobList.length;
   if (removed > 0) {
     resetDeadlineBucketCache();   // 缓存里还挂着被删掉的对象
     saveJobList();
   }
   return removed;
+}
+
+function pruneExpiredJobs() {
+  return pruneJobsBy(j => deadlineBucketOf(j) === 'overdue');
+}
+
+// 批次里带「实习」二字即视为实习岗（日常实习 / 暑期实习 / 寒假实习 / 27届实习 …）
+function isInternshipJob(j) {
+  return String((j && j.batch) || '').indexOf('实习') !== -1;
+}
+function pruneInternshipJobs() {
+  return pruneJobsBy(isInternshipJob);
+}
+
+// 一次跑完所有清理规则，受「设置」里的开关控制
+function pruneJobList() {
+  const out = { expired: 0, internship: 0, total: 0 };
+  if (reminderSettings.autoCleanExpired !== false) out.expired = pruneExpiredJobs();
+  if (reminderSettings.autoCleanInternship !== false) out.internship = pruneInternshipJobs();
+  out.total = out.expired + out.internship;
+  return out;
+}
+
+// 把清理结果拼成一句人话（用于提示与同步结果）
+function pruneSummaryText(r) {
+  const parts = [];
+  if (r.expired > 0) parts.push(r.expired + ' 个已截止');
+  if (r.internship > 0) parts.push(r.internship + ' 个实习岗位');
+  return parts.join('、');
 }
 
 function tagClass(t) {
@@ -4079,9 +4151,9 @@ async function syncQiuzhiFangzhou() {
     const _keptCos = [...new Set(jobList.slice(_beforeCount).map(j => j.company).filter(Boolean))];
     newCos.length = 0;
     _keptCos.forEach(c => newCos.push(c));
-    // 同步后顺手清掉已截止的（本次新抓到的数据里也可能有已过期的）
-    const expiredCount = pruneExpiredJobs();
-    if (expiredCount > 0) console.log('已清理 ' + expiredCount + ' 条已截止岗位');
+    // 同步后顺手清理（本次新抓的数据里也会有已截止的、以及实习岗）
+    const pruned = pruneJobList();
+    if (pruned.total > 0) console.log('已自动清理：' + pruneSummaryText(pruned));
     saveJobList();
     renderExplore();
 
@@ -4090,7 +4162,7 @@ async function syncQiuzhiFangzhou() {
       <div style="flex:1;text-align:center;padding:12px;background:rgba(74,222,128,0.10);border-radius:8px;border:1px solid rgba(74,222,128,0.22)"><div style="font-size:24px;font-weight:700;color:var(--green)">${newCount}</div><div style="font-size:12px;color:var(--text-muted)">新增岗位</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:var(--surface-2);border-radius:8px;border:1px solid var(--border)"><div style="font-size:24px;font-weight:700;color:var(--text-muted)">${skipCount}</div><div style="font-size:12px;color:var(--text-muted)">已存在</div></div>
       <div style="flex:1;text-align:center;padding:12px;background:rgba(96,165,250,0.10);border-radius:8px;border:1px solid rgba(96,165,250,0.22)"><div style="font-size:24px;font-weight:700;color:var(--blue)">${data.length}</div><div style="font-size:12px;color:var(--text-muted)">远程总数</div></div>
-    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}　·　数据已存入本机浏览器，仅你自己可见${dupCount>0?`　·　已合并 ${dupCount} 条同公司同岗位的重复公告`:''}${expiredCount>0?`　·　已清理 ${expiredCount} 个已截止岗位`:''}</p>`;
+    </div><p style="color:var(--text-muted);font-size:12px;">上次同步: ${new Date(meta.lastSyncAt).toLocaleString('zh-CN')}　·　数据已存入本机浏览器，仅你自己可见${dupCount>0?`　·　已合并 ${dupCount} 条同公司同岗位的重复公告`:''}${pruned.total>0?`　·　已自动清理 ${pruneSummaryText(pruned)}`:''}</p>`;
 
     let listHtml = '';
     if (newCos.length>0) {
@@ -5151,13 +5223,14 @@ function initApp() {
   // 老版本会把这些都留下来，所以启动时补做一次；已经干净时开销可忽略。
   const _dupRemoved = dedupeJobList();
   if (_dupRemoved > 0) console.log('已合并 ' + _dupRemoved + ' 条重复岗位（同公司+岗位+批次）');
-  // 清理已截止的岗位（过了截止日期就投不了了）。
+  // 清理已截止的岗位 / 批次含「实习」的岗位。
   // 放在启动时做一次：老版本会把它们一直留着，越积越多。
-  const _expiredRemoved = pruneExpiredJobs();
-  if (_expiredRemoved > 0) {
-    console.log('已清理 ' + _expiredRemoved + ' 条已截止岗位');
-    // 首次清理时提示一下，避免使用者觉得岗位"莫名少了"
-    toast('已自动清理 ' + _expiredRemoved + ' 个已截止岗位');
+  const _pruned = pruneJobList();
+  if (_pruned.total > 0) {
+    const txt = pruneSummaryText(_pruned);
+    console.log('已自动清理：' + txt);
+    // 提示一下，避免使用者觉得岗位"莫名少了"
+    toast('已自动清理 ' + txt);
   }
   // 清理历史 StarJob 来源岗位（已停用 StarJob 同步）
   {

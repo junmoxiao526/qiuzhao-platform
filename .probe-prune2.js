@@ -1,4 +1,4 @@
-﻿return (async function () {
+return (async function () {
   var R=[]; function chk(n,c,e){ R.push((c?"PASS":"FAIL")+" :: "+n+(e!==undefined&&!c?" :: "+e:"")); }
   function section(t){ R.push('-- '+t+' --'); }
 
@@ -11,7 +11,7 @@
   var m=document.getElementById('syncResultModal'); if(m)m.style.display='none';
   var summary = (document.getElementById('syncSummary').textContent||'').replace(/\s+/g,' ');
   R.push('INFO :: 同步结果 = ' + summary.slice(0,200));
-  chk('★ 同步结果显示已清理', summary.indexOf('已清理') !== -1, summary.slice(-60));
+  chk('★ 同步结果显示已清理', summary.indexOf('已自动清理') !== -1, summary.slice(-60));
 
   var overAfter = 0; jobList.forEach(function(j){ if(deadlineBucketOf(j)==='overdue') overAfter++; });
   R.push('INFO :: 清理后 jobList=' + jobList.length + '，其中已截止 ' + overAfter);
