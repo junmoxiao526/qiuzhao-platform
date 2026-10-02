@@ -76,6 +76,7 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
 | `.probe-prune2.js` | 真实数据下清理生效、今天截止保留、面板与按钮同步、落盘一致 |
 | `.probe-internship.js` | 实习岗清理：只按批次判定（不碰职位名）、提前批不误删、开关、落盘 |
 | `.probe-internship2.js` | 真实数据下实习岗清零、提前批与秋招保留、落盘一致、二次同步不重复清理 |
+| `.probe-starring.js` | 星图等距：弧长查表器、**任意相位下都等弧长**、渲染与公转后仍等距、拆子环 |
 | `.probe-deadline.js` | 岗位清单「截止日期」列：紧急度分级、无截止占位、列位置、转义 |
 | `.probe-deadlinesort.js` | 「临近截止」排序：由近到远、无截止排最后、切换排序 |
 | `.probe-deadline2.js` | 截止列逐行核对（真实数据 60 行）+ 紧急度机制生效 |
@@ -109,6 +110,10 @@ node .cdp-run.js .probe-body.js http://127.0.0.1:8099/index.html
   两个入口都只渲染**当前可见**的面板，避免在岗位清单页重建看板/星图。
 - 岗位清单每行的 HTML 由 `exploreRowHtml(job)` 统一生成，全量渲染与局部更新共用。
 - 省份查询走 `CITY_TO_PROVINCE` 预建索引，不要再去遍历 `PROVINCE_MAP`。
+- 星图星球的位置与公转**必须沿弧长推进，不能按角度推进**（`makeEllipseArcMap` 提供弧长↔角度换算）。
+  椭圆不是旋转对称的：在角度上加减会破坏"等弧长"，星球间距立刻变得疏密不均
+  （实测 a=68.4,b=42.4,n=7 时 phase=0 → max/min=1.000，phase=1.0 → 1.868）。
+  同理，让星球"转起来"也要累加弧长再用查表器反算角度，而不是 `angle += speed*dt`。
 - **岗位清单会自动清理两类岗位**（`pruneJobList`，启动时与每次同步后各一次）：
   - `pruneExpiredJobs` —— 已截止。判定复用 `deadlineBucketOf` 的「已截止」档，
     边界是：只删**严格早于今天**的；**今天截止的必须保留**；没有截止日期或日期不合法的也不删。

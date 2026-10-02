@@ -4206,10 +4206,17 @@ const STAGE_COLORS = {
   'rejected':  '#6b7280'
 };
 
-/* 椭圆等弧长均匀角度：避免角度均匀导致椭圆上下两端聚集 */
-function ellipseAngles(a, b, n, phase) {
-  if (n <= 1) return [phase || 0];
-  const M = Math.max(n * 24, 400);
+/* 椭圆「弧长 → 角度」查表器。
+ *
+ * 为什么需要它：星球均匀分布，靠的是**等弧长**（视觉上间距相等），而不是等角度。
+ * 而椭圆不是旋转对称的 —— 在弧长参数上平移一点点，对应的角度变化是不均匀的。
+ * 所以「相位」和「随时间公转」都必须作用在**弧长**上；
+ * 一旦改成直接给角度加减，等弧长立刻被破坏：
+ *   实测 a=68.4,b=42.4,n=7 时，phase=0 → 间距 max/min = 1.000，
+ *   而 phase=1.0 → 1.868，应用里相位可达 2.8 弧度，实测渲染结果 2.19（肉眼可见疏密不均）。
+ */
+function makeEllipseArcMap(a, b, samples) {
+  const M = samples || 1440;
   const ts = new Array(M + 1), cum = new Array(M + 1);
   cum[0] = 0;
   for (let i = 0; i <= M; i++) {
@@ -4218,20 +4225,48 @@ function ellipseAngles(a, b, n, phase) {
     if (i > 0) {
       const dt = t - ts[i - 1];
       const mid = (t + ts[i - 1]) / 2;
-      const ds = Math.sqrt(a * a * Math.sin(mid) * Math.sin(mid) + b * b * Math.cos(mid) * Math.cos(mid)) * dt;
-      cum[i] = cum[i - 1] + ds;
+      cum[i] = cum[i - 1] + Math.sqrt(a * a * Math.sin(mid) * Math.sin(mid) + b * b * Math.cos(mid) * Math.cos(mid)) * dt;
     }
   }
   const S = cum[M];
-  const step = S / n;
-  const angles = new Array(n);
+  // 均匀弧长步长的反查表：等分 N 段，存每段起点对应的角度
+  const N = 1024;
+  const lut = new Float64Array(N + 1);
   let j = 0;
-  for (let k = 0; k < n; k++) {
-    const target = k * step + step * 0.5;
+  for (let i = 0; i <= N; i++) {
+    const target = (i / N) * S;
     while (j < M && cum[j + 1] < target) j++;
     const t0 = ts[j], t1 = ts[j + 1], c0 = cum[j], c1 = cum[j + 1];
-    const frac = (c1 - c0) > 1e-9 ? (target - c0) / (c1 - c0) : 0;
-    angles[k] = t0 + (t1 - t0) * frac + (phase || 0);
+    const frac = (c1 - c0) > 1e-12 ? (target - c0) / (c1 - c0) : 0;
+    lut[i] = t0 + (t1 - t0) * frac;
+  }
+  return {
+    S: S,
+    a: a, b: b,
+    // 弧长（任意实数，自动绕圈）→ 参数角 t
+    angleAt(arc) {
+      let x = arc % S;
+      if (x < 0) x += S;
+      const p = (x / S) * N;
+      const i = p >= N ? N - 1 : (p < 0 ? 0 : p | 0);
+      const f = p - i;
+      return lut[i] + (lut[i + 1] - lut[i]) * f;
+    }
+  };
+}
+
+/* 椭圆等弧长均匀角度：避免角度均匀导致椭圆上下两端聚集。
+ * phase 现在按**弧长偏移**处理（以前是直接加到角度上，会把等弧长破坏掉）。 */
+function ellipseAngles(a, b, n, phase) {
+  if (n <= 1) return [phase || 0];
+  const map = makeEllipseArcMap(a, b, Math.max(n * 48, 720));
+  const S = map.S;
+  const step = S / n;
+  // 相位是角度，换算成沿周长的弧长偏移
+  const offArc = ((phase || 0) / (Math.PI * 2)) * S;
+  const angles = new Array(n);
+  for (let k = 0; k < n; k++) {
+    angles[k] = map.angleAt(k * step + step * 0.5 + offArc);
   }
   return angles;
 }
@@ -4336,12 +4371,25 @@ function renderStarMap() {
     groups.forEach((group, gi) => {
       const ringR = r + (gi - (subRings - 1) / 2) * spread;
       const n = group.length;
-      const angles = ellipseAngles(ringR, ringR * 0.62, n, orbitPhase + gi * (Math.PI / Math.max(n, 1)));
+      // 每个环建一份弧长查表器：位置与公转都在弧长上推进，保证星球始终等距
+      const ringMap = makeEllipseArcMap(ringR, ringR * 0.62);
+      const step = ringMap.S / n;
+      const phaseArc = (orbitPhase + gi * (Math.PI / Math.max(n, 1))) / (Math.PI * 2) * ringMap.S;
+      // 公转速度换成"弧长/毫秒"：同环共享同一速度，间距才不会被拉散。
+      // 原本是角度速度，外环看起来更快；这里乘 ringR 保持相近的视觉速度。
+      const arcSpeed = (0.00018 / Math.max(idx + 1, 1)) * ringR;
       group.forEach((j, k) => {
+        const baseArc = k * step + step * 0.5;   // 等分点（相邻间隔恒为 step）
         starStars.push({
           job: j, stage: key, color, cx, cy,
-          rx: ringR, ry: ringR * 0.62, angle: angles[k],
-          speed: 0.00018 / Math.max(idx + 1, 1),
+          rx: ringR, ry: ringR * 0.62,
+          ringMap: ringMap,
+          baseArc: baseArc,
+          phaseArc: phaseArc,               // 整环的相位偏移（同样落在弧长上）
+          arcAdvance: 0,                    // 随时间累加的弧长
+          arcSpeed: arcSpeed,
+          // 创建时就反算出角度，保证"渲染完"与"第一帧"之间状态自洽
+          angle: ringMap.angleAt(baseArc + phaseArc),
           size: 12 + (cnt < 8 ? 6 : 0),
           screenX: 0, screenY: 0
         });
@@ -4491,8 +4539,11 @@ function renderStarMap() {
     });
 
     // Update star positions
+    // 沿**弧长**推进再反算角度：这样公转过程中相邻星球始终保持等距。
+    // 若改成 st.angle += speed*dt（按角度推进），椭圆上不等速的参数化会把间距拉散。
     starStars.forEach(st => {
-      st.angle += st.speed * dt;
+      st.arcAdvance += st.arcSpeed * dt;
+      st.angle = st.ringMap.angleAt(st.baseArc + st.phaseArc + st.arcAdvance);
       st.screenX = st.cx + zoom.panX + st.rx * zoom.scale * Math.cos(st.angle);
       st.screenY = st.cy + zoom.panY + st.ry * zoom.scale * Math.sin(st.angle);
     });
