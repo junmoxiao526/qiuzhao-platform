@@ -1493,17 +1493,25 @@ const STORAGE_JOBLIST = 'campus_job_list';
 const STORAGE_SUMMARY = 'campus_summary';
 const STORAGE_RESUME = 'campus_resume';
 const STORAGE_REVIEWS = 'campus_reviews';
+/* 复盘阶段的颜色也从 STATUSES.dot 派生 —— 这里原本是**第三套**配色
+ * （exam #8A4B16 深棕、hr #0891B2 青、offer #356447 墨绿），和统计卡片 / 星图又对不上：
+ * 同一个"终面"，复盘页是青、星图是品红。既然 key 基本重合，就不要再维护第二份色表。
+ * 只有「其他」是复盘独有的，保留一个专属中性色。
+ * 用途是 8px 小圆点，所以要亮色（不是 badge 那种做底色的深色）。 */
 const REVIEW_STAGES = [
-  { key:'applied',   label:'已投递', color:'#3b82f6' },
-  { key:'exam',      label:'笔试',   color:'#8A4B16' },
-  { key:'ai',        label:'AI面',   color:'#C026D3' },
-  { key:'interview1',label:'一面',   color:'#8B5CF6' },
-  { key:'interview2',label:'二面',   color:'#A78BFA' },
-  { key:'hr',        label:'终面',   color:'#0891B2' },
-  { key:'offer',     label:'Offer',  color:'#356447' },
-  { key:'failed',    label:'已挂',   color:'#B45309' },
-  { key:'other',     label:'其他',   color:'#64748b' },
-];
+  { key:'applied',   label:'已投递' },
+  { key:'exam',      label:'笔试'   },
+  { key:'ai',        label:'AI面'   },
+  { key:'interview1',label:'一面'   },
+  { key:'interview2',label:'二面'   },
+  { key:'hr',        label:'终面'   },
+  { key:'offer',     label:'Offer'  },
+  { key:'failed',    label:'已挂'   },
+  { key:'other',     label:'其他',   color:'#94A3B8' },
+].map(function (s) {
+  const base = STATUSES.find(function (x) { return x.key === s.key; });
+  return { key: s.key, label: s.label, color: s.color || (base ? base.dot : '#94A3B8') };
+});
 const QIUZHI_META_KEY = 'qiuzhi_sync_meta';
 const STORAGE_REMINDER = 'qiuzhao_reminder';   // 提醒设置（今日待办）
 const STORAGE_TRIAGE = 'qiuzhao_triage';       // 关注/忽略标记
