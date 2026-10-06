@@ -16,11 +16,14 @@ const PROBE = `(async function(){
   var ballColors={}; starStars.forEach(function(s){ ballColors[s.color]=(ballColors[s.color]||0)+1; });
   return JSON.stringify({
     statusDots: STATUSES.map(function(s){return s.key+'='+s.dot;}),
-    stageColors: STAGE_COLORS,
+    starVsCardMismatch: STATUSES.filter(function(s){return STAGE_COLORS[s.key]!==s.dot;}).map(function(s){return s.key;}),
+    reviewVsCardMismatch: (typeof REVIEW_STAGES!=='undefined'?REVIEW_STAGES:[]).filter(function(s){
+      var b=STATUSES.find(function(x){return x.key===s.key}); return b && b.dot!==s.color;
+    }).map(function(s){return s.key;}),
     legendExists: !!legend,
     legendItems: items,
     legendNote: legend?(legend.querySelector('.sl-note')||{}).textContent:null,
-    ballColorHistogram: ballColors,
+    ballColors: Object.keys(ballColors).sort(),
     labels: {drawn:starLabelStats.drawn, skipped:starLabelStats.skipped, truncated:starLabelStats.truncated}
   }, null, 1);
 })()`;
@@ -39,7 +42,9 @@ const PROBE = `(async function(){
   await send('Network.setCacheDisabled',{cacheDisabled:true},sessionId);   // ← 关键：绕开缓存
   await send('Emulation.setDeviceMetricsOverride',{width:W,height:H,deviceScaleFactor:1,mobile:false},sessionId);
   await send('Page.addScriptToEvaluateOnNewDocument',{source:'try{localStorage.clear();}catch(e){}'},sessionId);
-  await send('Page.navigate',{url:'http://127.0.0.1:8099/index.html?cb='+Date.now()},sessionId);
+  // 第 4 个参数可传别的 URL（例如线上 GitHub Pages）来验证已部署的产物
+  const base = process.argv[4] || 'http://127.0.0.1:8099/index.html';
+  await send('Page.navigate',{url:base+(base.includes('?')?'&':'?')+'cb='+Date.now()},sessionId);
   await new Promise(r=>setTimeout(r,3400));
   const r=await send('Runtime.evaluate',{expression:PROBE,returnByValue:true,awaitPromise:true},sessionId);
   if (r.exceptionDetails) console.log('页面异常:', JSON.stringify((r.exceptionDetails.exception||{}).description||r.exceptionDetails));
