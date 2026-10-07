@@ -4634,6 +4634,53 @@ function renderStarMap() {
   }
   // 兜底：任何情况下都不允许出现非正的半径（宁可挤在一起，也不能让渲染循环崩掉）
   ringInfos.forEach(info => { if (!(info.r > 1)) info.r = minInner; });
+
+  // ══════════ 太阳系布局 ══════════
+  // 用户设定：阶段从内到外 = 水星 → 冥王星；圆心是**太阳**（不画实体，只有光晕）。
+  // 环半径按**真实轨道半长轴**的比例定。
+  //
+  // 但真实距离跨度 0.387 → 39.48 AU（约 102 倍），直接按比例画的话
+  // 内圈四颗（水星/金星/地球/火星）会被挤在中心十几像素内，完全点不到。
+  // 所以做**幂律压缩** AU^0.42：保留太阳系"内圈密、木星处一次大跳、外圈疏"的特征，
+  // 再强制一个最小间距兜底，保证每个环都点得到。
+  const SOLAR = [
+    { key: 'mercury', name: '水星',   au: 0.387 },
+    { key: 'venus',   name: '金星',   au: 0.723 },
+    { key: 'earth',   name: '地球',   au: 1.000 },
+    { key: 'mars',    name: '火星',   au: 1.524 },
+    { key: 'jupiter', name: '木星',   au: 5.203 },
+    { key: 'saturn',  name: '土星',   au: 9.537 },
+    { key: 'uranus',  name: '天王星', au: 19.19 },
+    { key: 'neptune', name: '海王星', au: 30.07 },
+    { key: 'pluto',   name: '冥王星', au: 39.48 }
+  ];
+  // 阶段 → 行星 的查表（球体按行星建模时用）
+  const stagePlanet = {};
+  {
+    const P = 0.42;
+    const n = Math.min(ringInfos.length, SOLAR.length);
+    const raw = SOLAR.slice(0, n).map(p => Math.pow(p.au, P));
+    const c0 = raw[0], c1 = raw[raw.length - 1];
+    const span = Math.max(1, usableMax - minInner);
+    let rs = raw.map(c => minInner + span * (c - c0) / Math.max(1e-6, c1 - c0));
+    // 内圈在真实比例下太挤 → 强制最小间距（外圈的自然疏密保留）
+    const MIN_GAP_AU = 38;
+    for (let i = 1; i < rs.length; i++) rs[i] = Math.max(rs[i], rs[i - 1] + MIN_GAP_AU);
+    // 安全兜底：若最小间距把最外圈顶出可用范围，整体按比例收回
+    const lastR = rs[rs.length - 1];
+    if (lastR > usableMax) {
+      const k = (usableMax - minInner) / Math.max(1, lastR - minInner);
+      rs = rs.map(v => minInner + (v - minInner) * k);
+    }
+    rs = rs.map(v => Math.max(minInner, v));
+    ringInfos.forEach((info, i) => {
+      if (rs[i] !== undefined) info.r = rs[i];
+      info.planet = SOLAR[i] ? SOLAR[i].key : 'earth';
+      info.planetName = SOLAR[i] ? SOLAR[i].name : '地球';
+      info.au = SOLAR[i] ? SOLAR[i].au : 1;
+      stagePlanet[info.key] = info.planet;
+    });
+  }
   // 相邻环的"视觉"间距：椭圆纵向压扁后只剩 gapActual * RING_RATIO。
   // 星球尺寸必须同时服从**同环间距**和**跨环间距**，否则相邻两环的球会叠在一起
   // （环数多、画布小时 gapActual 会被压得很小，这时只能把球缩小）。
@@ -4774,11 +4821,15 @@ function renderStarMap() {
       puff(0, 0, rr, rr * RING_RATIO, '#8fb0ff', a * 0.5);
     }
 
-    // ── 1. 核球 ──
-    // 中心隆起：暖白、致密。真实星系核球在视觉上是一个"发光的实心球"。
-    puff(0, 0, galaxyMaxR * 0.34, galaxyMaxR * 0.34 * RING_RATIO, '#ffd9a0', 0.30);
-    puff(0, 0, galaxyMaxR * 0.20, galaxyMaxR * 0.20 * RING_RATIO, '#fff0cf', 0.42);
-    puff(0, 0, galaxyMaxR * 0.10, galaxyMaxR * 0.10 * RING_RATIO, '#fffaf0', 0.55);
+    // ── 1. 太阳（圆心）──
+    // 用户设定：最中心是太阳，**不用实体展示** —— 所以这里只铺暖橙金黄的光晕，
+    // 不画边界清晰的球体（没有硬边、没有明暗分界）。
+    // 大小受最内环半径约束，避免光晕吃到水星轨道上。
+    const sunR = Math.max(18, Math.min(58, minInner * 1.05));
+    puff(0, 0, sunR * 1.95, sunR * 1.95 * RING_RATIO, '#ff8a1e', 0.14);
+    puff(0, 0, sunR * 1.25, sunR * 1.25 * RING_RATIO, '#ffa93c', 0.26);
+    puff(0, 0, sunR * 0.70, sunR * 0.70 * RING_RATIO, '#ffcf72', 0.42);
+    puff(0, 0, sunR * 0.32, sunR * 0.32 * RING_RATIO, '#fff2cc', 0.60);
 
     // ── 2. 旋臂 ──
     // 关键改变：每支臂沿螺旋线走**密集采样点**，每点画一个**大光团**，
@@ -4931,106 +4982,219 @@ function renderStarMap() {
   // 所以按"阶段色"**缓存成精灵图**，每帧只 drawImage 一次。
   // 纹理本来就是静态的，没必要每帧重算。
   const planetSpriteCache = new Map();
-  const PLANET_SPRITE_SIZE = 96;
-  function getPlanetSprite(color) {
-    if (planetSpriteCache.has(color)) return planetSpriteCache.get(color);
+  const PLANET_SPRITE_SIZE = 128;
+  // ══════════ 八大行星建模参数 ══════════
+  // 用户设定：每家企业代表的球体按对应行星建模。辨识特征：
+  //   水星 灰 + 密集环形山 / 金星 淡黄厚云（平滑）/ 地球 蓝底绿棕大陆白云
+  //   火星 铁锈红 + 暗斑 + 白极冠 / 木星 棕黄横带 + 大红斑
+  //   土星 淡金横带 + 光环 / 天王星 淡青平滑 + 细环 / 海王星 深蓝 + 暗斑
+  //   冥王星 灰褐 + 亮斑
+  const PLANET_STYLES = {
+    mercury: { base: '#9c9188', dark: '#3f3a35', light: '#d6cdc2', bands: 0, craters: 16, caps: 0 },
+    venus:   { base: '#e6cd98', dark: '#b08e52', light: '#fff4d6', bands: 2, craters: 0,  caps: 0 },
+    earth:   { base: '#2f6fc4', dark: '#0f3268', light: '#9ed0ff', bands: 0, craters: 0,  caps: 2, land: true, clouds: true },
+    mars:    { base: '#c1502a', dark: '#63260f', light: '#ea9160', bands: 0, craters: 7,  caps: 2 },
+    jupiter: { base: '#d6ae80', dark: '#7d5836', light: '#f6e6cb', bands: 8, craters: 0,  caps: 0, spot: true },
+    saturn:  { base: '#e2cd9b', dark: '#a4854f', light: '#f9efd4', bands: 7, craters: 0,  caps: 0, ring: true },
+    uranus:  { base: '#8ed7de', dark: '#4a97a3', light: '#d2f2f6', bands: 3, craters: 0,  caps: 0, ring: true, ringFaint: true },
+    neptune: { base: '#3a63c6', dark: '#1a3273', light: '#84a6f0', bands: 3, craters: 0,  caps: 0, spotDark: true },
+    pluto:   { base: '#bcab95', dark: '#655a4c', light: '#e8dfcc', bands: 0, craters: 10, caps: 1 }
+  };
+  const GRAYS = ['#c9dcff', '#dce9ff', '#ffffff', '#fff6e6', '#ffdcae', '#ffc98a'];
+  function getPlanetSprite(key) {
+    if (planetSpriteCache.has(key)) return planetSpriteCache.get(key);
     const S = PLANET_SPRITE_SIZE;
     const cv = document.createElement('canvas');
     cv.width = S; cv.height = S;
     const p = cv.getContext('2d');
     const cx0 = S / 2, cy0 = S / 2;
-    const R = S * 0.30;                 // 球半径占 30%，留出外辉光空间
-    const lx = cx0 - R * 0.32, ly = cy0 - R * 0.36;
+    const st = PLANET_STYLES[key];
+    // 非行星键（传进来的是十六进制色）→ 当作一颗无特征的行星
+    const base = st ? st.base : (typeof key === 'string' && key[0] === '#' ? key : '#94a3b8');
+    const darkc = st ? st.dark : darkenColor(base, 0.62);
+    const lightc = st ? st.light : '#ffffff';
+    // 有光环的行星要留出更大余量（环直径约 2R）
+    const R = st && st.ring ? S * 0.215 : S * 0.30;
+    const lx = cx0 - R * 0.34, ly = cy0 - R * 0.38;
 
-    // ① 本体 + ② 临边变暗
+    // 确定性伪随机：同一行星每次纹理一致
+    let seed = 7;
+    for (let i = 0; i < String(key).length; i++) seed = (seed * 131 + String(key).charCodeAt(i)) & 0x7fffffff;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+    // ── 光环（画在球体后面）──
+    if (st && st.ring) {
+      const rr = R * (st.ringFaint ? 1.55 : 1.75);
+      const rw = R * (st.ringFaint ? 0.10 : 0.34);
+      p.save();
+      p.translate(cx0, cy0);
+      p.rotate(-0.42);                     // 环的倾角
+      p.scale(1, 0.30);                     // 压扁成椭圆
+      const rg = p.createRadialGradient(0, 0, rr - rw, 0, 0, rr + rw);
+      if (st.ringFaint) {
+        rg.addColorStop(0, 'rgba(180,230,240,0)');
+        rg.addColorStop(0.5, 'rgba(190,235,245,0.42)');
+        rg.addColorStop(1, 'rgba(180,230,240,0)');
+      } else {
+        rg.addColorStop(0, 'rgba(210,190,150,0)');
+        rg.addColorStop(0.35, 'rgba(226,206,164,0.60)');
+        rg.addColorStop(0.62, 'rgba(196,172,126,0.38)');
+        rg.addColorStop(0.85, 'rgba(226,206,164,0.30)');
+        rg.addColorStop(1, 'rgba(210,190,150,0)');
+      }
+      p.fillStyle = rg;
+      p.beginPath(); p.arc(0, 0, rr + rw, 0, Math.PI * 2); p.fill();
+      p.restore();
+    }
+
+    // ── 本体 + 临边变暗 ──
     const body = p.createRadialGradient(lx, ly, R * 0.03, lx, ly, R * 1.5);
-    body.addColorStop(0.00, '#ffffff');
-    body.addColorStop(0.22, color);
-    body.addColorStop(0.62, darkenColor(color, 0.42));
-    body.addColorStop(0.88, darkenColor(color, 0.72));
-    body.addColorStop(1.00, darkenColor(color, 0.86));
+    body.addColorStop(0.00, lightc);
+    body.addColorStop(0.22, base);
+    body.addColorStop(0.62, darkenColor(base, 0.40));
+    body.addColorStop(0.88, darkenColor(base, 0.70));
+    body.addColorStop(1.00, darkenColor(base, 0.84));
     p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2);
     p.fillStyle = body; p.fill();
 
-    // ④ 表面细节（在球内裁剪）
     p.save();
     p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2); p.clip();
-    // 颜色做种子 → 同一阶段的球纹理一致，不同阶段不同
-    let seed = 1;
-    for (let i = 0; i < color.length; i++) seed = (seed * 131 + color.charCodeAt(i)) & 0x7fffffff;
-    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
-    // 云带：横向条纹，宽窄/亮度随机
-    const bands = 3 + Math.floor(rnd() * 3);
-    for (let i = 0; i < bands; i++) {
-      const by = cy0 - R + (R * 2) * ((i + 0.5 + (rnd() - 0.5) * 0.5) / bands);
-      const bh = R * (0.10 + rnd() * 0.16);
-      const bw = R * (1.3 + rnd() * 0.7);
-      const a = 0.10 + rnd() * 0.14;
+
+    // ── 横带（木星/土星/天王星/海王星/金星）──
+    const nb = st ? (st.bands || 0) : 0;
+    for (let i = 0; i < nb; i++) {
+      const by = cy0 - R + (R * 2) * ((i + 0.5) / nb);
+      const bh = R * (0.055 + rnd() * 0.075);
+      const bw = R * 1.15;
+      const a = 0.10 + rnd() * 0.20;
+      const warm = rnd() < 0.5;
+      const col2 = warm ? lightc : darkc;
       const g2 = p.createLinearGradient(cx0 - bw, by, cx0 + bw, by);
-      g2.addColorStop(0, 'rgba(255,255,255,0)');
-      g2.addColorStop(0.35, 'rgba(255,255,255,' + a + ')');
-      g2.addColorStop(0.7, 'rgba(255,255,255,' + (a * 0.6) + ')');
-      g2.addColorStop(1, 'rgba(255,255,255,0)');
+      g2.addColorStop(0, hexA(col2, a * 0.5));
+      g2.addColorStop(0.45, hexA(col2, a));
+      g2.addColorStop(1, hexA(col2, a * 0.35));
       p.fillStyle = g2;
       p.beginPath(); p.ellipse(cx0, by, bw, bh, 0, 0, Math.PI * 2); p.fill();
     }
-    // 地形斑驳：暗斑 + 亮斑，模拟大陆/环形山
-    const spots = 5 + Math.floor(rnd() * 6);
-    for (let i = 0; i < spots; i++) {
-      const sa = rnd() * Math.PI * 2;
-      const sd = Math.sqrt(rnd()) * R * 0.92;
-      const sx = cx0 + Math.cos(sa) * sd, sy = cy0 + Math.sin(sa) * sd;
-      const sr = R * (0.10 + rnd() * 0.22);
-      const g3 = p.createRadialGradient(sx, sy, 0, sx, sy, sr);
-      if (rnd() < 0.55) {
-        g3.addColorStop(0, 'rgba(0,0,0,' + (0.10 + rnd() * 0.14) + ')');
-        g3.addColorStop(1, 'rgba(0,0,0,0)');
-      } else {
-        g3.addColorStop(0, 'rgba(255,255,255,' + (0.10 + rnd() * 0.16) + ')');
-        g3.addColorStop(1, 'rgba(255,255,255,0)');
+
+    // ── 大陆（地球）──
+    if (st && st.land) {
+      const n = 5;
+      for (let i = 0; i < n; i++) {
+        const sa = rnd() * Math.PI * 2, sd = Math.sqrt(rnd()) * R * 0.75;
+        const sx = cx0 + Math.cos(sa) * sd, sy = cy0 + Math.sin(sa) * sd;
+        const sr = R * (0.24 + rnd() * 0.30);
+        const g3 = p.createRadialGradient(sx, sy, 0, sx, sy, sr);
+        const gc = rnd() < 0.62 ? '86,122,60' : '150,132,84';   // 绿 / 土黄
+        g3.addColorStop(0, 'rgba(' + gc + ',0.92)');
+        g3.addColorStop(0.62, 'rgba(' + gc + ',0.70)');
+        g3.addColorStop(1, 'rgba(' + gc + ',0)');
+        p.fillStyle = g3;
+        p.beginPath(); p.ellipse(sx, sy, sr * 1.15, sr * 0.85, rnd() * 3, 0, Math.PI * 2); p.fill();
       }
-      p.fillStyle = g3;
+    }
+
+    // ── 环形山（水星/火星/冥王星）──
+    const nc = st ? (st.craters || 0) : 0;
+    for (let i = 0; i < nc; i++) {
+      const sa = rnd() * Math.PI * 2, sd = Math.sqrt(rnd()) * R * 0.92;
+      const sx = cx0 + Math.cos(sa) * sd, sy = cy0 + Math.sin(sa) * sd;
+      const sr = R * (0.05 + rnd() * 0.13);
+      const g4 = p.createRadialGradient(sx, sy, 0, sx, sy, sr);
+      g4.addColorStop(0, 'rgba(0,0,0,' + (0.18 + rnd() * 0.20) + ')');
+      g4.addColorStop(0.7, 'rgba(0,0,0,' + (0.06 + rnd() * 0.08) + ')');
+      g4.addColorStop(1, 'rgba(255,255,255,0.06)');           // 环形山受光边
+      p.fillStyle = g4;
       p.beginPath(); p.arc(sx, sy, sr, 0, Math.PI * 2); p.fill();
+    }
+
+    // ── 大红斑 / 大暗斑（木星 / 海王星）──
+    if (st && (st.spot || st.spotDark)) {
+      const sx = cx0 + R * 0.26, sy = cy0 + R * 0.30;
+      const sr = R * (st.spot ? 0.26 : 0.20);
+      const g5 = p.createRadialGradient(sx, sy, 0, sx, sy, sr);
+      if (st.spot) {
+        g5.addColorStop(0, 'rgba(196,88,52,0.95)');
+        g5.addColorStop(0.6, 'rgba(176,74,44,0.70)');
+        g5.addColorStop(1, 'rgba(176,74,44,0)');
+      } else {
+        g5.addColorStop(0, 'rgba(12,26,72,0.85)');
+        g5.addColorStop(1, 'rgba(12,26,72,0)');
+      }
+      p.fillStyle = g5;
+      p.beginPath(); p.ellipse(sx, sy, sr * 1.5, sr * 0.85, 0, 0, Math.PI * 2); p.fill();
+    }
+
+    // ── 极冠（地球/火星/冥王星）──
+    const ncap = st ? (st.caps || 0) : 0;
+    for (let i = 0; i < ncap; i++) {
+      const top = i % 2 === 0;
+      const cy2 = top ? cy0 - R * 0.92 : cy0 + R * 0.92;
+      const g6 = p.createRadialGradient(cx0, cy2, 0, cx0, cy2, R * 0.42);
+      g6.addColorStop(0, 'rgba(255,255,255,0.88)');
+      g6.addColorStop(0.55, 'rgba(255,255,255,0.42)');
+      g6.addColorStop(1, 'rgba(255,255,255,0)');
+      p.fillStyle = g6;
+      p.beginPath();
+      p.ellipse(cx0, cy2, R * 0.52, R * 0.34, 0, 0, Math.PI * 2);
+      p.fill();
+    }
+
+    // ── 云（地球）──
+    if (st && st.clouds) {
+      for (let i = 0; i < 7; i++) {
+        const cy3 = cy0 - R + R * 2 * rnd();
+        const cw = R * (0.5 + rnd() * 0.9);
+        const a = 0.16 + rnd() * 0.26;
+        const g7 = p.createLinearGradient(cx0 - cw, cy3, cx0 + cw, cy3);
+        g7.addColorStop(0, 'rgba(255,255,255,0)');
+        g7.addColorStop(0.5, 'rgba(255,255,255,' + a + ')');
+        g7.addColorStop(1, 'rgba(255,255,255,0)');
+        p.fillStyle = g7;
+        p.beginPath();
+        p.ellipse(cx0, cy3, cw, R * (0.05 + rnd() * 0.09), 0, 0, Math.PI * 2);
+        p.fill();
+      }
     }
     p.restore();
 
-    // ③ 明暗分界
-    const dark = p.createRadialGradient(lx, ly, R * 0.55, lx, ly, R * 1.42);
-    dark.addColorStop(0, 'rgba(2,6,20,0)');
-    dark.addColorStop(0.68, 'rgba(2,6,20,0.10)');
-    dark.addColorStop(1, 'rgba(2,6,20,0.52)');
+    // ── 明暗分界（昼夜）──
+    const darkg = p.createRadialGradient(lx, ly, R * 0.55, lx, ly, R * 1.42);
+    darkg.addColorStop(0, 'rgba(2,6,20,0)');
+    darkg.addColorStop(0.68, 'rgba(2,6,20,0.10)');
+    darkg.addColorStop(1, 'rgba(2,6,20,0.54)');
     p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2);
-    p.fillStyle = dark; p.fill();
+    p.fillStyle = darkg; p.fill();
 
-    // ⑤ 大气边缘光（背光侧最亮）
+    // ── 大气边缘光（背光侧最亮）──
     const atmo = p.createRadialGradient(
       cx0 + R * 0.26, cy0 + R * 0.30, R * 0.55,
       cx0 + R * 0.26, cy0 + R * 0.30, R * 1.06
     );
     atmo.addColorStop(0, 'rgba(150,205,255,0)');
     atmo.addColorStop(0.72, 'rgba(150,205,255,0.05)');
-    atmo.addColorStop(0.94, 'rgba(178,220,255,0.20)');
-    atmo.addColorStop(1, 'rgba(178,220,255,0)');
+    atmo.addColorStop(0.94, 'rgba(190,225,255,0.22)');
+    atmo.addColorStop(1, 'rgba(190,225,255,0)');
     p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2);
     p.fillStyle = atmo; p.fill();
 
-    // ⑥ 外辉光（球体外）
+    // ── 外辉光 ──
     const halo = p.createRadialGradient(cx0, cy0, R * 0.92, cx0, cy0, R * 1.5);
-    halo.addColorStop(0, hexA(color, 0.30));
-    halo.addColorStop(0.45, hexA(color, 0.10));
-    halo.addColorStop(1, hexA(color, 0));
+    halo.addColorStop(0, hexA(base, 0.30));
+    halo.addColorStop(0.45, hexA(base, 0.10));
+    halo.addColorStop(1, hexA(base, 0));
     p.beginPath(); p.arc(cx0, cy0, R * 1.5, 0, Math.PI * 2);
     p.fillStyle = halo; p.fill();
 
-    // ⑦ 受光点高光
+    // ── 受光点高光 ──
     const spec = p.createRadialGradient(lx, ly, 0, lx, ly, R * 0.5);
-    spec.addColorStop(0, 'rgba(255,255,255,0.42)');
+    spec.addColorStop(0, 'rgba(255,255,255,0.40)');
     spec.addColorStop(1, 'rgba(255,255,255,0)');
     p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2);
     p.fillStyle = spec; p.fill();
 
-    planetSpriteCache.set(color, { canvas: cv, radius: R });
-    return planetSpriteCache.get(color);
+    planetSpriteCache.set(key, { canvas: cv, radius: R });
+    return planetSpriteCache.get(key);
   }
 
   function draw3DSphere(ctx, x, y, r, color, highlight) {
@@ -5279,7 +5443,7 @@ function renderStarMap() {
           const sgs = selSz / sgsp.radius;
           const sgh = (sgsp.canvas.width / 2) * sgs;
           ctx.drawImage(sgsp.canvas, st.screenX - sgh, st.screenY - sgh, sgh * 2, sgh * 2);
-          draw3DSphere(ctx, st.screenX, st.screenY, selSz, selCol, '#f8fafc');
+          draw3DSphere(ctx, st.screenX, st.screenY, selSz, stagePlanet[st.stage] || selCol, '#f8fafc');
           // label
           const lblSz = Math.max(8, 10 * Math.min(zoom.scale, 2.5));
           ctx.font = `500 ${lblSz}px system-ui, sans-serif`;
@@ -5296,7 +5460,7 @@ function renderStarMap() {
         const cgs = (28 * zoom.scale) / cgsp.reach;
         const cgh = (cgsp.canvas.width / 2) * cgs;
         ctx.drawImage(cgsp.canvas, cInfo.x - cgh, cInfo.y - cgh, cgh * 2, cgh * 2);
-        draw3DSphere(ctx, cInfo.x, cInfo.y, clSz, col, '#f1f5f9');
+        draw3DSphere(ctx, cInfo.x, cInfo.y, clSz, stagePlanet[cInfo.stage] || col, '#f1f5f9');
         const clFontSz = Math.max(9, 11 * Math.min(zoom.scale, 3));
         ctx.font = `700 ${clFontSz}px system-ui, sans-serif`;
         ctx.fillStyle = '#ffffff';
@@ -5319,7 +5483,7 @@ function renderStarMap() {
       const gs = sz / gsp.radius;
       const gh = (gsp.canvas.width / 2) * gs;
       ctx.drawImage(gsp.canvas, st.screenX - gh, st.screenY - gh, gh * 2, gh * 2);
-      draw3DSphere(ctx, st.screenX, st.screenY, sz, st.color, '#f8fafc');
+      draw3DSphere(ctx, st.screenX, st.screenY, sz, stagePlanet[st.stage] || st.color, '#f8fafc');
       const br = sz * 1.05;
       const ownIdx = planetRects.length;
       planetRects.push({ x: st.screenX - br, y: st.screenY - br, w: br * 2, h: br * 2 });
