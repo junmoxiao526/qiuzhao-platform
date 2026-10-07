@@ -4849,13 +4849,49 @@ function renderStarMap() {
     const nebulaPoint = (r, ang) => ({
       x: Math.cos(ang) * r,
       y: Math.sin(ang) * r * RING_RATIO
-    });
+    });    // ── 共享的分形噪声 + 环半径扰动 ──
+    // （提到两条 forEach 外面，星云和尘埃共用同一套噪声，形状才协调）
+    const noise1D = (function () {
+      const SIZE = 256;
+      const tab = new Float32Array(SIZE);
+      for (let i = 0; i < SIZE; i++) tab[i] = Math.random();
+      const at = (i) => tab[((i % SIZE) + SIZE) % SIZE];
+      return function (x) {
+        const i0 = Math.floor(x);
+        const f = x - i0;
+        const u = f * f * (3 - 2 * f);          // smoothstep，避免棱角
+        return at(i0) * (1 - u) + at(i0 + 1) * u;
+      };
+    })();
+    const fbm = (x) =>
+      noise1D(x) * 0.68 + noise1D(x * 3.1 + 11.3) * 0.19 + noise1D(x * 8.7 + 27.7) * 0.09 + noise1D(x * 21.3 + 41.1) * 0.04;
+
+    // ── ★ 让环不再是"标准椭圆" ──
+    // 用户指出"也不是标准的椭圆"。真实星系的盘是**翘曲**的：半径随方位角起伏。
+    // 这里给半径加一个低频扰动：
+    //   两个低频正弦（2 圈、3 圈周期，模拟大尺度不对称）
+    // + 一个 fbm 噪声（模拟不规则起伏）
+    // 所有环共用同一个扰动函数 → 整个盘像一块被掰弯的圆盘，
+    // 而不是 9 个各自独立的规整椭圆（那样一眼就假）。
+    const warpAt = (ang) => 1
+      + 0.080 * Math.sin(ang * 2 + 0.7)
+      + 0.052 * Math.sin(ang * 3 + 1.9)
+      + 0.105 * (fbm((((ang / (Math.PI * 2)) % 1) + 1) % 1 * 4 + 0.5) - 0.5) * 2;
+    // 所有取点的统一入口：先按角度扰动半径，再转成椭圆坐标
+    const nebAt = (rr, ang) => nebulaPoint(rr * warpAt(ang), ang);
+
     ringInfos.forEach(function (info, idx) {
       const key = activeStages[idx];
       const col = STAGE_COLORS[key] || '#94a3b8';
       const r = info.r;
-      // 该环星云的弥散宽度：跟着环间距走，环密集时自动收窄，不会糊成一坨
-      const band = Math.max(10, Math.min(30, (info.halfWidth || 20) * 0.9 + 10));
+      // 该环星云的弥散宽度。
+      // ★★ 这是解决用户第 2、3 条诉求的关键（"不要黑色斑块" + "边界别太分明"）。
+      // 实测发现：暗斑**不是尘埃造成的**（把尘埃改成只加暖色后暗斑几乎没变）。
+      // 真正的来源是**环与环之间的空隙** —— 那里只有很暗的盘底光，
+      // 于是画面变成"亮带 / 暗缝 / 亮带"交替，既是黑色斑块，又是清晰边界。
+      // 环间距实测约 57px，所以宽度必须大到让相邻环的云**互相重叠**：
+      // 取 26~66px（原先只有 10~30px，远不够，缝一直在）。
+      const band = Math.max(26, Math.min(66, (info.halfWidth || 20) * 1.8 + 20));
       // 每条环的云量按岗位数给一点差异：人多的一环云更浓（有数据含义，但不是硬编码大小）
       const density = 1 + Math.min(1, info.cnt / 12) * 0.5;
       // ★ 关键：云量必须按**环的周长**缩放，不能用固定条数。
@@ -4865,32 +4901,7 @@ function renderStarMap() {
       // 色相根本没建立起来，看起来就是"外圈没上色"。
       const perim = 2 * Math.PI * r * 0.81;
 
-      // ── 长程相关的分形噪声 ──
-      // 实测真实星云的空间自相关在间隔 16px 时仍有 +0.83~0.86（长程相关），
-      // 而"每个光团独立随机"的画法在短距离就衰减到 0，看起来像电视雪花。
-      // 真实气体是**尺度不变**的：大团套小团。
-      // 这里用 1D 值噪声沿环的角度采样（沿环方向），多倍频叠加：
-      //   1 倍频 = 大尺度团块，4 倍频 = 中等，16 倍频 = 细丝
-      // 结果是"同一条环上的云有连绵的疏密节奏"，而不是均匀撒点。
-      const noise1D = (function () {
-        const SIZE = 256;
-        const tab = new Float32Array(SIZE);
-        for (let i = 0; i < SIZE; i++) tab[i] = Math.random();
-        const at = (i) => tab[((i % SIZE) + SIZE) % SIZE];
-        return function (x) {
-          const i0 = Math.floor(x);
-          const f = x - i0;
-          const u = f * f * (3 - 2 * f);          // smoothstep，避免棱角
-          return at(i0) * (1 - u) + at(i0 + 1) * u;
-        };
-      })();
-      const fbm = (x) => {
-        // 四个倍频。实测真实星云在间隔 16px 仍有 +0.83~0.86 的长程相关，
-        // 我一开始只有 0.735 —— 说明结构衰减太快、缺少大尺度成分。
-        // 所以**加重最低频**（0.55 → 0.68），让大团更大，
-        // 自相关才能延伸到更远处。
-        return noise1D(x) * 0.68 + noise1D(x * 3.1 + 11.3) * 0.19 + noise1D(x * 8.7 + 27.7) * 0.09 + noise1D(x * 21.3 + 41.1) * 0.04;
-      };
+      // ── 长程相关的分形噪声 ──（noise1D / fbm 已提到外层共享）
 
       // (a) 纤维：沿切线拉长的细丝，疏密由 fbm 决定 —— 这是"雾的质感"。
       //     数量按环周长缩放（外环周长近 10 倍，固定条数会把云摊薄）。
@@ -4902,7 +4913,7 @@ function renderStarMap() {
         // 重尾：只有少数位置特别亮（真实星云最亮 5% 像素占总亮度 16~20%）
         const bright = Math.pow(nz, 2.6);
         if (bright < 0.012) continue;          // 暗处直接跳过 → 留下真正的暗缝
-        const p = nebulaPoint(r, ang);
+        const p = nebAt(r, ang);
         const tx = -Math.sin(ang) * r;
         const ty = Math.cos(ang) * r * RING_RATIO;
         const tl = Math.hypot(tx, ty) || 1;
@@ -4959,7 +4970,7 @@ function renderStarMap() {
           const taper = Math.sin(tt * Math.PI);      // 两端渐隐 → 丝才有头尾
           if (taper < 0.12) continue;
           const rr2 = r + rOff + wander * Math.sin(tt * Math.PI * 2);
-          const pp = nebulaPoint(rr2, a0 + span * tt);
+          const pp = nebAt(rr2, a0 + span * tt);
           // 半径和亮度都带随机抖动，避免看起来像规整的珠子串
           const rad = dotR * (0.55 + taper * 0.9) * (0.7 + Math.random() * 0.7);
           g.fillStyle = hexA(cc, peak * taper * 0.42);
@@ -4972,7 +4983,7 @@ function renderStarMap() {
       const CLUMPS = Math.max(7, Math.round(perim / 170 * density));
       for (let i = 0; i < CLUMPS; i++) {
         const ang = (i / CLUMPS) * Math.PI * 2 + Math.random() * 0.9;
-        const p = nebulaPoint(r, ang);
+        const p = nebAt(r, ang);
         const off = (Math.random() - 0.5) * band * 1.2;
         const tx = -Math.sin(ang) * r, ty = Math.cos(ang) * r * RING_RATIO;
         const tl = Math.hypot(tx, ty) || 1;
@@ -4997,7 +5008,7 @@ function renderStarMap() {
       const SPARKS = Math.max(26, Math.round(perim / 46));
       for (let i = 0; i < SPARKS; i++) {
         const ang = Math.random() * Math.PI * 2;
-        const p = nebulaPoint(r, ang);
+        const p = nebAt(r, ang);
         const off = (Math.random() - 0.5) * band * 1.6;
         const tx = -Math.sin(ang) * r, ty = Math.cos(ang) * r * RING_RATIO;
         const tl = Math.hypot(tx, ty) || 1;
@@ -5016,7 +5027,7 @@ function renderStarMap() {
       const KNOTS = 2 + (Math.random() < 0.5 ? 1 : 0);
       for (let i = 0; i < KNOTS; i++) {
         const ang = Math.random() * Math.PI * 2;
-        const p = nebulaPoint(r, ang);
+        const p = nebAt(r, ang);
         const off = (Math.random() - 0.5) * band * 0.8;
         const tx = -Math.sin(ang) * r, ty = Math.cos(ang) * r * RING_RATIO;
         const tl = Math.hypot(tx, ty) || 1;
@@ -5065,30 +5076,35 @@ function renderStarMap() {
     // 不是刻意的暗带。所以这里改成"明亮的暖色"叠在旋臂上，
     // destination-out 只保留中等强度用来做遮挡层次。
     const DUST_WARM = '196,124,72';
-    g.globalCompositeOperation = 'destination-out';
+    // ★ 用户反馈"每个星云中不要有黑色斑块"。
+    // 我先试了把 destination-out（擦除，会擦出黑洞）换成"深暖棕半透明覆盖"——
+    // 结果实测暗斑反而**变多**（0.737% → 1.091%）：因为**不管擦除还是覆盖，
+    // 只要压暗就会产生暗斑**。参考图里的尘埃带是**暖琥珀色的亮带**，不是暗斑。
+    // 所以最终方案：尘埃只**加暖色**，不压暗。层次靠冷暖对比而非明暗对比。
+    g.globalCompositeOperation = 'source-over';
     for (let arm = 0; arm < GALAXY_ARMS; arm++) {
       const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
-      // 相位略微超前 = 落在旋臂的内侧（半径更小的一侧）
       for (let i = 0; i <= ARM_STEPS; i += 2) {
         const t = 0.12 + (i / ARM_STEPS) * 0.86;
         const p = galaxyPoint(t, armPhase + 0.055);
-        const rx = galaxyMaxR * (0.009 + t * 0.030);      // 比原来更宽 → 尘埃带更明显
+        const rx = galaxyMaxR * (0.009 + t * 0.030);
         const fade = Math.exp(-t * 1.5);
         const rg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx);
-        rg.addColorStop(0, 'rgba(0,0,0,' + (0.55 * fade + 0.08) + ')');
-        rg.addColorStop(0.5, 'rgba(0,0,0,' + (0.22 * fade) + ')');
-        rg.addColorStop(1, 'rgba(0,0,0,0)');
+        // 只加暖光，不加暗 → 不会出现暗斑
+        rg.addColorStop(0, 'rgba(' + DUST_WARM + ',' + (0.14 * fade + 0.02) + ')');
+        rg.addColorStop(0.5, 'rgba(' + DUST_WARM + ',' + (0.06 * fade) + ')');
+        rg.addColorStop(1, 'rgba(' + DUST_WARM + ',0)');
         g.save(); g.translate(p.x, p.y); g.scale(1, RING_RATIO);
         g.fillStyle = rg;
         g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
         g.restore();
       }
     }
-    // (b) 沿每条**环**也切出尘埃：让"环"本身也有尘埃质感。
-    //     ★ 同样不能用 lineTo 直线段（会留下可见的直线），改成沿弧撒圆点。
+    // (b) 沿每条**环**也铺一点暖色尘埃。
+    //     ★ 同样只加暖色、不压暗（避免暗斑）；也不用 lineTo 直线段（避免直线）。
     ringInfos.forEach(function (info) {
       const r = info.r;
-      const band = Math.max(10, Math.min(30, (info.halfWidth || 20) * 0.9 + 10));
+      const band = Math.max(14, Math.min(40, (info.halfWidth || 20) * 1.1 + 11));
       const perim = 2 * Math.PI * r * 0.81;
       const N = Math.max(24, Math.round(perim / 90));
       for (let i = 0; i < N; i++) {
@@ -5101,15 +5117,16 @@ function renderStarMap() {
           const tt = k / (DOTS - 1);
           const taper = Math.sin(tt * Math.PI);
           if (taper < 0.18) continue;
-          const pp = nebulaPoint(rr, a0 + span * tt);
-          g.fillStyle = 'rgba(0,0,0,' + (0.26 * taper) + ')';
+          const pp = nebAt(rr, a0 + span * tt);
+          // 暖色、低 alpha → 只是把这一带染暖，不产生暗斑
+          g.fillStyle = 'rgba(' + DUST_WARM + ',' + (0.10 * taper) + ')';
           g.beginPath();
           g.arc(pp.x, pp.y, dotR * (0.5 + taper * 0.9) * (0.7 + Math.random() * 0.7), 0, Math.PI * 2);
           g.fill();
         }
       }
     });
-    // (c) 填暖色：让擦出来的暗带偏暖棕，而不是中性黑（照片里尘埃是暖的）
+    // (c) 暖色：让尘埃带偏暖棕，而不是中性黑（照片里尘埃是暖的）
     g.globalCompositeOperation = 'source-over';
     for (let arm = 0; arm < GALAXY_ARMS; arm++) {
       const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
