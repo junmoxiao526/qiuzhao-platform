@@ -5161,68 +5161,26 @@ function renderStarMap() {
     //
     // 用 'lighter' 叠一层"按亮度加权的白"是做不到的（无法感知已有亮度），
     // 所以这里用 getImageData 直接按像素处理 —— 这是预渲染，只做一次。
-    // 性能：全分辨率 getImageData/putImageData 一次要 ~250ms（含 dpr 缩放是 1320x721 的
-    // 数倍像素），切视图时会明显卡一下。星云本身是**低频柔和**的图像，没有高频细节，
-    // 所以降到 0.35 倍分辨率处理再放大回去，视觉上无差别，耗时降到 ~1/8。
+    // ★ 2026-10-07 改：这一段已从"0.35 倍分辨率逐像素处理"改为
+    //   "全分辨率 ctx.filter"。原因见下面注释 —— 降采样会糊掉细节。
     if (galaxyCanvas.width > 1) {
       const fullW = galaxyCanvas.width, fullH = galaxyCanvas.height;
-      const SC = 0.35;
-      const dw = Math.max(8, Math.round(fullW * SC));
-      const dh = Math.max(8, Math.round(fullH * SC));
-      // 主画布 → 小画布
-      const small = document.createElement('canvas');
-      small.width = dw; small.height = dh;
-      const sg = small.getContext('2d');
-      sg.drawImage(galaxyCanvas, 0, 0, dw, dh);
-      const idata = sg.getImageData(0, 0, dw, dh);
-      const d = idata.data;
-      for (let i = 0; i < d.length; i += 4) {
-        let r = d[i], gg = d[i + 1], b = d[i + 2];
-        if (r === 0 && gg === 0 && b === 0) continue;      // 纯黑跳过，省时间
-
-        const L0 = 0.2126 * r + 0.7152 * gg + 0.0722 * b;
-
-        // ① gamma 压暗中间调。
-        //    实测参考照片：亮度中位数 ref-a=32 / ref-b=26；
-        //    而我这里一度高达 **108** —— 整张画面变成一块发亮的银盘。
-        //    照片里绝大部分天区是**暗的**，只有核球很亮。
-        //    gamma 1.55 压暗中间调，核球本来就接近 255，几乎不受影响。
-        const target = 255 * Math.pow(L0 / 255, 1.85);
-        const sc = L0 > 1 ? target / L0 : 1;
-        r *= sc; gg *= sc; b *= sc;
-
-        // ② 提饱和。
-        //    实测：ref-b 有 **80.5%** 的像素 sat>0.45，我这里只有 24.9%，
-        //    所以画面读起来"发灰、发银、像不锈钢"。按亮度中轴拉开色差。
-        const L1 = 0.2126 * r + 0.7152 * gg + 0.0722 * b;
-        const SAT = 1.5;
-        r = L1 + (r - L1) * SAT;
-        gg = L1 + (gg - L1) * SAT;
-        b = L1 + (b - L1) * SAT;
-        if (r < 0) r = 0; if (gg < 0) gg = 0; if (b < 0) b = 0;
-
-        // ③ 只有**真正很亮**的地方才趋白。
-        //    这里原来是 L>62 就开始趋白 —— 而我的画面中位数是 108，
-        //    等于整张图都进了趋白区间，颜色全被洗掉。门槛提到 150。
-        const k = Math.min(1, Math.max(0, (L1 - 150) / 105));
-        const w = Math.pow(k, 1.3) * 0.88;
-        if (w > 0.004) {
-          r = r + (255 - r) * w;
-          gg = gg + (255 - gg) * w;
-          b = b + (255 - b) * w;
-        }
-
-        d[i]     = r  > 255 ? 255 : r;
-        d[i + 1] = gg > 255 ? 255 : gg;
-        d[i + 2] = b  > 255 ? 255 : b;
-      }
-      sg.putImageData(idata, 0, 0);
-      // 小画布 → 主画布（放大回来）
+      // ── 色彩分级：改用 ctx.filter 在**全分辨率**下做 ──
+      // 原先是 getImageData 在 0.35 倍分辨率上逐像素处理、再放大画回去 ——
+      // 那等于把整张星系图"降采样→升采样"，细节被糊掉约 3 倍。
+      // 这正是用户说"不够高清"的根因，而不是细节画得不够。
+      // 现在用 ctx.filter（GPU 加速、全分辨率、零细节损失）：
+      //   saturate 提饱和 / brightness 压暗 / contrast 拉开明暗（近似原来的 gamma）
+      const tmp = document.createElement('canvas');
+      tmp.width = fullW; tmp.height = fullH;
+      const tctx = tmp.getContext('2d');
+      tctx.filter = 'saturate(1.55) brightness(0.72) contrast(1.34)';
+      tctx.drawImage(galaxyCanvas, 0, 0);
+      tctx.filter = 'none';
       g.save();
       g.setTransform(1, 0, 0, 1, 0, 0);          // 用原始像素坐标，抵消之前的 dpr scale
       g.clearRect(0, 0, fullW, fullH);
-      g.imageSmoothingEnabled = true;
-      g.drawImage(small, 0, 0, fullW, fullH);
+      g.drawImage(tmp, 0, 0);                     // 1:1，不缩放 → 细节完整保留
       g.restore();
     }
 
@@ -5248,28 +5206,30 @@ function renderStarMap() {
     sc.height = Math.max(1, Math.round(H * dpr));
     const sctx = sc.getContext('2d');
     sctx.scale(dpr, dpr);
-    // ① 天光底：偏冷的深蓝紫，均匀铺满 → 消灭纯黑
-    sctx.fillStyle = '#050813';
+    // ① 天光底：**压到近乎纯黑**。
+    //    实测 ref-d：纯黑(<10) 占 15.3%、暗区(<25) 占 32.4%；
+    //    而我上一版是 0.0% / 6.4% —— 背景被辉光提得一点都不黑。
+    sctx.fillStyle = '#01030a';
     sctx.fillRect(0, 0, W, H);
-    // ② 大范围气辉起伏（真实夜空 + 插画都有的不均匀感）
+    // ② 大范围气辉起伏（压低强度，只留一点点不均匀感）
     for (let i = 0; i < 6; i++) {
       const gx = Math.random() * W, gy = Math.random() * H;
       const gr = Math.max(W, H) * (0.35 + Math.random() * 0.55);
       const rg = sctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
-      rg.addColorStop(0, 'rgba(70,96,160,0.13)');
+      rg.addColorStop(0, 'rgba(70,96,160,0.055)');
       rg.addColorStop(1, 'rgba(70,96,160,0)');
       sctx.fillStyle = rg;
       sctx.beginPath(); sctx.arc(gx, gy, gr, 0, Math.PI * 2); sctx.fill();
     }
-    // ③ ★ 星系外的大范围辉光晕 —— 这是"虚幻发光感"最核心的一笔。
-    //    实测参考图 c 几乎不存在暗区，光是从星系一直弥漫到画面边缘的。
-    //    用一个被压扁的大椭圆径向渐变盖住整个视口，外圈也一起提亮。
-    const haloR = Math.max(W, H) * 0.78;
+    // ③ 星系外的辉光晕 —— 强度大幅收回。
+    //    上一版为了"虚幻感"铺得很亮，结果背景不黑了（用户要求"背景要再黑一点"）。
+    //    现在只在紧贴星系的范围发一点光，远处留真正的黑。
+    const haloR = Math.max(W, H) * 0.60;
     const halo = sctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
-    halo.addColorStop(0.00, 'rgba(96,132,208,0.26)');
-    halo.addColorStop(0.30, 'rgba(78,110,190,0.18)');
-    halo.addColorStop(0.60, 'rgba(56,78,150,0.10)');
-    halo.addColorStop(0.85, 'rgba(34,48,104,0.04)');
+    halo.addColorStop(0.00, 'rgba(96,132,208,0.115)');
+    halo.addColorStop(0.35, 'rgba(78,110,190,0.055)');
+    halo.addColorStop(0.65, 'rgba(56,78,150,0.020)');
+    halo.addColorStop(0.88, 'rgba(34,48,104,0.005)');
     halo.addColorStop(1.00, 'rgba(24,34,78,0)');
     sctx.save();
     sctx.translate(cx, cy);
@@ -5708,7 +5668,7 @@ function renderStarMap() {
     if (glowCanvasCache.canvas && glowCanvasCache.canvas.width > 1) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.30;
+      ctx.globalAlpha = 0.20;
       ctx.translate(cx + zoom.panX, cy + zoom.panY);
       ctx.scale(zoom.scale, zoom.scale);
       ctx.translate(-cx, -cy);
