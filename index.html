@@ -4366,6 +4366,10 @@ let starStars = [];
 let galaxyCanvasCache = { key: null, baked: null, canvas: null };
 // 天光+星场背景层：也必须独立缓存（不随缩放变化，1:1 绘制）
 let skyCanvasCache = { key: null, canvas: null };
+// 辉光（bloom）层：把星系亮部模糊后叠回去，做"虚幻发光"效果
+let glowCanvasCache = { key: null, canvas: null };
+// 会闪烁的星（每帧重画，所以数量要克制）
+let twinkleStars = [];
 let starClusterMap = null;   // string coord → { count, jobs }
 let starSelectedClusters = null;
 // 缩放接口：renderStarMap 每次渲染时重建，供页面上的缩放按钮调用。
@@ -5254,11 +5258,12 @@ function renderStarMap() {
     // 背景星空本来就**不应该**跟着星系缩放，所以拆成一层、1:1 绘制。
   }
 
-  // ── 天光 + 密集星场：独立背景层，1:1 绘制、不随缩放变化 ──
-  // 参考照片里"太空感"的两个来源：
-  //   ① 满天的细星（实测照片 13.7 个亮星点 /1000px²）
-  //   ② "空"的天区也有微弱天光 —— 实测照片极暗(<12)只占 2.5%，
-  //      即天区底色约 25~35，而不是纯黑 0。纯黑会像"贴在黑底上的贴图"。
+  // ── 天光 + 星场 + 辉光：独立背景层，1:1 绘制、不随缩放变化 ──
+  // 参考图（虚幻风星空插画）实测出来的三条：
+  //   ① 几乎**没有暗区** —— ref-c 亮度<25 的像素只占 0.3%，整张画都在发光
+  //   ② 极饱和 —— ref-c 有 87.8% 的像素 sat>0.45
+  //   ③ "发光晕"（亮度 40~180 且 sat>0.35）占 65.4%
+  // 所以除了天光底，还要给星系加一圈**大范围辉光晕**，把外圈也照亮。
   const skyKey = 'sky|' + Math.round(W) + '|' + Math.round(H) + '|' + dpr;
   if (skyCanvasCache.key !== skyKey) {
     skyCanvasCache.key = skyKey;
@@ -5267,46 +5272,117 @@ function renderStarMap() {
     sc.height = Math.max(1, Math.round(H * dpr));
     const sctx = sc.getContext('2d');
     sctx.scale(dpr, dpr);
-    // ① 天光底：偏冷的深蓝灰，均匀铺满 → 消灭纯黑
-    sctx.fillStyle = '#060911';
+    // ① 天光底：偏冷的深蓝紫，均匀铺满 → 消灭纯黑
+    sctx.fillStyle = '#050813';
     sctx.fillRect(0, 0, W, H);
-    // 再铺几层极淡的大尺度晕：真实夜空的气辉是不均匀的
-    for (let i = 0; i < 5; i++) {
+    // ② 大范围气辉起伏（真实夜空 + 插画都有的不均匀感）
+    for (let i = 0; i < 6; i++) {
       const gx = Math.random() * W, gy = Math.random() * H;
       const gr = Math.max(W, H) * (0.35 + Math.random() * 0.55);
       const rg = sctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
-      rg.addColorStop(0, 'rgba(42,60,100,0.11)');
-      rg.addColorStop(1, 'rgba(42,60,100,0)');
+      rg.addColorStop(0, 'rgba(70,96,160,0.13)');
+      rg.addColorStop(1, 'rgba(70,96,160,0)');
       sctx.fillStyle = rg;
       sctx.beginPath(); sctx.arc(gx, gy, gr, 0, Math.PI * 2); sctx.fill();
     }
-    // ② 细星：数量按照片密度校准，并给颜色差异（真实星场恒星色温差别很明显）
+    // ③ ★ 星系外的大范围辉光晕 —— 这是"虚幻发光感"最核心的一笔。
+    //    实测参考图 c 几乎不存在暗区，光是从星系一直弥漫到画面边缘的。
+    //    用一个被压扁的大椭圆径向渐变盖住整个视口，外圈也一起提亮。
+    const haloR = Math.max(W, H) * 0.78;
+    const halo = sctx.createRadialGradient(cx, cy, 0, cx, cy, haloR);
+    halo.addColorStop(0.00, 'rgba(96,132,208,0.26)');
+    halo.addColorStop(0.30, 'rgba(78,110,190,0.18)');
+    halo.addColorStop(0.60, 'rgba(56,78,150,0.10)');
+    halo.addColorStop(0.85, 'rgba(34,48,104,0.04)');
+    halo.addColorStop(1.00, 'rgba(24,34,78,0)');
+    sctx.save();
+    sctx.translate(cx, cy);
+    sctx.scale(1, RING_RATIO + 0.30);      // 压扁一点，跟星系盘同向
+    sctx.translate(-cx, -cy);
+    sctx.fillStyle = halo;
+    sctx.beginPath(); sctx.arc(cx, cy, haloR, 0, Math.PI * 2); sctx.fill();
+    sctx.restore();
+    // ④ 细星：密度**大幅下调** —— 用户反馈"背景的星星密度太大了"。
+    //    上一版是 W*H/72（约 13000 颗），确实过密。
     const TINTS = ['#c9dcff', '#dce9ff', '#ffffff', '#fff6e6', '#ffdcae', '#ffc98a'];
-    // 密度与亮度实测校准：照片是 13.7 个亮星点/1000px²，第一版只有 5.4。
-    // 两个原因：① 数量不够 ② alpha 从 0.16 起步太低 —— 在抬起来的天光底上
-    // 达不到"亮星"的判定门槛（要亮于局部均值 +26 且 >72）。
-    // 所以数量加密、亮度整体提高。
-    const N = Math.round(W * H / 72);
+    const N = Math.round(W * H / 320);
     for (let i = 0; i < N; i++) {
       const x = Math.random() * W, y = Math.random() * H;
-      const m = Math.pow(Math.random(), 1.6);
-      sctx.fillStyle = hexA(TINTS[(Math.random() * TINTS.length) | 0], 0.30 + m * 0.70);
-      sctx.beginPath(); sctx.arc(x, y, 0.26 + m * 1.30, 0, Math.PI * 2); sctx.fill();
+      const m = Math.pow(Math.random(), 1.8);
+      sctx.fillStyle = hexA(TINTS[(Math.random() * TINTS.length) | 0], 0.24 + m * 0.66);
+      sctx.beginPath(); sctx.arc(x, y, 0.26 + m * 1.20, 0, Math.PI * 2); sctx.fill();
     }
-    // 少量亮星带十字星芒（照片里最亮那几颗都有衍射星芒，有它"摄影感"强很多）
-    for (let i = 0; i < 34; i++) {
+    // ⑤ 极少数亮星带十字星芒（插画风里最亮那几颗都有，很出"梦幻感"）
+    for (let i = 0; i < 16; i++) {
       const x = Math.random() * W, y = Math.random() * H;
-      const len = 3 + Math.random() * 8;
-      sctx.strokeStyle = 'rgba(255,255,255,' + (0.28 + Math.random() * 0.40) + ')';
-      sctx.lineWidth = 0.7;
+      const len = 4 + Math.random() * 11;
+      sctx.strokeStyle = 'rgba(210,230,255,' + (0.22 + Math.random() * 0.34) + ')';
+      sctx.lineWidth = 0.8;
       sctx.beginPath();
       sctx.moveTo(x - len, y); sctx.lineTo(x + len, y);
       sctx.moveTo(x, y - len); sctx.lineTo(x, y + len);
       sctx.stroke();
       sctx.fillStyle = 'rgba(255,255,255,0.95)';
-      sctx.beginPath(); sctx.arc(x, y, 1.5, 0, Math.PI * 2); sctx.fill();
+      sctx.beginPath(); sctx.arc(x, y, 1.6, 0, Math.PI * 2); sctx.fill();
     }
     skyCanvasCache.canvas = sc;
+  }
+
+  // ── 辉光层（bloom）──
+  // 把星系亮部缩小 + 模糊，之后每帧用 'lighter' 叠回去 →
+  // 得到"发光、朦胧、不真实"的效果（虚幻感的来源）。
+  // 缩小再模糊是廉价的近似高斯：像素少、模糊半径小，但视觉上等价。
+  const glowKey = 'glow|' + Math.round(W) + '|' + Math.round(H) + '|' + dpr;
+  if (glowCanvasCache.key !== glowKey && galaxyCanvas.width > 1) {
+    const gw = Math.max(8, Math.round(galaxyCanvas.width * 0.22));
+    const gh = Math.max(8, Math.round(galaxyCanvas.height * 0.22));
+    const gc = document.createElement('canvas');
+    gc.width = gw; gc.height = gh;
+    const gctx = gc.getContext('2d');
+    // 亮部提取：先用 'lighter' 多叠几遍自身 → 亮的更亮、暗的被压掉，
+    // 这样辉光只围绕亮结构出现，不会把整张图抬成一片灰。
+    gctx.drawImage(galaxyCanvas, 0, 0, gw, gh);
+    gctx.globalCompositeOperation = 'lighter';
+    gctx.globalAlpha = 0.75;
+    gctx.drawImage(galaxyCanvas, 0, 0, gw, gh);
+    gctx.globalAlpha = 0.55;
+    gctx.drawImage(galaxyCanvas, 0, 0, gw, gh);
+    gctx.globalAlpha = 1;
+    gctx.globalCompositeOperation = 'source-over';
+    // 模糊：在小画布上做，半径小、代价低
+    const b1 = document.createElement('canvas');
+    b1.width = gw; b1.height = gh;
+    const b1c = b1.getContext('2d');
+    b1c.filter = 'blur(7px)';
+    b1c.drawImage(gc, 0, 0);
+    b1c.filter = 'none';
+    glowCanvasCache.key = glowKey;
+    glowCanvasCache.canvas = b1;
+  }
+
+  // ── 会闪烁的星 ──
+  // 用户要求"星应该是动态的"。静态星场已经烘在 skyCanvas 里（性能考虑），
+  // 这里再单独维护一小批**每帧重画**的星，用正弦调亮度做闪烁，并让它们缓慢漂移。
+  // 数量必须克制：每帧都要画，几百颗是安全的。
+  {
+    const TINTS = ['#c9dcff', '#dce9ff', '#ffffff', '#fff6e6', '#ffdcae'];
+    twinkleStars = [];
+    for (let i = 0; i < 280; i++) {
+      twinkleStars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 0.5 + Math.random() * 1.7,
+        base: 0.22 + Math.random() * 0.45,
+        amp: 0.16 + Math.random() * 0.42,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.5 + Math.random() * 2.2,
+        // 缓慢漂移：给静态背景一点"活"的感觉
+        dx: (Math.random() - 0.5) * 0.010,
+        dy: (Math.random() - 0.5) * 0.010,
+        tint: TINTS[(Math.random() * TINTS.length) | 0],
+        flare: Math.random() < 0.10      // 少数带星芒
+      });
+    }
   }
 
   // --- Mouse ---
@@ -5648,6 +5724,52 @@ function renderStarMap() {
       ctx.translate(-cx, -cy);
       ctx.drawImage(galaxyCanvas, 0, 0, W, H);
       ctx.restore();
+    }
+
+    // ── 辉光层（bloom）：用 'lighter' 叠上去 → 发光、朦胧的"虚幻感" ──
+    // 实测参考插画 ref-c 亮度<25 的像素只占 0.3%（几乎没有暗区），
+    // 而我没有辉光时有 34.3% —— 差距就在这里。叠上辉光后暗区被填亮。
+    if (glowCanvasCache.canvas && glowCanvasCache.canvas.width > 1) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.30;
+      ctx.translate(cx + zoom.panX, cy + zoom.panY);
+      ctx.scale(zoom.scale, zoom.scale);
+      ctx.translate(-cx, -cy);
+      ctx.drawImage(glowCanvasCache.canvas, 0, 0, W, H);
+      ctx.restore();
+    }
+
+    // ── 会闪烁的星：每帧重画，亮度正弦起伏 + 缓慢漂移 ──
+    // 用户要求"星应该是动态的"。静态星场烘在 skyCanvas 里（省性能），
+    // 这一批专门负责"动"。
+    if (twinkleStars.length) {
+      const tsec = now * 0.001;
+      for (let i = 0; i < twinkleStars.length; i++) {
+        const ts = twinkleStars[i];
+        let a = ts.base + ts.amp * Math.sin(tsec * ts.speed + ts.phase);
+        if (a <= 0.02) continue;
+        if (a > 1) a = 1;
+        // 缓慢漂移（越界后从另一侧绕回，避免星"跑光"）
+        ts.x += ts.dx; ts.y += ts.dy;
+        if (ts.x < 0) ts.x += W; else if (ts.x > W) ts.x -= W;
+        if (ts.y < 0) ts.y += H; else if (ts.y > H) ts.y -= H;
+        ctx.globalAlpha = a;
+        ctx.fillStyle = ts.tint;
+        ctx.beginPath(); ctx.arc(ts.x, ts.y, ts.r, 0, Math.PI * 2); ctx.fill();
+        // 少数亮星的十字星芒：插画里最亮那几颗都有，很出梦幻感
+        if (ts.flare && a > 0.45) {
+          const len = ts.r * (5 + 4 * a);
+          ctx.globalAlpha = a * 0.5;
+          ctx.strokeStyle = ts.tint;
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.moveTo(ts.x - len, ts.y); ctx.lineTo(ts.x + len, ts.y);
+          ctx.moveTo(ts.x, ts.y - len); ctx.lineTo(ts.x, ts.y + len);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
     }
 
     // Orbit rings —— 从"轨道线"退成"刻度"。
