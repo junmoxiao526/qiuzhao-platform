@@ -941,6 +941,12 @@ body {
   font-size:11.5px; color:#cbd5e1; white-space:nowrap; }
 .star-legend .sl-item i { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
 .star-legend .sl-item b { color:#94a3b8; font-weight:600; font-variant-numeric:tabular-nums; }
+/* 总数（原圆心徽标搬来）：视觉权重高于各阶段计数，因为它是整屏的锚点数字 */
+.star-legend .sl-total { display:inline-flex; align-items:baseline; gap:5px;
+  font-size:11.5px; color:#c9c5e4; white-space:nowrap;
+  padding-right:12px; border-right:1px solid rgba(148,163,184,0.22); }
+.star-legend .sl-total b { font-size:16px; line-height:1; color:#f1f5f9; font-weight:700;
+  font-variant-numeric:tabular-nums; letter-spacing:-0.01em; }
 .star-legend .sl-note { font-size:11px; color:#64748b; white-space:nowrap;
   padding-left:12px; border-left:1px solid rgba(148,163,184,0.22); }
 
@@ -4528,16 +4534,24 @@ function renderStarMap() {
   // 放在画布左下角，和左上角的缩放控件对称。
   const legend = document.createElement('div');
   legend.className = 'star-legend';
-  legend.innerHTML = activeStages.map(function (key) {
-    const meta = STATUSES.find(function (s) { return s.key === key; }) || {};
-    return '<span class="sl-item"><i style="background:' + (STAGE_COLORS[key] || '#94a3b8') + '"></i>'
-      + escapeHtml(meta.label || key) + '<b>' + stageJobs[key].length + '</b></span>';
-  }).join('')
+  // 「投递中」总数从圆心搬到图例：圆心原本要占 24px 实心圆 + 42px 光晕，
+  // 把最内环挤到 70px 之外，视觉上就是"中心一大块空的"。
+  // 它本质是一个**统计数字**，和阶段计数同类，放图例里语义更对，
+  // 也顺手把圆心让出来给星系的核球。
+  legend.innerHTML = '<span class="sl-total"><b>' + filteredJobs.length + '</b>投递中</span>'
+    + activeStages.map(function (key) {
+      const meta = STATUSES.find(function (s) { return s.key === key; }) || {};
+      return '<span class="sl-item"><i style="background:' + (STAGE_COLORS[key] || '#94a3b8') + '"></i>'
+        + escapeHtml(meta.label || key) + '<b>' + stageJobs[key].length + '</b></span>';
+    }).join('')
     + '<span class="sl-note">球越大 = 该阶段岗位越多</span>';
   wrap.appendChild(legend);
 
   const spread = 28;
-  const minInner = 70;
+  // 圆心徽标搬走后，最内环不再需要为一个 24px 的实心圆让位。
+  // 从 70 收到 52：既让最内环更贴近发光的核球（这正是"52 外面一圈很大"的根治），
+  // 又给外侧各环多让出 (70-52)/(nRings-1) 的间距。
+  const minInner = 52;
   // 相邻环的**视觉**间距 = gap * RING_RATIO，必须容得下星球直径，
   // 否则不同环上的球会叠在一起（原来 gap=26 → 纵向只有 16px，必然重叠）。
   const gap = 46;
@@ -4892,22 +4906,64 @@ function renderStarMap() {
     }
   };
 
-  // --- Helper: Draw 3D sphere node ---
+  // --- Helper: Draw a planet node ---
+  // 从"加了高光的球"升级成**行星**。原先只有一层左上→右下的径向渐变，
+  // 读起来像塑料球：没有昼夜分界、没有大气、没有临边变暗。
+  // 行星的四个必备特征（照这个顺序叠）：
+  //   ① 本体：受光面偏白、背光面压暗（用的是偏移的高光点，制造立体感）
+  //   ② 临边变暗：真实行星边缘一定比中心暗（大气光学厚度沿切线方向累积）
+  //   ③ 明暗分界（terminator）：一条略柔的弧线，把球分成昼半球/夜半球
+  //   ④ 大气边缘光：背光侧一圈很淡的蓝色散射 —— 这是"有大气"最强的暗示
+  // 颜色仍由 color 决定（阶段语义不变），只是把明暗关系画对。
   function draw3DSphere(ctx, x, y, r, color, highlight) {
-    // body gradient: light at top-left, dark at bottom-right
-    const grad = ctx.createRadialGradient(x - r*0.25, y - r*0.3, r*0.05, x, y, r);
-    grad.addColorStop(0, highlight || '#ffffff');
-    grad.addColorStop(0.28, color);
-    grad.addColorStop(0.7, darkenColor(color, 0.5));
-    grad.addColorStop(1, darkenColor(color, 0.8));
+    if (!(r > 0.6)) return;
+    const lit = highlight || '#ffffff';        // 受光侧的高光色
+    const lx = x - r * 0.32, ly = y - r * 0.36; // 光源方向（左上）
+
+    // ① 本体 + ② 临边变暗
+    // 渐变圆心放在受光点上、半径扩到 r*1.5，让最暗的 stops 落在球体之外，
+    // 这样球内看到的是**连续变暗**而不是一条硬边。
+    const body = ctx.createRadialGradient(lx, ly, r * 0.03, lx, ly, r * 1.5);
+    body.addColorStop(0.00, lit);
+    body.addColorStop(0.22, color);
+    body.addColorStop(0.62, darkenColor(color, 0.42));
+    body.addColorStop(0.88, darkenColor(color, 0.72));
+    body.addColorStop(1.00, darkenColor(color, 0.86));
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = grad; ctx.fill();
-    // edge light
-    const edge = ctx.createRadialGradient(x, y, r*0.85, x, y, r);
-    edge.addColorStop(0, 'rgba(255,255,255,0)');
-    edge.addColorStop(1, 'rgba(255,255,255,0.08)');
+    ctx.fillStyle = body; ctx.fill();
+
+    // ③ 明暗分界：在背光侧压一层半透明暗弧。
+    // 用另一侧为圆心的径向渐变实现，避免出现"贴上去的月牙"。
+    const dark = ctx.createRadialGradient(lx, ly, r * 0.55, lx, ly, r * 1.42);
+    dark.addColorStop(0, 'rgba(2,6,20,0)');
+    dark.addColorStop(0.68, 'rgba(2,6,20,0.10)');
+    dark.addColorStop(1, 'rgba(2,6,20,0.52)');
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = edge; ctx.fill();
+    ctx.fillStyle = dark; ctx.fill();
+
+    // ④ 大气边缘光：只在球的轮廓内侧一圈，背光侧（右下）最亮 ——
+    // 真实的散射光就是这么分布的（受光侧被本体淹没，背光侧才看得见）。
+    if (r >= 3) {
+      const atmo = ctx.createRadialGradient(
+        x + r * 0.26, y + r * 0.30, r * 0.55,
+        x + r * 0.26, y + r * 0.30, r * 1.06
+      );
+      atmo.addColorStop(0, 'rgba(150,205,255,0)');
+      atmo.addColorStop(0.72, 'rgba(150,205,255,0.05)');
+      atmo.addColorStop(0.94, 'rgba(178,220,255,0.20)');
+      atmo.addColorStop(1, 'rgba(178,220,255,0)');
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = atmo; ctx.fill();
+    }
+
+    // 受光点的一颗小高光：让球面有"光泽"，否则整颗球是哑光的
+    if (r >= 2.4) {
+      const spec = ctx.createRadialGradient(lx, ly, 0, lx, ly, r * 0.5);
+      spec.addColorStop(0, 'rgba(255,255,255,0.42)');
+      spec.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = spec; ctx.fill();
+    }
   }
 
   function darkenColor(hex, factor) {
@@ -5250,29 +5306,10 @@ function renderStarMap() {
     }
     ctx.restore();
 
-    // 中心徽标：整屏的视觉锚点。
-    // 旧版光晕是 rgba(99,102,241) 靛蓝，但全屏没有任何一颗星是这个颜色 ——
-    // 像从别的设计稿抠过来贴上的。改用页面主色 #7B61FF，和整站同源。
-    const pulse = 1 + 0.06 * Math.sin(now * 0.0022);
-    const ACCENT_RGB = '123,97,255';   // #7B61FF
-    const cg = ctx.createRadialGradient(effCx, effCy, 4 * zoom.scale, effCx, effCy, 42 * pulse * zoom.scale);
-    cg.addColorStop(0, 'rgba(' + ACCENT_RGB + ',0.32)');
-    cg.addColorStop(0.45, 'rgba(' + ACCENT_RGB + ',0.08)');
-    cg.addColorStop(1, 'rgba(' + ACCENT_RGB + ',0)');
-    ctx.beginPath(); ctx.arc(effCx, effCy, 42 * pulse * zoom.scale, 0, Math.PI * 2);
-    ctx.fillStyle = cg; ctx.fill();
-    // 单圈：旧版是「26px 灰描边环 + 20px 实心圆」两层，边界含糊；
-    // 收成一个实心圆 + 一条主色描边，更像"核心"。
-    ctx.beginPath(); ctx.arc(effCx, effCy, 24 * zoom.scale, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(6,10,26,0.92)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(' + ACCENT_RGB + ',0.55)'; ctx.lineWidth = 1.4 * zoom.scale; ctx.stroke();
-    const coreFontSize = Math.max(14, 22 * zoom.scale);
-    ctx.fillStyle = '#f1f5f9'; ctx.font = `700 ${coreFontSize}px system-ui, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(filteredJobs.length, effCx, effCy - 4 * zoom.scale);
-    const subFontSize = Math.max(8, 10 * zoom.scale);
-    ctx.fillStyle = 'rgba(201,197,228,0.7)'; ctx.font = `500 ${subFontSize}px system-ui, sans-serif`;
-    ctx.fillText('投递中', effCx, effCy + 13 * zoom.scale);
+    // 圆心不再画徽标：数量统计已移到左下角图例。
+    // 原来这里是一个 24px 实心圆 + 42px 光晕，正好糊在星系核球上 ——
+    // 既挡住了最亮的核球，又让最内环必须让位到 70px 之外。
+    // 现在圆心留给核球本身，星系的"中心"终于是发光的核心而不是一块 UI 圆饼。
 
     starAnimId = requestAnimationFrame(frame);
   }

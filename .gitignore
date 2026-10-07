@@ -43,3 +43,7 @@ minitest/
 
 # 星系验证截图（临时产物，不入库）
 galaxy*.png
+
+planet.png
+fps*.png
+live-galaxy*.png
