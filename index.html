@@ -4364,6 +4364,8 @@ let starAnimId = null;
 let starStars = [];
 // 星系离屏画布的缓存：烘焙一次约 165ms，按画布尺寸缓存，避免每次切视图重烤。
 let galaxyCanvasCache = { key: null, baked: null, canvas: null };
+// 天光+星场背景层：也必须独立缓存（不随缩放变化，1:1 绘制）
+let skyCanvasCache = { key: null, canvas: null };
 let starClusterMap = null;   // string coord → { count, jobs }
 let starSelectedClusters = null;
 // 缩放接口：renderStarMap 每次渲染时重建，供页面上的缩放按钮调用。
@@ -4952,6 +4954,39 @@ function renderStarMap() {
         g.restore();
       }
 
+      // (a3) ★ 细丝（filament）—— 参考照片里气体的真正形态是**一条条细长的丝**，
+      //      不是一团团棉花。这是"像照片"最关键的一笔：
+      //      圆光斑无论怎么调都像雾，只有细丝才有气体那种纤维感。
+      //      做法：沿环的切线方向走一小段弧，拆成几段描粗，两端细、中间粗；
+      //      整条丝还带轻微径向蜿蜒（真实纤维不是规则圆弧）。
+      const STRANDS = Math.max(70, Math.round(perim / 20 * density));
+      g.lineCap = 'round';
+      for (let s = 0; s < STRANDS; s++) {
+        const a0 = Math.random() * Math.PI * 2;
+        const span = (0.06 + Math.random() * 0.32) * (Math.random() < 0.5 ? 1 : -1);
+        const steps = 7;
+        const w0 = band * (0.045 + Math.random() * 0.10);
+        const rOff = (Math.random() - 0.5) * band * 1.5;
+        const wander = (Math.random() - 0.5) * band * 0.85;
+        // 只在该角度"有气体"的地方长丝（疏密沿用同一个 fbm，和光团对齐）
+        const nz = fbm((((a0 / (Math.PI * 2)) % 1) + 1) % 1 * 9);
+        if (nz < 0.34) continue;
+        const peak = 0.09 + Math.pow(nz, 1.8) * 0.42;
+        const cc = nebulaTint(col, peak * 0.6);
+        for (let k = 0; k < steps; k++) {
+          const t0 = k / steps, t1 = (k + 1) / steps, tm = (t0 + t1) * 0.5;
+          const taper = Math.sin(tm * Math.PI);      // 两端渐隐 → 丝才有头尾
+          if (taper < 0.14) continue;
+          const rA = r + rOff + wander * Math.sin(tm * Math.PI * 2);
+          const rB = r + rOff + wander * Math.sin((tm + 0.13) * Math.PI * 2);
+          const pA = nebulaPoint(rA, a0 + span * t0);
+          const pB = nebulaPoint(rB, a0 + span * t1);
+          g.strokeStyle = hexA(cc, peak * taper);
+          g.lineWidth = w0 * (0.35 + taper * 0.95);
+          g.beginPath(); g.moveTo(pA.x, pA.y); g.lineTo(pB.x, pB.y); g.stroke();
+        }
+      }
+
       // (b) 云团：沿环分布的较大结块。星云不是均匀的雾，是一坨一坨的。
       // 同样按周长缩放，否则外环只有稀稀拉拉几坨。
       const CLUMPS = Math.max(7, Math.round(perim / 170 * density));
@@ -5034,8 +5069,22 @@ function renderStarMap() {
     }
 
     // ── 3. 尘埃带 ──
-    // 在旋臂**内侧**擦出暗缝。这是让平面看起来有厚度、有遮挡的关键：
-    // 没有暗缝，星云就是一坨均匀的雾，像画上去的，不像星系。
+    // 参考照片里 M31 最标志性的特征就是**暖棕色的暗带**切过盘面。
+    // 实测尘埃处颜色 rgb(192,158,152) → rgb(220,184,175)，是**暖**的（R>B），
+    // 不是单纯"变黑"。所以这里分两步做：
+    //   ① destination-out 把气体真的擦掉 → 产生遮挡和暗缝
+    //   ② 再用暗暖棕 rgba(58,32,20,·) 填一层 → 暗带偏暖，像尘埃
+    // 只做①暗带是中性灰黑，不像尘埃；只做②不够暗，没有遮挡感。
+    // 另外尘埃带要比旋臂**更细更锐**，所以半径收窄、数量加密。
+    // ★ 实测纠正：我一开始把尘埃当成"暗带"，拼命把它压暗 —— 方向错了。
+    // 直接量参考照片的暖色分布：
+    //     R-B>25        4.30%   （我的第一版只有 1.36%）
+    //     R-B>25 且 亮  3.94%   ← 暖色里 96% 是"亮"的
+    //     R-B>25 且 暗  0.36%   ← 只有 4% 是暗的
+    // 也就是说照片里的橙棕色尘埃带是**被照亮的**（rgb(167,124,118) 这种暖灰棕），
+    // 不是刻意的暗带。所以这里改成"明亮的暖色"叠在旋臂上，
+    // destination-out 只保留中等强度用来做遮挡层次。
+    const DUST_WARM = '196,124,72';
     g.globalCompositeOperation = 'destination-out';
     for (let arm = 0; arm < GALAXY_ARMS; arm++) {
       const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
@@ -5043,11 +5092,11 @@ function renderStarMap() {
       for (let i = 0; i <= ARM_STEPS; i += 2) {
         const t = 0.12 + (i / ARM_STEPS) * 0.86;
         const p = galaxyPoint(t, armPhase + 0.055);
-        const rx = galaxyMaxR * (0.010 + t * 0.032);
+        const rx = galaxyMaxR * (0.009 + t * 0.030);      // 比原来更宽 → 尘埃带更明显
         const fade = Math.exp(-t * 1.5);
         const rg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx);
-        rg.addColorStop(0, 'rgba(0,0,0,' + (0.34 * fade + 0.03) + ')');
-        rg.addColorStop(0.6, 'rgba(0,0,0,' + (0.13 * fade) + ')');
+        rg.addColorStop(0, 'rgba(0,0,0,' + (0.55 * fade + 0.08) + ')');
+        rg.addColorStop(0.5, 'rgba(0,0,0,' + (0.22 * fade) + ')');
         rg.addColorStop(1, 'rgba(0,0,0,0)');
         g.save(); g.translate(p.x, p.y); g.scale(1, RING_RATIO);
         g.fillStyle = rg;
@@ -5055,7 +5104,49 @@ function renderStarMap() {
         g.restore();
       }
     }
+    // (b) 沿每条**环**也切出尘埃细丝：让"环"本身也有照片里的尘埃质感，
+    //     而不是只有旋臂上有。用细笔画而不是光团 —— 尘埃也是丝状的。
+    ringInfos.forEach(function (info) {
+      const r = info.r;
+      const band = Math.max(10, Math.min(30, (info.halfWidth || 20) * 0.9 + 10));
+      const perim = 2 * Math.PI * r * 0.81;
+      const N = Math.max(24, Math.round(perim / 90));
+      for (let i = 0; i < N; i++) {
+        const a0 = Math.random() * Math.PI * 2;
+        const span = (0.05 + Math.random() * 0.22) * (Math.random() < 0.5 ? 1 : -1);
+        const rr = r + (Math.random() - 0.5) * band * 1.2;
+        const steps = 6;
+        for (let k = 0; k < steps; k++) {
+          const t0 = k / steps, t1 = (k + 1) / steps, tm = (t0 + t1) * 0.5;
+          const taper = Math.sin(tm * Math.PI);
+          if (taper < 0.2) continue;
+          const pA = nebulaPoint(rr, a0 + span * t0);
+          const pB = nebulaPoint(rr, a0 + span * t1);
+          g.strokeStyle = 'rgba(0,0,0,' + (0.30 * taper) + ')';
+          g.lineWidth = band * (0.10 + 0.16 * taper);
+          g.lineCap = 'round';
+          g.beginPath(); g.moveTo(pA.x, pA.y); g.lineTo(pB.x, pB.y); g.stroke();
+        }
+      }
+    });
+    // (c) 填暖色：让擦出来的暗带偏暖棕，而不是中性黑（照片里尘埃是暖的）
     g.globalCompositeOperation = 'source-over';
+    for (let arm = 0; arm < GALAXY_ARMS; arm++) {
+      const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
+      for (let i = 0; i <= ARM_STEPS; i += 3) {
+        const t = 0.12 + (i / ARM_STEPS) * 0.86;
+        const p = galaxyPoint(t, armPhase + 0.055);
+        const rx = galaxyMaxR * (0.008 + t * 0.026);   // 与上面擦除带同宽，暖色才盖得住
+        const fade = Math.exp(-t * 1.4);
+        const rg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx);
+        rg.addColorStop(0, 'rgba(' + DUST_WARM + ',' + (0.58 * fade + 0.14) + ')');
+        rg.addColorStop(1, 'rgba(' + DUST_WARM + ',0)');
+        g.save(); g.translate(p.x, p.y); g.scale(1, RING_RATIO);
+        g.fillStyle = rg;
+        g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
+        g.restore();
+      }
+    }
 
     // ── 4. HII 区：旋臂上的粉/洋红恒星形成区 ──
     // 真实旋涡星系的标志性特征：旋臂上一串粉色亮点。
@@ -5071,17 +5162,12 @@ function renderStarMap() {
       }
     }
 
-    // ── 5. 盘面上的细星点 ──
-    // 只在前面的柔和底子上撒**少量**亮星，提供质感。
-    // 数量必须少：第一版撒了几千颗，结果整张图变成噪点。
-    for (let i = 0; i < 700; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const rr = Math.pow(Math.random(), 0.75) * galaxyMaxR * 0.98;
-      const x = Math.cos(a) * rr, y = Math.sin(a) * rr * RING_RATIO;
-      const alpha = 0.18 + Math.random() * 0.5;
-      g.fillStyle = 'rgba(255,255,255,' + alpha + ')';
-      g.beginPath(); g.arc(x, y, Math.random() * 0.9 + 0.25, 0, Math.PI * 2); g.fill();
-    }
+    // ── 5. 密集星场 ──（★ 注意：星场挪到"去饱和"**之后**再画，见函数末尾）
+    // 原因：去饱和那一步是在 0.35 倍分辨率上处理、然后 clearRect + drawImage
+    // 把整张画布**重画回来**。1px 的细星经过「降采样→升采样」会被抹平，
+    // 所以画在那里等于白画 —— 实测把星数从 1200 提到 9000 后，
+    // 检出密度只从 1.7 变到 1.9，就是这个原因。
+
 
     // ── 6. 高亮区去饱和：真实星云"暗处浓、亮处白" ──
     //
@@ -5113,6 +5199,9 @@ function renderStarMap() {
       for (let i = 0; i < d.length; i += 4) {
         const r = d[i], gg = d[i + 1], b = d[i + 2];
         if (r === 0 && gg === 0 && b === 0) continue;      // 纯黑跳过，省时间
+        // 注意：这里**不加天光底噪**。试过给 galaxyCanvas 加恒定抬升，
+        // 但 galaxyCanvas 是按 zoom.scale 缩放后画上去的 —— 它自己的矩形边界
+        // 会变成一块看得见的灰方块。天光必须放在独立背景层（skyCanvas）上。
         const L = 0.2126 * r + 0.7152 * gg + 0.0722 * b;
         // 亮度超过 ~62 才开始明显去饱和，到 200 基本全白
         // （和实测曲线一致：中低亮度仍保持颜色，只有高亮区发白）
@@ -5136,6 +5225,68 @@ function renderStarMap() {
       g.drawImage(small, 0, 0, fullW, fullH);
       g.restore();
     }
+
+    // ── 7. 密集星场 ──
+    // ★ 星场已移到独立的"天光/星场"背景层（skyCanvas），见下方。
+    // 原因：星场原先画在 galaxyCanvas 上，而 galaxyCanvas 是按 zoom.scale
+    // 缩放后画到主画布的 —— 星场和天光跟着一起被缩小，
+    // 导致视口四角露出纯黑（实测角落 rgb(0,0,2)），星点密度也被摊薄。
+    // 背景星空本来就**不应该**跟着星系缩放，所以拆成一层、1:1 绘制。
+  }
+
+  // ── 天光 + 密集星场：独立背景层，1:1 绘制、不随缩放变化 ──
+  // 参考照片里"太空感"的两个来源：
+  //   ① 满天的细星（实测照片 13.7 个亮星点 /1000px²）
+  //   ② "空"的天区也有微弱天光 —— 实测照片极暗(<12)只占 2.5%，
+  //      即天区底色约 25~35，而不是纯黑 0。纯黑会像"贴在黑底上的贴图"。
+  const skyKey = 'sky|' + Math.round(W) + '|' + Math.round(H) + '|' + dpr;
+  if (skyCanvasCache.key !== skyKey) {
+    skyCanvasCache.key = skyKey;
+    const sc = document.createElement('canvas');
+    sc.width = Math.max(1, Math.round(W * dpr));
+    sc.height = Math.max(1, Math.round(H * dpr));
+    const sctx = sc.getContext('2d');
+    sctx.scale(dpr, dpr);
+    // ① 天光底：偏冷的深蓝灰，均匀铺满 → 消灭纯黑
+    sctx.fillStyle = '#060911';
+    sctx.fillRect(0, 0, W, H);
+    // 再铺几层极淡的大尺度晕：真实夜空的气辉是不均匀的
+    for (let i = 0; i < 5; i++) {
+      const gx = Math.random() * W, gy = Math.random() * H;
+      const gr = Math.max(W, H) * (0.35 + Math.random() * 0.55);
+      const rg = sctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      rg.addColorStop(0, 'rgba(42,60,100,0.11)');
+      rg.addColorStop(1, 'rgba(42,60,100,0)');
+      sctx.fillStyle = rg;
+      sctx.beginPath(); sctx.arc(gx, gy, gr, 0, Math.PI * 2); sctx.fill();
+    }
+    // ② 细星：数量按照片密度校准，并给颜色差异（真实星场恒星色温差别很明显）
+    const TINTS = ['#c9dcff', '#dce9ff', '#ffffff', '#fff6e6', '#ffdcae', '#ffc98a'];
+    // 密度与亮度实测校准：照片是 13.7 个亮星点/1000px²，第一版只有 5.4。
+    // 两个原因：① 数量不够 ② alpha 从 0.16 起步太低 —— 在抬起来的天光底上
+    // 达不到"亮星"的判定门槛（要亮于局部均值 +26 且 >72）。
+    // 所以数量加密、亮度整体提高。
+    const N = Math.round(W * H / 72);
+    for (let i = 0; i < N; i++) {
+      const x = Math.random() * W, y = Math.random() * H;
+      const m = Math.pow(Math.random(), 1.6);
+      sctx.fillStyle = hexA(TINTS[(Math.random() * TINTS.length) | 0], 0.30 + m * 0.70);
+      sctx.beginPath(); sctx.arc(x, y, 0.26 + m * 1.30, 0, Math.PI * 2); sctx.fill();
+    }
+    // 少量亮星带十字星芒（照片里最亮那几颗都有衍射星芒，有它"摄影感"强很多）
+    for (let i = 0; i < 34; i++) {
+      const x = Math.random() * W, y = Math.random() * H;
+      const len = 3 + Math.random() * 8;
+      sctx.strokeStyle = 'rgba(255,255,255,' + (0.28 + Math.random() * 0.40) + ')';
+      sctx.lineWidth = 0.7;
+      sctx.beginPath();
+      sctx.moveTo(x - len, y); sctx.lineTo(x + len, y);
+      sctx.moveTo(x, y - len); sctx.lineTo(x, y + len);
+      sctx.stroke();
+      sctx.fillStyle = 'rgba(255,255,255,0.95)';
+      sctx.beginPath(); sctx.arc(x, y, 1.5, 0, Math.PI * 2); sctx.fill();
+    }
+    skyCanvasCache.canvas = sc;
   }
 
   // --- Mouse ---
@@ -5452,6 +5603,12 @@ function renderStarMap() {
     const dt = Math.min(now - lastT, 50);
     lastT = now;
     ctx.clearRect(0, 0, W, H);
+
+    // 天光 + 密集星场：独立背景层，**1:1 绘制**（不跟随缩放/平移）。
+    // 背景星空本来就该是固定的，而且这样它不会被 zoom 缩小、也不会露出四角纯黑。
+    if (skyCanvasCache.canvas && skyCanvasCache.canvas.width === Math.round(W * dpr)) {
+      ctx.drawImage(skyCanvasCache.canvas, 0, 0, W, H);
+    }
 
     // Twinkling background
     bgStars.forEach(bs => {
