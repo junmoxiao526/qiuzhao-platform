@@ -941,6 +941,12 @@ body {
   font-size:11.5px; color:#cbd5e1; white-space:nowrap; }
 .star-legend .sl-item i { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
 .star-legend .sl-item b { color:#94a3b8; font-weight:600; font-variant-numeric:tabular-nums; }
+/* 总数（原圆心徽标搬来）：视觉权重高于各阶段计数，因为它是整屏的锚点数字 */
+.star-legend .sl-total { display:inline-flex; align-items:baseline; gap:5px;
+  font-size:11.5px; color:#c9c5e4; white-space:nowrap;
+  padding-right:12px; border-right:1px solid rgba(148,163,184,0.22); }
+.star-legend .sl-total b { font-size:16px; line-height:1; color:#f1f5f9; font-weight:700;
+  font-variant-numeric:tabular-nums; letter-spacing:-0.01em; }
 .star-legend .sl-note { font-size:11px; color:#64748b; white-space:nowrap;
   padding-left:12px; border-left:1px solid rgba(148,163,184,0.22); }
 
@@ -4528,16 +4534,24 @@ function renderStarMap() {
   // 放在画布左下角，和左上角的缩放控件对称。
   const legend = document.createElement('div');
   legend.className = 'star-legend';
-  legend.innerHTML = activeStages.map(function (key) {
-    const meta = STATUSES.find(function (s) { return s.key === key; }) || {};
-    return '<span class="sl-item"><i style="background:' + (STAGE_COLORS[key] || '#94a3b8') + '"></i>'
-      + escapeHtml(meta.label || key) + '<b>' + stageJobs[key].length + '</b></span>';
-  }).join('')
-    + '<span class="sl-note">球越大 = 该阶段岗位越多</span>';
+  // 「投递中」总数从圆心搬到图例：圆心原本要占 24px 实心圆 + 42px 光晕，
+  // 把最内环挤到 70px 之外，视觉上就是"中心一大块空的"。
+  // 它本质是一个**统计数字**，和阶段计数同类，放图例里语义更对，
+  // 也顺手把圆心让出来给星系的核球。
+  legend.innerHTML = '<span class="sl-total"><b>' + filteredJobs.length + '</b>投递中</span>'
+    + activeStages.map(function (key) {
+      const meta = STATUSES.find(function (s) { return s.key === key; }) || {};
+      return '<span class="sl-item"><i style="background:' + (STAGE_COLORS[key] || '#94a3b8') + '"></i>'
+        + escapeHtml(meta.label || key) + '<b>' + stageJobs[key].length + '</b></span>';
+    }).join('');
+  // 已删除「球越大 = 该阶段岗位越多」这句说明（用户要求）。
   wrap.appendChild(legend);
 
   const spread = 28;
-  const minInner = 70;
+  // 圆心徽标搬走后，最内环不再需要为一个 24px 的实心圆让位。
+  // 从 70 收到 52：既让最内环更贴近发光的核球（这正是"52 外面一圈很大"的根治），
+  // 又给外侧各环多让出 (70-52)/(nRings-1) 的间距。
+  const minInner = 52;
   // 相邻环的**视觉**间距 = gap * RING_RATIO，必须容得下星球直径，
   // 否则不同环上的球会叠在一起（原来 gap=26 → 纵向只有 16px，必然重叠）。
   const gap = 46;
@@ -4689,6 +4703,166 @@ function renderStarMap() {
     tSpeed: 0.0006 + Math.random() * 0.003
   }));
 
+  /* ══════════ 星系背景 ══════════
+   * 目标：让星图看起来像"从上方俯视的旋涡星系"，而不是"几条同心椭圆轨道"。
+   *
+   * 做法是**对数螺旋**： galaxyPoint(半径 t, 旋臂偏移 arm) →
+   *   θ = t * GALAXY_TWIST + arm，再按 (cosθ, sinθ) 展开并按 RING_RATIO 压扁。
+   * TWIST 控制缠绕圈数：太大旋臂会绕成蚊香，太小就成了放射状直线。
+   *
+   * 四种成分依次叠加：
+   *   1. 核球  —— 中心的致密亮带，让中心"有实体"
+   *   2. 旋臂  —— 沿螺旋线撒粒子，靠高斯抖动散开，前端亮、末端淡
+   *   3. 尘埃带 —— 就在旋臂内侧，用 destination-out **擦掉**已有的星云，
+   *                形成暗缝。这是"像星系"最关键的一笔：
+   *                没有尘埃带，撒出来的粒子只是一团均匀的雾。
+   *   4. HII 区 —— 旋臂上的洋红/粉色亮斑（恒星形成区），
+   *                给画面一点非蓝白的暖色点缀。
+   *
+   * 整张星系**离屏预渲染一次**（offscreen canvas），每帧只 drawImage。
+   * 每帧重画几千个粒子会直接拖垮 rAF（星图本来就要以 60fps 跑公转）。
+   *
+   * 注意：这里不能引用下面才声明的 maxRingRx（const 有 TDZ，会直接抛错），
+   * 所以按同样口径就地算一份。
+   */
+  const galaxyMaxR = ringInfos.reduce((m, i) => Math.max(m, i.r + i.halfWidth), 0) || 300;
+  const GALAXY_TWIST = 3.0;          // 旋臂缠绕弧度（≈1.4 圈，旋涡星系的典型值）
+  const GALAXY_ARMS = 2;             // 两条主旋臂（4 条会显得太碎）
+  const GALAXY_SCALE = 1.0;          // 星系相对最外环的铺开比例
+  const GALAXY_OPACITY = 0.95;       // 星系整体不透明度（留一点给纯黑底做纵深）
+  const galaxyPoint = (t, arm) => {
+    const th = t * GALAXY_TWIST + arm;
+    const rr = t * galaxyMaxR * GALAXY_SCALE;
+    return { x: Math.cos(th) * rr, y: Math.sin(th) * rr * RING_RATIO };
+  };
+  const galaxyCanvas = document.createElement('canvas');
+  galaxyCanvas.width = Math.max(1, Math.round(W * dpr));
+  galaxyCanvas.height = Math.max(1, Math.round(H * dpr));
+  {
+    const g = galaxyCanvas.getContext('2d');
+    g.scale(dpr, dpr);
+    g.translate(cx, cy);
+
+    // 用**大而软的椭圆光团**堆，而不是小圆点。
+    // 第一版每颗粒子只有 0.35~1.85px，实测盘面 86% 的像素是纯黑 ——
+    // 那种画法只能得到"撒了一层噪点"，永远堆不出连续的旋臂。
+    // 旋臂是**弥散的带状光**，光团必须远大于粒子间距才会互相融合成带。
+    const puff = (x, y, rx, ry, color, a) => {
+      if (a <= 0.002) return;
+      g.save();
+      g.translate(x, y);
+      g.scale(1, ry / rx);
+      const rg = g.createRadialGradient(0, 0, 0, 0, 0, rx);
+      rg.addColorStop(0, hexA(color, a));
+      rg.addColorStop(0.35, hexA(color, a * 0.62));
+      rg.addColorStop(0.7, hexA(color, a * 0.22));
+      rg.addColorStop(1, hexA(color, 0));
+      g.fillStyle = rg;
+      g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
+      g.restore();
+    };
+
+    // ── 0. 星系盘底光 ──
+    // 先铺一层覆盖整个盘面的极淡底光。没有它，臂间区域会是纯黑，
+    // 整张图就退化成"黑底上的亮条"，而不是一个发光的星系。
+    // 面亮度按指数衰减 —— 真实星系盘就是这个剖面。
+    for (let i = 0; i < 26; i++) {
+      const t = i / 25;
+      const rr = (0.10 + t * 0.92) * galaxyMaxR;
+      // 越靠外越暗（e 指数），同时压低整体
+      const a = 0.055 * Math.exp(-t * 2.4) + 0.008;
+      puff(0, 0, rr, rr * RING_RATIO, '#8fb0ff', a * 0.5);
+    }
+
+    // ── 1. 核球 ──
+    // 中心隆起：暖白、致密。真实星系核球在视觉上是一个"发光的实心球"。
+    puff(0, 0, galaxyMaxR * 0.34, galaxyMaxR * 0.34 * RING_RATIO, '#ffd9a0', 0.30);
+    puff(0, 0, galaxyMaxR * 0.20, galaxyMaxR * 0.20 * RING_RATIO, '#fff0cf', 0.42);
+    puff(0, 0, galaxyMaxR * 0.10, galaxyMaxR * 0.10 * RING_RATIO, '#fffaf0', 0.55);
+
+    // ── 2. 旋臂 ──
+    // 关键改变：每支臂沿螺旋线走**密集采样点**，每点画一个**大光团**，
+    // 相邻采样点的光团大面积重叠 → 融成一条连续、带晕的旋臂。
+    // 光团半径随 t 增大（外臂更弥散），亮度随 t 指数衰减（外臂更暗）。
+    const ARM_STEPS = 420;
+    for (let arm = 0; arm < GALAXY_ARMS; arm++) {
+      const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
+      for (let i = 0; i <= ARM_STEPS; i++) {
+        const t = 0.045 + (i / ARM_STEPS) * 0.955;
+        const p = galaxyPoint(t, armPhase);
+        const fade = Math.exp(-t * 1.7);
+        // 光团横向尺寸：中心细、外缘宽（约 3% → 13% 盘半径）
+        const rx = galaxyMaxR * (0.030 + t * 0.10);
+        const ry = rx * RING_RATIO;
+        // 颜色：内侧暖白（核球光的延伸）→ 外侧冷蓝（年轻星族）
+        const warm = Math.max(0, 1 - t * 2.1);
+        const col = warm > 0.4 ? '#ffe2b0' : (warm > 0.05 ? '#e8ecff' : '#9dc0ff');
+        puff(p.x, p.y, rx, ry, col, 0.030 * fade + 0.006);
+      }
+    }
+    // 旋臂上再叠一层细亮芯，让旋臂有"骨架"而不是一团糊
+    for (let arm = 0; arm < GALAXY_ARMS; arm++) {
+      const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
+      for (let i = 0; i <= ARM_STEPS; i++) {
+        const t = 0.045 + (i / ARM_STEPS) * 0.955;
+        const p = galaxyPoint(t, armPhase);
+        const fade = Math.exp(-t * 1.9);
+        const rx = galaxyMaxR * (0.012 + t * 0.030);
+        puff(p.x, p.y, rx, rx * RING_RATIO, '#ffffff', 0.022 * fade + 0.003);
+      }
+    }
+
+    // ── 3. 尘埃带 ──
+    // 在旋臂**内侧**擦出暗缝。这是让平面看起来有厚度、有遮挡的关键：
+    // 没有暗缝，旋臂就是两条均匀的亮带，像画上去的，不像星系。
+    g.globalCompositeOperation = 'destination-out';
+    for (let arm = 0; arm < GALAXY_ARMS; arm++) {
+      const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
+      // 相位略微超前 = 落在旋臂的内侧（半径更小的一侧）
+      for (let i = 0; i <= ARM_STEPS; i += 2) {
+        const t = 0.10 + (i / ARM_STEPS) * 0.88;
+        const p = galaxyPoint(t, armPhase + 0.055);
+        const rx = galaxyMaxR * (0.012 + t * 0.040);
+        const fade = Math.exp(-t * 1.5);
+        const rg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx);
+        rg.addColorStop(0, 'rgba(0,0,0,' + (0.42 * fade + 0.04) + ')');
+        rg.addColorStop(0.6, 'rgba(0,0,0,' + (0.16 * fade) + ')');
+        rg.addColorStop(1, 'rgba(0,0,0,0)');
+        g.save(); g.translate(p.x, p.y); g.scale(1, RING_RATIO);
+        g.fillStyle = rg;
+        g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
+        g.restore();
+      }
+    }
+    g.globalCompositeOperation = 'source-over';
+
+    // ── 4. HII 区：旋臂上的粉/洋红恒星形成区 ──
+    // 真实旋涡星系的标志性特征：旋臂上一串粉色亮点。
+    for (let arm = 0; arm < GALAXY_ARMS; arm++) {
+      const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
+      for (let i = 0; i < 16; i++) {
+        const t = 0.16 + Math.random() * 0.72;
+        const p = galaxyPoint(t, armPhase);
+        const jx = (Math.random() - 0.5) * galaxyMaxR * 0.10;
+        const jy = (Math.random() - 0.5) * galaxyMaxR * 0.10 * RING_RATIO;
+        const rx = galaxyMaxR * (0.016 + Math.random() * 0.022);
+        puff(p.x + jx, p.y + jy, rx, rx * RING_RATIO, '#ff8fd0', 0.10 + Math.random() * 0.12);
+      }
+    }
+
+    // ── 5. 盘面上的细星点 ──
+    // 只在前面的柔和底子上撒**少量**亮星，提供质感。
+    // 数量必须少：第一版撒了几千颗，结果整张图变成噪点。
+    for (let i = 0; i < 700; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr = Math.pow(Math.random(), 0.75) * galaxyMaxR * 0.98;
+      const x = Math.cos(a) * rr, y = Math.sin(a) * rr * RING_RATIO;
+      const alpha = 0.18 + Math.random() * 0.5;
+      g.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+      g.beginPath(); g.arc(x, y, Math.random() * 0.9 + 0.25, 0, Math.PI * 2); g.fill();
+    }
+  }
+
   // --- Mouse ---
   let hoveredStars = [];
   // 拖拽状态与 hoveredStars 一起声明（onclick 会用到 dragMoved，
@@ -4732,22 +4906,169 @@ function renderStarMap() {
     }
   };
 
-  // --- Helper: Draw 3D sphere node ---
+  // --- Helper: Draw a planet node ---
+  // 从"加了高光的球"升级成**行星**。原先只有一层左上→右下的径向渐变，
+  // 读起来像塑料球：没有昼夜分界、没有大气、没有临边变暗。
+  // 行星的四个必备特征（照这个顺序叠）：
+  //   ① 本体：受光面偏白、背光面压暗（用的是偏移的高光点，制造立体感）
+  //   ② 临边变暗：真实行星边缘一定比中心暗（大气光学厚度沿切线方向累积）
+  //   ③ 明暗分界（terminator）：一条略柔的弧线，把球分成昼半球/夜半球
+  //   ④ 大气边缘光：背光侧一圈很淡的蓝色散射 —— 这是"有大气"最强的暗示
+  // 颜色仍由 color 决定（阶段语义不变），只是把明暗关系画对。
+  // --- Helper: Draw a planet node ---
+  // 从"加了高光的球"升级成**行星**。
+  // 行星的特征（照这个顺序叠）：
+  //   ① 本体：受光面偏白、背光面压暗（偏移的高光点，制造立体感）
+  //   ② 临边变暗：真实行星边缘一定比中心暗（大气光学厚度沿切线方向累积）
+  //   ③ 明暗分界（terminator）：一条略柔的弧线，把球分成昼半球/夜半球
+  //   ④ 表面细节：云带 + 地形斑驳 —— 光滑的球永远像塑料
+  //   ⑤ 大气边缘光：背光侧一圈很淡的蓝色散射 —— "有大气"最强的暗示
+  //   ⑥ 外辉光：球体外一圈淡光，让星球从背景里浮出来
+  //   ⑦ 受光点高光
+  // 颜色仍由 color 决定（阶段语义不变），只是把明暗关系画对。
+
+  // ★ 性能：表面细节要画 10+ 个渐变，53 颗球 × 60fps 会把帧率从 61 打到 36。
+  // 所以按"阶段色"**缓存成精灵图**，每帧只 drawImage 一次。
+  // 纹理本来就是静态的，没必要每帧重算。
+  const planetSpriteCache = new Map();
+  const PLANET_SPRITE_SIZE = 96;
+  function getPlanetSprite(color) {
+    if (planetSpriteCache.has(color)) return planetSpriteCache.get(color);
+    const S = PLANET_SPRITE_SIZE;
+    const cv = document.createElement('canvas');
+    cv.width = S; cv.height = S;
+    const p = cv.getContext('2d');
+    const cx0 = S / 2, cy0 = S / 2;
+    const R = S * 0.30;                 // 球半径占 30%，留出外辉光空间
+    const lx = cx0 - R * 0.32, ly = cy0 - R * 0.36;
+
+    // ① 本体 + ② 临边变暗
+    const body = p.createRadialGradient(lx, ly, R * 0.03, lx, ly, R * 1.5);
+    body.addColorStop(0.00, '#ffffff');
+    body.addColorStop(0.22, color);
+    body.addColorStop(0.62, darkenColor(color, 0.42));
+    body.addColorStop(0.88, darkenColor(color, 0.72));
+    body.addColorStop(1.00, darkenColor(color, 0.86));
+    p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2);
+    p.fillStyle = body; p.fill();
+
+    // ④ 表面细节（在球内裁剪）
+    p.save();
+    p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2); p.clip();
+    // 颜色做种子 → 同一阶段的球纹理一致，不同阶段不同
+    let seed = 1;
+    for (let i = 0; i < color.length; i++) seed = (seed * 131 + color.charCodeAt(i)) & 0x7fffffff;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    // 云带：横向条纹，宽窄/亮度随机
+    const bands = 3 + Math.floor(rnd() * 3);
+    for (let i = 0; i < bands; i++) {
+      const by = cy0 - R + (R * 2) * ((i + 0.5 + (rnd() - 0.5) * 0.5) / bands);
+      const bh = R * (0.10 + rnd() * 0.16);
+      const bw = R * (1.3 + rnd() * 0.7);
+      const a = 0.10 + rnd() * 0.14;
+      const g2 = p.createLinearGradient(cx0 - bw, by, cx0 + bw, by);
+      g2.addColorStop(0, 'rgba(255,255,255,0)');
+      g2.addColorStop(0.35, 'rgba(255,255,255,' + a + ')');
+      g2.addColorStop(0.7, 'rgba(255,255,255,' + (a * 0.6) + ')');
+      g2.addColorStop(1, 'rgba(255,255,255,0)');
+      p.fillStyle = g2;
+      p.beginPath(); p.ellipse(cx0, by, bw, bh, 0, 0, Math.PI * 2); p.fill();
+    }
+    // 地形斑驳：暗斑 + 亮斑，模拟大陆/环形山
+    const spots = 5 + Math.floor(rnd() * 6);
+    for (let i = 0; i < spots; i++) {
+      const sa = rnd() * Math.PI * 2;
+      const sd = Math.sqrt(rnd()) * R * 0.92;
+      const sx = cx0 + Math.cos(sa) * sd, sy = cy0 + Math.sin(sa) * sd;
+      const sr = R * (0.10 + rnd() * 0.22);
+      const g3 = p.createRadialGradient(sx, sy, 0, sx, sy, sr);
+      if (rnd() < 0.55) {
+        g3.addColorStop(0, 'rgba(0,0,0,' + (0.10 + rnd() * 0.14) + ')');
+        g3.addColorStop(1, 'rgba(0,0,0,0)');
+      } else {
+        g3.addColorStop(0, 'rgba(255,255,255,' + (0.10 + rnd() * 0.16) + ')');
+        g3.addColorStop(1, 'rgba(255,255,255,0)');
+      }
+      p.fillStyle = g3;
+      p.beginPath(); p.arc(sx, sy, sr, 0, Math.PI * 2); p.fill();
+    }
+    p.restore();
+
+    // ③ 明暗分界
+    const dark = p.createRadialGradient(lx, ly, R * 0.55, lx, ly, R * 1.42);
+    dark.addColorStop(0, 'rgba(2,6,20,0)');
+    dark.addColorStop(0.68, 'rgba(2,6,20,0.10)');
+    dark.addColorStop(1, 'rgba(2,6,20,0.52)');
+    p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2);
+    p.fillStyle = dark; p.fill();
+
+    // ⑤ 大气边缘光（背光侧最亮）
+    const atmo = p.createRadialGradient(
+      cx0 + R * 0.26, cy0 + R * 0.30, R * 0.55,
+      cx0 + R * 0.26, cy0 + R * 0.30, R * 1.06
+    );
+    atmo.addColorStop(0, 'rgba(150,205,255,0)');
+    atmo.addColorStop(0.72, 'rgba(150,205,255,0.05)');
+    atmo.addColorStop(0.94, 'rgba(178,220,255,0.20)');
+    atmo.addColorStop(1, 'rgba(178,220,255,0)');
+    p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2);
+    p.fillStyle = atmo; p.fill();
+
+    // ⑥ 外辉光（球体外）
+    const halo = p.createRadialGradient(cx0, cy0, R * 0.92, cx0, cy0, R * 1.5);
+    halo.addColorStop(0, hexA(color, 0.30));
+    halo.addColorStop(0.45, hexA(color, 0.10));
+    halo.addColorStop(1, hexA(color, 0));
+    p.beginPath(); p.arc(cx0, cy0, R * 1.5, 0, Math.PI * 2);
+    p.fillStyle = halo; p.fill();
+
+    // ⑦ 受光点高光
+    const spec = p.createRadialGradient(lx, ly, 0, lx, ly, R * 0.5);
+    spec.addColorStop(0, 'rgba(255,255,255,0.42)');
+    spec.addColorStop(1, 'rgba(255,255,255,0)');
+    p.beginPath(); p.arc(cx0, cy0, R, 0, Math.PI * 2);
+    p.fillStyle = spec; p.fill();
+
+    planetSpriteCache.set(color, { canvas: cv, radius: R });
+    return planetSpriteCache.get(color);
+  }
+
   function draw3DSphere(ctx, x, y, r, color, highlight) {
-    // body gradient: light at top-left, dark at bottom-right
-    const grad = ctx.createRadialGradient(x - r*0.25, y - r*0.3, r*0.05, x, y, r);
-    grad.addColorStop(0, highlight || '#ffffff');
-    grad.addColorStop(0.28, color);
-    grad.addColorStop(0.7, darkenColor(color, 0.5));
-    grad.addColorStop(1, darkenColor(color, 0.8));
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = grad; ctx.fill();
-    // edge light
-    const edge = ctx.createRadialGradient(x, y, r*0.85, x, y, r);
-    edge.addColorStop(0, 'rgba(255,255,255,0)');
-    edge.addColorStop(1, 'rgba(255,255,255,0.08)');
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = edge; ctx.fill();
+    if (!(r > 0.6)) return;
+    const sp = getPlanetSprite(color);
+    const scale = r / sp.radius;
+    const half = (sp.canvas.width / 2) * scale;
+    ctx.drawImage(sp.canvas, x - half, y - half, half * 2, half * 2);
+  }
+
+  // 星球外圈光晕也缓存成精灵图。
+  // 原先每颗球每帧都要 createRadialGradient + fill 一次 ——
+  // 实测稳定状态下每 30 帧有 1590 次 createRadialGradient、3690 次 fill，
+  // 这是星图持续吃 CPU 的主因。
+  const glowSpriteCache = new Map();
+  const GLOW_SPRITE_SIZE = 128;
+  function getGlowSprite(color, cluster) {
+    const key = (cluster ? 'c:' : 's:') + color;
+    if (glowSpriteCache.has(key)) return glowSpriteCache.get(key);
+    const S = GLOW_SPRITE_SIZE;
+    const cv = document.createElement('canvas');
+    cv.width = S; cv.height = S;
+    const p = cv.getContext('2d');
+    const c0 = S / 2;
+    const R = cluster ? S * 0.30 : S * 0.20;
+    const reach = cluster ? 2.0 : 2.5;
+    const inner = cluster ? 0.18 : 0.12;
+    const mid = cluster ? 0.55 : 0.5;
+    const a0 = cluster ? 0.5 : 0.62;
+    const a1 = cluster ? 0.15 : 0.17;
+    const g = p.createRadialGradient(c0, c0, R * inner, c0, c0, R * reach);
+    g.addColorStop(0, hexA(color, a0));
+    g.addColorStop(mid, hexA(color, a1));
+    g.addColorStop(1, hexA(color, 0));
+    p.fillStyle = g;
+    p.beginPath(); p.arc(c0, c0, R * reach, 0, Math.PI * 2); p.fill();
+    glowSpriteCache.set(key, { canvas: cv, radius: R, reach: reach });
+    return glowSpriteCache.get(key);
   }
 
   function darkenColor(hex, factor) {
@@ -4870,17 +5191,28 @@ function renderStarMap() {
       ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fill();
     });
 
-    // Orbit rings - solid thin lines matching screenshot
-    // 默认 pan 为 0（钉在正中）；只有放大到装不下时才可能非 0
+    // 星系本体：预渲染好的离屏图，每帧一次 drawImage（几乎零成本）。
+    // 跟随缩放与平移，这样放大时旋臂纹理跟着放大，不会"漂"在背景上。
+    if (galaxyCanvas.width > 1) {
+      ctx.save();
+      ctx.globalAlpha = GALAXY_OPACITY;
+      ctx.translate(cx + zoom.panX, cy + zoom.panY);
+      ctx.scale(zoom.scale, zoom.scale);
+      ctx.translate(-cx, -cy);
+      ctx.drawImage(galaxyCanvas, 0, 0, W, H);
+      ctx.restore();
+    }
+
+    // Orbit rings —— 从"轨道线"退成"刻度"。
+    // 原本是清晰可辨的同心椭圆，这正是"看着像轨道图、不像星系"的原因之一；
+    // 压到很低的不透明度后，它只在聚焦时提供"这一圈是哪个阶段"的参照，
+    // 不再和旋臂抢结构。被悬停/选中的环才点亮成阶段色。
     const effCx = cx + zoom.panX, effCy = cy + zoom.panY;
     activeStages.forEach((key, idx) => {
       const r = (ringInfos[idx] ? ringInfos[idx].r : 100) * zoom.scale;
       // 保险：ctx.ellipse 收到非正半径会抛 IndexSizeError，
       // 而 frame() 一旦抛错就再也不会自我调度 —— 整个星图变空白且永不恢复。
       if (!(r > 0.5)) return;
-      // 环统一中性色。旧版每个环刷自己的阶段色，等于在 9 种球色之外又叠了
-      // 9 色同心圆 —— 彩色噪声翻倍，而且环的颜色原本就没传达任何信息。
-      // 现在只有"被悬停 / 选中阶段的那个环"才点亮成阶段色，当作焦点提示。
       const lit = hoveredStars.some(function (h) { return h.stage === key; })
         || (starDetailJobId && starStars.some(function (h) { return h.job.id === starDetailJobId && h.stage === key; }));
       ctx.save(); ctx.beginPath();
@@ -4889,8 +5221,8 @@ function renderStarMap() {
         ctx.strokeStyle = STAGE_COLORS[key] || '#64748b';
         ctx.globalAlpha = 0.5; ctx.lineWidth = 1.6;
       } else {
-        ctx.strokeStyle = 'rgba(148,163,184,0.14)';
-        ctx.globalAlpha = 1; ctx.lineWidth = 1.1;
+        ctx.strokeStyle = 'rgba(148,163,184,0.06)';
+        ctx.globalAlpha = 1; ctx.lineWidth = 1;
       }
       ctx.stroke();
       ctx.restore();
@@ -4942,11 +5274,11 @@ function renderStarMap() {
           if (!st) return;
           const selCol = starSelectedClusters[cKey].selectedId === id ? '#fbbf24' : st.color;
           const selSz = (starSelectedClusters[cKey].selectedId === id ? st.size + 3 : st.size) * zoom.scale;
-          // glow
-          const glow = ctx.createRadialGradient(st.screenX, st.screenY, selSz*0.35, st.screenX, st.screenY, selSz*2.1);
-          glow.addColorStop(0, hexA(selCol, 0.55)); glow.addColorStop(0.55, hexA(selCol, 0.16)); glow.addColorStop(1, hexA(selCol, 0));
-          ctx.beginPath(); ctx.arc(st.screenX, st.screenY, selSz*2.5, 0, Math.PI*2);
-          ctx.fillStyle = glow; ctx.fill();
+          // glow：改用缓存的精灵图（原先每帧每球建一次径向渐变）
+          const sgsp = getGlowSprite(selCol);
+          const sgs = selSz / sgsp.radius;
+          const sgh = (sgsp.canvas.width / 2) * sgs;
+          ctx.drawImage(sgsp.canvas, st.screenX - sgh, st.screenY - sgh, sgh * 2, sgh * 2);
           draw3DSphere(ctx, st.screenX, st.screenY, selSz, selCol, '#f8fafc');
           // label
           const lblSz = Math.max(8, 10 * Math.min(zoom.scale, 2.5));
@@ -4959,10 +5291,11 @@ function renderStarMap() {
         // collapsed cluster: draw single proxy node + "+N"
         const col = STAGE_COLORS[cInfo.stage] || '#94a3b8';
         const clSz = 14 * zoom.scale;
-        const glow = ctx.createRadialGradient(cInfo.x, cInfo.y, 5 * zoom.scale, cInfo.x, cInfo.y, 24 * zoom.scale);
-        glow.addColorStop(0, hexA(col, 0.5)); glow.addColorStop(0.55, hexA(col, 0.15)); glow.addColorStop(1, hexA(col, 0));
-        ctx.beginPath(); ctx.arc(cInfo.x, cInfo.y, 28 * zoom.scale, 0, Math.PI*2);
-        ctx.fillStyle = glow; ctx.fill();
+        // 聚合球光晕：半径比例和单颗球不同，单独缓存一份
+        const cgsp = getGlowSprite(col, true);
+        const cgs = (28 * zoom.scale) / cgsp.reach;
+        const cgh = (cgsp.canvas.width / 2) * cgs;
+        ctx.drawImage(cgsp.canvas, cInfo.x - cgh, cInfo.y - cgh, cgh * 2, cgh * 2);
         draw3DSphere(ctx, cInfo.x, cInfo.y, clSz, col, '#f1f5f9');
         const clFontSz = Math.max(9, 11 * Math.min(zoom.scale, 3));
         ctx.font = `700 ${clFontSz}px system-ui, sans-serif`;
@@ -4981,10 +5314,11 @@ function renderStarMap() {
       const inAnyCluster = Object.values(starClusterMap).some(c => c.ids.includes(st.job.id));
       if (inAnyCluster) return; // cluster stars drawn above (collapsed proxy or expanded)
       const sz = st.size * zoom.scale;
-      const glow = ctx.createRadialGradient(st.screenX, st.screenY, sz*0.3, st.screenX, st.screenY, sz*2.35);
-      glow.addColorStop(0, hexA(st.color, 0.62)); glow.addColorStop(0.5, hexA(st.color, 0.17)); glow.addColorStop(1, hexA(st.color, 0));
-      ctx.beginPath(); ctx.arc(st.screenX, st.screenY, sz*2.5, 0, Math.PI*2);
-      ctx.fillStyle = glow; ctx.fill();
+      // 光晕改用缓存的精灵图（原先每帧每球建一次径向渐变，是持续吃 CPU 的主因）
+      const gsp = getGlowSprite(st.color);
+      const gs = sz / gsp.radius;
+      const gh = (gsp.canvas.width / 2) * gs;
+      ctx.drawImage(gsp.canvas, st.screenX - gh, st.screenY - gh, gh * 2, gh * 2);
       draw3DSphere(ctx, st.screenX, st.screenY, sz, st.color, '#f8fafc');
       const br = sz * 1.05;
       const ownIdx = planetRects.length;
@@ -5079,29 +5413,10 @@ function renderStarMap() {
     }
     ctx.restore();
 
-    // 中心徽标：整屏的视觉锚点。
-    // 旧版光晕是 rgba(99,102,241) 靛蓝，但全屏没有任何一颗星是这个颜色 ——
-    // 像从别的设计稿抠过来贴上的。改用页面主色 #7B61FF，和整站同源。
-    const pulse = 1 + 0.06 * Math.sin(now * 0.0022);
-    const ACCENT_RGB = '123,97,255';   // #7B61FF
-    const cg = ctx.createRadialGradient(effCx, effCy, 4 * zoom.scale, effCx, effCy, 42 * pulse * zoom.scale);
-    cg.addColorStop(0, 'rgba(' + ACCENT_RGB + ',0.32)');
-    cg.addColorStop(0.45, 'rgba(' + ACCENT_RGB + ',0.08)');
-    cg.addColorStop(1, 'rgba(' + ACCENT_RGB + ',0)');
-    ctx.beginPath(); ctx.arc(effCx, effCy, 42 * pulse * zoom.scale, 0, Math.PI * 2);
-    ctx.fillStyle = cg; ctx.fill();
-    // 单圈：旧版是「26px 灰描边环 + 20px 实心圆」两层，边界含糊；
-    // 收成一个实心圆 + 一条主色描边，更像"核心"。
-    ctx.beginPath(); ctx.arc(effCx, effCy, 24 * zoom.scale, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(6,10,26,0.92)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(' + ACCENT_RGB + ',0.55)'; ctx.lineWidth = 1.4 * zoom.scale; ctx.stroke();
-    const coreFontSize = Math.max(14, 22 * zoom.scale);
-    ctx.fillStyle = '#f1f5f9'; ctx.font = `700 ${coreFontSize}px system-ui, sans-serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(filteredJobs.length, effCx, effCy - 4 * zoom.scale);
-    const subFontSize = Math.max(8, 10 * zoom.scale);
-    ctx.fillStyle = 'rgba(201,197,228,0.7)'; ctx.font = `500 ${subFontSize}px system-ui, sans-serif`;
-    ctx.fillText('投递中', effCx, effCy + 13 * zoom.scale);
+    // 圆心不再画徽标：数量统计已移到左下角图例。
+    // 原来这里是一个 24px 实心圆 + 42px 光晕，正好糊在星系核球上 ——
+    // 既挡住了最亮的核球，又让最内环必须让位到 70px 之外。
+    // 现在圆心留给核球本身，星系的"中心"终于是发光的核心而不是一块 UI 圆饼。
 
     starAnimId = requestAnimationFrame(frame);
   }
