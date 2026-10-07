@@ -4581,12 +4581,37 @@ function renderStarMap() {
   // 把整个动画循环打死（画布一片空白、星球完全不动）。这里从根上避免。
   const nRings = ringInfos.length;
   const spanTotal = Math.max(0, usableMax - minInner);          // 内外圈可用的半径跨度
-  const needGap = Math.max(0, nRings - 1) * gap;
   const needSub = ringInfos.reduce((s, i) => s + (i.subRings - 1) * spread, 0);
-  const budget = needGap + needSub;
-  const k = budget > 0 ? Math.min(1, spanTotal / budget) : 1;
-  const gapActual = nRings > 1 ? Math.max(3, gap * k) : gap;
-  const spreadActual = Math.max(5, spread * k);
+  // ── 环半径：让间距"够用"，但把多余的空隙**摊到环之间**，不要全堆在圆心 ──
+  // 旧写法 gap 固定 46、且只从外往里减：9 环只用掉 8×46=368，而可用跨度 435.65，
+  // 多出来的 67.65px 全部堆在圆心 —— 于是「52 投递中」外面出现一圈巨大的空环
+  // （实测中心徽标半径 24px、最内环 137.65px，中间空 113px）。
+  // 这就是「52 外面这一圈很大」的来源：不是环画大了，是整圈内环被推远了。
+  //
+  // 但也不能无脑铺满：环数少时铺满会算出 435px 的环间距（2 个阶段时），
+  // 比原来更难看。所以给间距设**上限** gapMax：
+  //   - 环多 → 间距被压缩，但不会小于 gapMin，保证球不叠；
+  //   - 环少 → 间距涨到 gapMax 就停，剩下的空隙按比例分给圆心，
+  //            圆心那圈因此始终有限，不会出现 113px 的空洞。
+  const gapMin = 34;                       // 下限：再挤球就要叠了
+  const gapMax = 78;                       // 上限：再疏就显得散了
+  let idealGap = nRings > 1
+    ? Math.min(gapMax, Math.max(gapMin, (spanTotal - needSub) / (nRings - 1)))
+    : gap;
+  // 环实在太多（子环把跨度吃光）时，gapMin 也放不下 ——
+  // 这时必须继续缩小间距，而不是让内圈越过 minInner 钻进中心徽标：
+  // 越界会导致半径变小甚至为负，ctx.ellipse 收到负半径抛 IndexSizeError，
+  // 整个 rAF 循环被打死（画布空白且永不恢复）。
+  if (nRings > 1) {
+    const room = Math.max(0, (usableMax - minInner) - needSub);
+    idealGap = Math.min(idealGap, room / (nRings - 1));
+  }
+  const gapActual = Math.max(3, idealGap);
+  // 子环间距：岗位极多时按预算压缩，避免挤爆（原来的防畸形逻辑保留）。
+  // 注意不能再乘上面那个 k（已经不再定义），否则 ReferenceError 直接打死渲染循环。
+  const subBudget = spanTotal * 0.55;
+  const kSub = needSub > 0 ? Math.min(1, subBudget / needSub) : 1;
+  const spreadActual = Math.max(5, spread * kSub);
   ringInfos.forEach(info => {
     info.halfWidth = ((info.subRings - 1) / 2) * spreadActual;
     info.subRingWidth = (info.subRings - 1) * spreadActual;
@@ -4595,7 +4620,15 @@ function renderStarMap() {
     // 单轨道时居中放置，避免贴边
     ringInfos[0].r = minInner + spanTotal * 0.62;
   } else {
-    let rCursor = usableMax;
+    // 最外圈不固定贴 usableMax，而是尽量让"最内圈落到 minInner"：
+    // 圆心空隙约等于一个正常间距，富余全部留在最外圈之外。
+    // 环太多放不下时（wantSpan 超过可用跨度）必须退回 usableMax 从外往里排，
+    // 否则会算出 < minInner 甚至负半径的环 ——
+    // ctx.ellipse 收到负半径会抛 IndexSizeError，把整个动画循环打死。
+    const wantSpan = gapActual * (nRings - 1) + needSub;   // 这组环理想上要占的跨度
+    let rCursor = (minInner + wantSpan <= usableMax)
+      ? minInner + wantSpan      // 放得下：最外圈内缩，圆心只留 minInner
+      : usableMax;               // 放不下：从画布边缘往里排，内圈会低于 minInner
     ringInfos.forEach((info, i) => {
       info.r = rCursor - info.halfWidth;
       rCursor -= info.subRingWidth + (i === nRings - 1 ? 0 : gapActual);
