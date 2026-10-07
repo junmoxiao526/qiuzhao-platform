@@ -4243,6 +4243,18 @@ async function syncQiuzhiFangzhou(opts) {
       meta.syncedIds = [...ids];
       setQiuzhiSyncMeta(meta);
     }
+    // syncedIds 是**只增不减**的：每次同步都把远程 id 记进去，用来避免重复入库。
+    // 长期使用会无限膨胀（实测 3133 个岗位时这部分已占 38.4KB，且只涨不降），
+    // 逼近 localStorage 5MB 配额后 setItem 会抛 QuotaExceededError，
+    // 后果是**岗位数据静默存不进去**（saveJobList 的 catch 会吞掉）。
+    // 所以在这里做个封顶：只保留最近 N 个 id。
+    // 被裁掉的旧 id 重新出现时最多被当成"新岗位"再合并一次，
+    // 而 mergeQiuzhiList/dedupeJobList 本身会去重，不会产生真正的重复数据。
+    const SYNCED_IDS_MAX = 4000;
+    if (Array.isArray(meta.syncedIds) && meta.syncedIds.length > SYNCED_IDS_MAX) {
+      meta.syncedIds = meta.syncedIds.slice(-SYNCED_IDS_MAX);
+      setQiuzhiSyncMeta(meta);
+    }
     // 合并掉的条数 = 本次入库数 - 净增数（本次入库数即通过 id 检查进入流程的记录数）
     const dupCount = Math.max(0, newCount - _realNew);
     newCount = _realNew;
