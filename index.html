@@ -4850,17 +4850,10 @@ function renderStarMap() {
       }
     }
 
-    // ── 5. 盘面上的细星点 ──
-    // 只在前面的柔和底子上撒**少量**亮星，提供质感。
-    // 数量必须少：第一版撒了几千颗，结果整张图变成噪点。
-    for (let i = 0; i < 700; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const rr = Math.pow(Math.random(), 0.75) * galaxyMaxR * 0.98;
-      const x = Math.cos(a) * rr, y = Math.sin(a) * rr * RING_RATIO;
-      const alpha = 0.18 + Math.random() * 0.5;
-      g.fillStyle = 'rgba(255,255,255,' + alpha + ')';
-      g.beginPath(); g.arc(x, y, Math.random() * 0.9 + 0.25, 0, Math.PI * 2); g.fill();
-    }
+    // ── 5. 盘面上的细星点 —— **已删除** ──
+    // 用户要求"背景不要出现星星"，所以原来这里撒的 700 颗白点整段移除。
+    // 星系本体（核球 / 旋臂 / 尘埃带 / HII 区）保持不变，
+    // 只是不再往上叠星点。
   }
 
   // --- Mouse ---
@@ -5184,12 +5177,10 @@ function renderStarMap() {
     ctx.clearRect(0, 0, W, H);
 
     // Twinkling background
-    bgStars.forEach(bs => {
-      bs.phase += bs.tSpeed * dt;
-      const a = 0.05 + 0.17 * (0.5 + 0.5 * Math.sin(bs.phase));
-      ctx.beginPath(); ctx.arc(bs.x, bs.y, bs.r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fill();
-    });
+    // Twinkling background —— **已停用**。
+    // 用户要求"背景不要出现星星"，所以这 70 颗闪烁星不再绘制。
+    // bgStars 数组保留（不删定义，避免牵连别处引用），只是这里不画。
+    // bgStars.forEach(bs => { ... });
 
     // 星系本体：预渲染好的离屏图，每帧一次 drawImage（几乎零成本）。
     // 跟随缩放与平移，这样放大时旋臂纹理跟着放大，不会"漂"在背景上。
