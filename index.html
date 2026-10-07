@@ -5209,10 +5209,13 @@ function renderStarMap() {
       ctx.restore();
     }
 
-    // Orbit rings —— 从"轨道线"退成"刻度"。
-    // 原本是清晰可辨的同心椭圆，这正是"看着像轨道图、不像星系"的原因之一；
-    // 压到很低的不透明度后，它只在聚焦时提供"这一圈是哪个阶段"的参照，
-    // 不再和旋臂抢结构。被悬停/选中的环才点亮成阶段色。
+    // Orbit rings
+    // 用户要求"每一条椭圆环线再明显一点"，所以把不透明度大幅提高：
+    //   原来未点亮只有 rgba(148,163,184,0.06)、线宽 1 —— 几乎看不见。
+    // 现在改成**用该阶段的颜色**画，这样每条环既明显、又能一眼看出是哪一阶段：
+    //   未点亮：阶段色 · alpha 0.34 · 线宽 1.4
+    //   点亮  ：阶段色 · alpha 0.95 · 线宽 2.6
+    // 并且在环下面垫一道极淡的暗线，保证压在亮旋臂上时也看得出边界。
     const effCx = cx + zoom.panX, effCy = cy + zoom.panY;
     activeStages.forEach((key, idx) => {
       const r = (ringInfos[idx] ? ringInfos[idx].r : 100) * zoom.scale;
@@ -5221,14 +5224,23 @@ function renderStarMap() {
       if (!(r > 0.5)) return;
       const lit = hoveredStars.some(function (h) { return h.stage === key; })
         || (starDetailJobId && starStars.some(function (h) { return h.job.id === starDetailJobId && h.stage === key; }));
+      const rcol = STAGE_COLORS[key] || '#94a3b8';
+      // 底衬：暗线，让环在亮旋臂上也有边界
       ctx.save(); ctx.beginPath();
       ctx.ellipse(effCx, effCy, r, r * RING_RATIO, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(2,6,20,0.55)';
+      ctx.globalAlpha = lit ? 0.9 : 0.55;
+      ctx.lineWidth = lit ? 4.2 : 3.0;
+      ctx.stroke();
+      ctx.restore();
+      // 主环线
+      ctx.save(); ctx.beginPath();
+      ctx.ellipse(effCx, effCy, r, r * RING_RATIO, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = rcol;
       if (lit) {
-        ctx.strokeStyle = STAGE_COLORS[key] || '#64748b';
-        ctx.globalAlpha = 0.5; ctx.lineWidth = 1.6;
+        ctx.globalAlpha = 0.95; ctx.lineWidth = 2.6;
       } else {
-        ctx.strokeStyle = 'rgba(148,163,184,0.06)';
-        ctx.globalAlpha = 1; ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.34; ctx.lineWidth = 1.4;
       }
       ctx.stroke();
       ctx.restore();
