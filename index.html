@@ -4689,6 +4689,166 @@ function renderStarMap() {
     tSpeed: 0.0006 + Math.random() * 0.003
   }));
 
+  /* ══════════ 星系背景 ══════════
+   * 目标：让星图看起来像"从上方俯视的旋涡星系"，而不是"几条同心椭圆轨道"。
+   *
+   * 做法是**对数螺旋**： galaxyPoint(半径 t, 旋臂偏移 arm) →
+   *   θ = t * GALAXY_TWIST + arm，再按 (cosθ, sinθ) 展开并按 RING_RATIO 压扁。
+   * TWIST 控制缠绕圈数：太大旋臂会绕成蚊香，太小就成了放射状直线。
+   *
+   * 四种成分依次叠加：
+   *   1. 核球  —— 中心的致密亮带，让中心"有实体"
+   *   2. 旋臂  —— 沿螺旋线撒粒子，靠高斯抖动散开，前端亮、末端淡
+   *   3. 尘埃带 —— 就在旋臂内侧，用 destination-out **擦掉**已有的星云，
+   *                形成暗缝。这是"像星系"最关键的一笔：
+   *                没有尘埃带，撒出来的粒子只是一团均匀的雾。
+   *   4. HII 区 —— 旋臂上的洋红/粉色亮斑（恒星形成区），
+   *                给画面一点非蓝白的暖色点缀。
+   *
+   * 整张星系**离屏预渲染一次**（offscreen canvas），每帧只 drawImage。
+   * 每帧重画几千个粒子会直接拖垮 rAF（星图本来就要以 60fps 跑公转）。
+   *
+   * 注意：这里不能引用下面才声明的 maxRingRx（const 有 TDZ，会直接抛错），
+   * 所以按同样口径就地算一份。
+   */
+  const galaxyMaxR = ringInfos.reduce((m, i) => Math.max(m, i.r + i.halfWidth), 0) || 300;
+  const GALAXY_TWIST = 3.0;          // 旋臂缠绕弧度（≈1.4 圈，旋涡星系的典型值）
+  const GALAXY_ARMS = 2;             // 两条主旋臂（4 条会显得太碎）
+  const GALAXY_SCALE = 1.0;          // 星系相对最外环的铺开比例
+  const GALAXY_OPACITY = 0.95;       // 星系整体不透明度（留一点给纯黑底做纵深）
+  const galaxyPoint = (t, arm) => {
+    const th = t * GALAXY_TWIST + arm;
+    const rr = t * galaxyMaxR * GALAXY_SCALE;
+    return { x: Math.cos(th) * rr, y: Math.sin(th) * rr * RING_RATIO };
+  };
+  const galaxyCanvas = document.createElement('canvas');
+  galaxyCanvas.width = Math.max(1, Math.round(W * dpr));
+  galaxyCanvas.height = Math.max(1, Math.round(H * dpr));
+  {
+    const g = galaxyCanvas.getContext('2d');
+    g.scale(dpr, dpr);
+    g.translate(cx, cy);
+
+    // 用**大而软的椭圆光团**堆，而不是小圆点。
+    // 第一版每颗粒子只有 0.35~1.85px，实测盘面 86% 的像素是纯黑 ——
+    // 那种画法只能得到"撒了一层噪点"，永远堆不出连续的旋臂。
+    // 旋臂是**弥散的带状光**，光团必须远大于粒子间距才会互相融合成带。
+    const puff = (x, y, rx, ry, color, a) => {
+      if (a <= 0.002) return;
+      g.save();
+      g.translate(x, y);
+      g.scale(1, ry / rx);
+      const rg = g.createRadialGradient(0, 0, 0, 0, 0, rx);
+      rg.addColorStop(0, hexA(color, a));
+      rg.addColorStop(0.35, hexA(color, a * 0.62));
+      rg.addColorStop(0.7, hexA(color, a * 0.22));
+      rg.addColorStop(1, hexA(color, 0));
+      g.fillStyle = rg;
+      g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
+      g.restore();
+    };
+
+    // ── 0. 星系盘底光 ──
+    // 先铺一层覆盖整个盘面的极淡底光。没有它，臂间区域会是纯黑，
+    // 整张图就退化成"黑底上的亮条"，而不是一个发光的星系。
+    // 面亮度按指数衰减 —— 真实星系盘就是这个剖面。
+    for (let i = 0; i < 26; i++) {
+      const t = i / 25;
+      const rr = (0.10 + t * 0.92) * galaxyMaxR;
+      // 越靠外越暗（e 指数），同时压低整体
+      const a = 0.055 * Math.exp(-t * 2.4) + 0.008;
+      puff(0, 0, rr, rr * RING_RATIO, '#8fb0ff', a * 0.5);
+    }
+
+    // ── 1. 核球 ──
+    // 中心隆起：暖白、致密。真实星系核球在视觉上是一个"发光的实心球"。
+    puff(0, 0, galaxyMaxR * 0.34, galaxyMaxR * 0.34 * RING_RATIO, '#ffd9a0', 0.30);
+    puff(0, 0, galaxyMaxR * 0.20, galaxyMaxR * 0.20 * RING_RATIO, '#fff0cf', 0.42);
+    puff(0, 0, galaxyMaxR * 0.10, galaxyMaxR * 0.10 * RING_RATIO, '#fffaf0', 0.55);
+
+    // ── 2. 旋臂 ──
+    // 关键改变：每支臂沿螺旋线走**密集采样点**，每点画一个**大光团**，
+    // 相邻采样点的光团大面积重叠 → 融成一条连续、带晕的旋臂。
+    // 光团半径随 t 增大（外臂更弥散），亮度随 t 指数衰减（外臂更暗）。
+    const ARM_STEPS = 420;
+    for (let arm = 0; arm < GALAXY_ARMS; arm++) {
+      const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
+      for (let i = 0; i <= ARM_STEPS; i++) {
+        const t = 0.045 + (i / ARM_STEPS) * 0.955;
+        const p = galaxyPoint(t, armPhase);
+        const fade = Math.exp(-t * 1.7);
+        // 光团横向尺寸：中心细、外缘宽（约 3% → 13% 盘半径）
+        const rx = galaxyMaxR * (0.030 + t * 0.10);
+        const ry = rx * RING_RATIO;
+        // 颜色：内侧暖白（核球光的延伸）→ 外侧冷蓝（年轻星族）
+        const warm = Math.max(0, 1 - t * 2.1);
+        const col = warm > 0.4 ? '#ffe2b0' : (warm > 0.05 ? '#e8ecff' : '#9dc0ff');
+        puff(p.x, p.y, rx, ry, col, 0.030 * fade + 0.006);
+      }
+    }
+    // 旋臂上再叠一层细亮芯，让旋臂有"骨架"而不是一团糊
+    for (let arm = 0; arm < GALAXY_ARMS; arm++) {
+      const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
+      for (let i = 0; i <= ARM_STEPS; i++) {
+        const t = 0.045 + (i / ARM_STEPS) * 0.955;
+        const p = galaxyPoint(t, armPhase);
+        const fade = Math.exp(-t * 1.9);
+        const rx = galaxyMaxR * (0.012 + t * 0.030);
+        puff(p.x, p.y, rx, rx * RING_RATIO, '#ffffff', 0.022 * fade + 0.003);
+      }
+    }
+
+    // ── 3. 尘埃带 ──
+    // 在旋臂**内侧**擦出暗缝。这是让平面看起来有厚度、有遮挡的关键：
+    // 没有暗缝，旋臂就是两条均匀的亮带，像画上去的，不像星系。
+    g.globalCompositeOperation = 'destination-out';
+    for (let arm = 0; arm < GALAXY_ARMS; arm++) {
+      const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
+      // 相位略微超前 = 落在旋臂的内侧（半径更小的一侧）
+      for (let i = 0; i <= ARM_STEPS; i += 2) {
+        const t = 0.10 + (i / ARM_STEPS) * 0.88;
+        const p = galaxyPoint(t, armPhase + 0.055);
+        const rx = galaxyMaxR * (0.012 + t * 0.040);
+        const fade = Math.exp(-t * 1.5);
+        const rg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx);
+        rg.addColorStop(0, 'rgba(0,0,0,' + (0.42 * fade + 0.04) + ')');
+        rg.addColorStop(0.6, 'rgba(0,0,0,' + (0.16 * fade) + ')');
+        rg.addColorStop(1, 'rgba(0,0,0,0)');
+        g.save(); g.translate(p.x, p.y); g.scale(1, RING_RATIO);
+        g.fillStyle = rg;
+        g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
+        g.restore();
+      }
+    }
+    g.globalCompositeOperation = 'source-over';
+
+    // ── 4. HII 区：旋臂上的粉/洋红恒星形成区 ──
+    // 真实旋涡星系的标志性特征：旋臂上一串粉色亮点。
+    for (let arm = 0; arm < GALAXY_ARMS; arm++) {
+      const armPhase = (arm / GALAXY_ARMS) * Math.PI * 2;
+      for (let i = 0; i < 16; i++) {
+        const t = 0.16 + Math.random() * 0.72;
+        const p = galaxyPoint(t, armPhase);
+        const jx = (Math.random() - 0.5) * galaxyMaxR * 0.10;
+        const jy = (Math.random() - 0.5) * galaxyMaxR * 0.10 * RING_RATIO;
+        const rx = galaxyMaxR * (0.016 + Math.random() * 0.022);
+        puff(p.x + jx, p.y + jy, rx, rx * RING_RATIO, '#ff8fd0', 0.10 + Math.random() * 0.12);
+      }
+    }
+
+    // ── 5. 盘面上的细星点 ──
+    // 只在前面的柔和底子上撒**少量**亮星，提供质感。
+    // 数量必须少：第一版撒了几千颗，结果整张图变成噪点。
+    for (let i = 0; i < 700; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const rr = Math.pow(Math.random(), 0.75) * galaxyMaxR * 0.98;
+      const x = Math.cos(a) * rr, y = Math.sin(a) * rr * RING_RATIO;
+      const alpha = 0.18 + Math.random() * 0.5;
+      g.fillStyle = 'rgba(255,255,255,' + alpha + ')';
+      g.beginPath(); g.arc(x, y, Math.random() * 0.9 + 0.25, 0, Math.PI * 2); g.fill();
+    }
+  }
+
   // --- Mouse ---
   let hoveredStars = [];
   // 拖拽状态与 hoveredStars 一起声明（onclick 会用到 dragMoved，
@@ -4870,17 +5030,28 @@ function renderStarMap() {
       ctx.fillStyle = 'rgba(255,255,255,' + a + ')'; ctx.fill();
     });
 
-    // Orbit rings - solid thin lines matching screenshot
-    // 默认 pan 为 0（钉在正中）；只有放大到装不下时才可能非 0
+    // 星系本体：预渲染好的离屏图，每帧一次 drawImage（几乎零成本）。
+    // 跟随缩放与平移，这样放大时旋臂纹理跟着放大，不会"漂"在背景上。
+    if (galaxyCanvas.width > 1) {
+      ctx.save();
+      ctx.globalAlpha = GALAXY_OPACITY;
+      ctx.translate(cx + zoom.panX, cy + zoom.panY);
+      ctx.scale(zoom.scale, zoom.scale);
+      ctx.translate(-cx, -cy);
+      ctx.drawImage(galaxyCanvas, 0, 0, W, H);
+      ctx.restore();
+    }
+
+    // Orbit rings —— 从"轨道线"退成"刻度"。
+    // 原本是清晰可辨的同心椭圆，这正是"看着像轨道图、不像星系"的原因之一；
+    // 压到很低的不透明度后，它只在聚焦时提供"这一圈是哪个阶段"的参照，
+    // 不再和旋臂抢结构。被悬停/选中的环才点亮成阶段色。
     const effCx = cx + zoom.panX, effCy = cy + zoom.panY;
     activeStages.forEach((key, idx) => {
       const r = (ringInfos[idx] ? ringInfos[idx].r : 100) * zoom.scale;
       // 保险：ctx.ellipse 收到非正半径会抛 IndexSizeError，
       // 而 frame() 一旦抛错就再也不会自我调度 —— 整个星图变空白且永不恢复。
       if (!(r > 0.5)) return;
-      // 环统一中性色。旧版每个环刷自己的阶段色，等于在 9 种球色之外又叠了
-      // 9 色同心圆 —— 彩色噪声翻倍，而且环的颜色原本就没传达任何信息。
-      // 现在只有"被悬停 / 选中阶段的那个环"才点亮成阶段色，当作焦点提示。
       const lit = hoveredStars.some(function (h) { return h.stage === key; })
         || (starDetailJobId && starStars.some(function (h) { return h.job.id === starDetailJobId && h.stage === key; }));
       ctx.save(); ctx.beginPath();
@@ -4889,8 +5060,8 @@ function renderStarMap() {
         ctx.strokeStyle = STAGE_COLORS[key] || '#64748b';
         ctx.globalAlpha = 0.5; ctx.lineWidth = 1.6;
       } else {
-        ctx.strokeStyle = 'rgba(148,163,184,0.14)';
-        ctx.globalAlpha = 1; ctx.lineWidth = 1.1;
+        ctx.strokeStyle = 'rgba(148,163,184,0.06)';
+        ctx.globalAlpha = 1; ctx.lineWidth = 1;
       }
       ctx.stroke();
       ctx.restore();

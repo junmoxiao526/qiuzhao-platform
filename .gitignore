@@ -40,3 +40,6 @@ shot-*.png
 listview-*.png
 lv-*.png
 minitest/
+
+# 星系验证截图（临时产物，不入库）
+galaxy*.png
