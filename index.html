@@ -974,7 +974,7 @@ body {
     <button class="btn btn-outline btn-sm" id="btnTodoBell" onclick="openReminderSettings()" title="今日待办与到期提醒设置">🔔</button>
     <button class="btn btn-outline btn-sm" id="btnTheme" onclick="toggleTheme()" title="切换深浅色主题">🌙</button>
     <button class="btn btn-outline btn-sm" onclick="syncQiuzhiFangzhou({force:true})" id="btnSyncQiuzhiFangzhou" title="从招聘方舟同步最新校园招聘岗位（进页面会自动同步，这里是手动强制刷新）">🔄 同步招聘方舟</button>
-    <span class="sync-caption" id="syncCaption" title="进页面会自动同步，6 小时内不重复拉取"></span>
+    <span class="sync-caption" id="syncCaption" title="每次打开页面都会自动同步最新岗位，也可以点左边的按钮手动强刷"></span>
   </div>
 </header>
 
@@ -4331,20 +4331,27 @@ function renderSyncCaption(state) {
   el.textContent = '已同步 ' + rel;
 }
 
-/* 进页面自动同步：不需要使用者再点按钮。
- * 用 lastSyncAt 做 TTL，避免每次刷新都打接口（也避免把接口打挂）。
- * 默认 6 小时 —— 秋招岗位一天更新几次，6 小时内重复拉基本是浪费。 */
-const AUTO_SYNC_TTL_MS = 6 * 60 * 60 * 1000;
+/* 进页面自动同步：**每次进入都拉一次**（用户要求，不再需要点按钮）。
+ * 原来是 6 小时 TTL —— 结果"同一天再打开还是旧数据"，使用者以为没自动更新。
+ * 现在 TTL = 0：每次进页面都会同步。
+ * 只保留两层防护，避免把接口打挂：
+ *   ① autoSyncInFlight —— 同一次会话内不并发重复触发（快速刷新不会打两次）
+ *   ② force 参数 —— 按钮点击时忽略一切判断，强制拉 */
+const AUTO_SYNC_TTL_MS = 0;
+let autoSyncInFlight = false;
 function maybeAutoSyncQiuzhi(force) {
+  // 已有一个同步在跑 → 直接跳过，避免并发重复请求
+  if (autoSyncInFlight) return;
   let meta;
   try { meta = getQiuzhiSyncMeta(); } catch (e) { meta = {}; }
   const last = meta && meta.lastSyncAt ? Date.parse(meta.lastSyncAt) : NaN;
   const fresh = !isNaN(last) && (Date.now() - last) < AUTO_SYNC_TTL_MS;
   if (fresh && !force) {
-    console.log('[自动同步] 跳过：上次同步于 ' + new Date(last).toLocaleString('zh-CN') + '（' + AUTO_SYNC_TTL_MS/3600000 + ' 小时内）');
+    console.log('[自动同步] 跳过：上次同步于 ' + new Date(last).toLocaleString('zh-CN') + '（TTL ' + AUTO_SYNC_TTL_MS + 'ms 内）');
     renderSyncCaption();
     return;
   }
+  autoSyncInFlight = true;
   renderSyncCaption('syncing');
   // 不 await：让首屏渲染先完成，同步在后台跑，拿到结果再刷新清单。
   syncQiuzhiFangzhou({ silent: true }).then(() => {
@@ -4353,8 +4360,16 @@ function maybeAutoSyncQiuzhi(force) {
     updateFilterOptions();
     renderTrack();
     renderSyncCaption();
-  }).catch(() => { renderSyncCaption(); });
+  }).catch(() => { renderSyncCaption(); })
+    .then(() => { autoSyncInFlight = false; });
 }
+
+/* 「每次进入」不只指首次加载：从别的标签页切回来也算一次进入。
+ * 移动端/浏览器会把后台标签页挂起，visibilitychange 触发时再拉一次，
+ * 这样切回来看到的永远是最新岗位。 */
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') maybeAutoSyncQiuzhi();
+});
 
 function closeSyncResultModal() { document.getElementById('syncResultModal').style.display = 'none'; }
 
