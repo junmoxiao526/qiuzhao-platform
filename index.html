@@ -4928,48 +4928,22 @@ function renderStarMap() {
         g.restore();
       }
 
-      // (a2) 电离锋面：亮丝边缘的一道**锐利亮边**。
-      //      实测真实星云有 2.4~5.9% 的像素属于强梯度（>60）——
-      //      纯柔和渐变永远画不出这个。做法是在亮丝的某一侧压一条细而亮的弧线。
-      for (let i = 0; i < Math.round(FIBERS * 0.18); i++) {
-        const ang = Math.random() * Math.PI * 2;
-        const nz = fbm(ang / (Math.PI * 2) * 9);
-        if (nz < 0.55) continue;               // 只在亮区才有锋面
-        const p = nebulaPoint(r, ang);
-        const tx = -Math.sin(ang) * r, ty = Math.cos(ang) * r * RING_RATIO;
-        const tl = Math.hypot(tx, ty) || 1;
-        const off = (Math.random() < 0.5 ? -1 : 1) * band * 0.55;
-        const ox = -(ty / tl) * off, oy = (tx / tl) * off;
-        const rot = Math.atan2(ty, tx);
-        const len = band * (1.6 + Math.random() * 2.4);
-        g.save();
-        g.translate(p.x + ox, p.y + oy);
-        g.rotate(rot);
-        // 细而亮：lineWidth 很小，亮度高 → 形成可测的强梯度
-        const rg = g.createLinearGradient(0, -band * 0.18, 0, band * 0.18);
-        const cc = nebulaTint(col, 0.72);
-        rg.addColorStop(0, hexA(cc, 0));
-        rg.addColorStop(0.5, hexA(cc, 0.30 + nz * 0.25));
-        rg.addColorStop(1, hexA(cc, 0));
-        g.fillStyle = rg;
-        g.beginPath();
-        g.ellipse(0, 0, len, band * 0.18, 0, 0, Math.PI * 2);
-        g.fill();
-        g.restore();
-      }
+      // (a2) 电离锋面 —— **已删除**。
+      // 原先这里为了造"锐利亮边"画的是 g.ellipse(len, band*0.18)，
+      // 即 32~120px 长、4~5px 高的极扁椭圆 —— 视觉上就是一条条**直线**，
+      // 而且每条环有几十条，整个星云里全是白色直线。
+      // 用户明确指出"星云里面的直线都去掉"，所以整段移除。
+      // 强梯度改用下面的亮结（圆形）来提供，不再用线状元素。
 
-      // (a3) ★ 细丝（filament）—— 参考照片里气体的真正形态是**一条条细长的丝**，
-      //      不是一团团棉花。这是"像照片"最关键的一笔：
-      //      圆光斑无论怎么调都像雾，只有细丝才有气体那种纤维感。
-      //      做法：沿环的切线方向走一小段弧，拆成几段描粗，两端细、中间粗；
-      //      整条丝还带轻微径向蜿蜒（真实纤维不是规则圆弧）。
+      // (a3) ★ 细丝（filament）—— 气体的纤维质感。
+      //      原先是把弧线拆成 7 段**直线**描出来，每段约 23px，
+      //      在画面里就是一段段可见的直线。改成沿弧线撒一串**圆形**小点：
+      //      圆没有任何直边，叠加后自然形成柔和的丝状，不会再出现直线。
+      //      径向的蜿蜒（wander）保留，所以丝是弯的、有机的。
       const STRANDS = Math.max(70, Math.round(perim / 20 * density));
-      g.lineCap = 'round';
       for (let s = 0; s < STRANDS; s++) {
         const a0 = Math.random() * Math.PI * 2;
         const span = (0.06 + Math.random() * 0.32) * (Math.random() < 0.5 ? 1 : -1);
-        const steps = 7;
-        const w0 = band * (0.045 + Math.random() * 0.10);
         const rOff = (Math.random() - 0.5) * band * 1.5;
         const wander = (Math.random() - 0.5) * band * 0.85;
         // 只在该角度"有气体"的地方长丝（疏密沿用同一个 fbm，和光团对齐）
@@ -4977,17 +4951,19 @@ function renderStarMap() {
         if (nz < 0.34) continue;
         const peak = 0.09 + Math.pow(nz, 1.8) * 0.42;
         const cc = nebulaTint(col, peak * 0.6);
-        for (let k = 0; k < steps; k++) {
-          const t0 = k / steps, t1 = (k + 1) / steps, tm = (t0 + t1) * 0.5;
-          const taper = Math.sin(tm * Math.PI);      // 两端渐隐 → 丝才有头尾
-          if (taper < 0.14) continue;
-          const rA = r + rOff + wander * Math.sin(tm * Math.PI * 2);
-          const rB = r + rOff + wander * Math.sin((tm + 0.13) * Math.PI * 2);
-          const pA = nebulaPoint(rA, a0 + span * t0);
-          const pB = nebulaPoint(rB, a0 + span * t1);
-          g.strokeStyle = hexA(cc, peak * taper);
-          g.lineWidth = w0 * (0.35 + taper * 0.95);
-          g.beginPath(); g.moveTo(pA.x, pA.y); g.lineTo(pB.x, pB.y); g.stroke();
+        // 点数要够密，圆点才会连成丝而不是一颗颗分开
+        const DOTS = 20;
+        const dotR = band * (0.055 + Math.random() * 0.075);
+        for (let k = 0; k < DOTS; k++) {
+          const tt = k / (DOTS - 1);
+          const taper = Math.sin(tt * Math.PI);      // 两端渐隐 → 丝才有头尾
+          if (taper < 0.12) continue;
+          const rr2 = r + rOff + wander * Math.sin(tt * Math.PI * 2);
+          const pp = nebulaPoint(rr2, a0 + span * tt);
+          // 半径和亮度都带随机抖动，避免看起来像规整的珠子串
+          const rad = dotR * (0.55 + taper * 0.9) * (0.7 + Math.random() * 0.7);
+          g.fillStyle = hexA(cc, peak * taper * 0.42);
+          g.beginPath(); g.arc(pp.x, pp.y, rad, 0, Math.PI * 2); g.fill();
         }
       }
 
@@ -5108,8 +5084,8 @@ function renderStarMap() {
         g.restore();
       }
     }
-    // (b) 沿每条**环**也切出尘埃细丝：让"环"本身也有照片里的尘埃质感，
-    //     而不是只有旋臂上有。用细笔画而不是光团 —— 尘埃也是丝状的。
+    // (b) 沿每条**环**也切出尘埃：让"环"本身也有尘埃质感。
+    //     ★ 同样不能用 lineTo 直线段（会留下可见的直线），改成沿弧撒圆点。
     ringInfos.forEach(function (info) {
       const r = info.r;
       const band = Math.max(10, Math.min(30, (info.halfWidth || 20) * 0.9 + 10));
@@ -5119,17 +5095,17 @@ function renderStarMap() {
         const a0 = Math.random() * Math.PI * 2;
         const span = (0.05 + Math.random() * 0.22) * (Math.random() < 0.5 ? 1 : -1);
         const rr = r + (Math.random() - 0.5) * band * 1.2;
-        const steps = 6;
-        for (let k = 0; k < steps; k++) {
-          const t0 = k / steps, t1 = (k + 1) / steps, tm = (t0 + t1) * 0.5;
-          const taper = Math.sin(tm * Math.PI);
-          if (taper < 0.2) continue;
-          const pA = nebulaPoint(rr, a0 + span * t0);
-          const pB = nebulaPoint(rr, a0 + span * t1);
-          g.strokeStyle = 'rgba(0,0,0,' + (0.30 * taper) + ')';
-          g.lineWidth = band * (0.10 + 0.16 * taper);
-          g.lineCap = 'round';
-          g.beginPath(); g.moveTo(pA.x, pA.y); g.lineTo(pB.x, pB.y); g.stroke();
+        const dotR = band * (0.09 + Math.random() * 0.10);
+        const DOTS = 16;
+        for (let k = 0; k < DOTS; k++) {
+          const tt = k / (DOTS - 1);
+          const taper = Math.sin(tt * Math.PI);
+          if (taper < 0.18) continue;
+          const pp = nebulaPoint(rr, a0 + span * tt);
+          g.fillStyle = 'rgba(0,0,0,' + (0.26 * taper) + ')';
+          g.beginPath();
+          g.arc(pp.x, pp.y, dotR * (0.5 + taper * 0.9) * (0.7 + Math.random() * 0.7), 0, Math.PI * 2);
+          g.fill();
         }
       }
     });
@@ -5302,10 +5278,10 @@ function renderStarMap() {
     sctx.fillStyle = halo;
     sctx.beginPath(); sctx.arc(cx, cy, haloR, 0, Math.PI * 2); sctx.fill();
     sctx.restore();
-    // ④ 细星：密度**大幅下调** —— 用户反馈"背景的星星密度太大了"。
-    //    上一版是 W*H/72（约 13000 颗），确实过密。
+    // ④ 细星：密度**再下调** —— 用户反馈过两次"星星密度太大"。
+    //    W*H/72（约13000）→ W*H/320（约3000）→ 现在 W*H/900（约1050）。
     const TINTS = ['#c9dcff', '#dce9ff', '#ffffff', '#fff6e6', '#ffdcae', '#ffc98a'];
-    const N = Math.round(W * H / 320);
+    const N = Math.round(W * H / 900);
     for (let i = 0; i < N; i++) {
       const x = Math.random() * W, y = Math.random() * H;
       const m = Math.pow(Math.random(), 1.8);
@@ -5367,7 +5343,7 @@ function renderStarMap() {
   {
     const TINTS = ['#c9dcff', '#dce9ff', '#ffffff', '#fff6e6', '#ffdcae'];
     twinkleStars = [];
-    for (let i = 0; i < 280; i++) {
+    for (let i = 0; i < 160; i++) {
       twinkleStars.push({
         x: Math.random() * W,
         y: Math.random() * H,
