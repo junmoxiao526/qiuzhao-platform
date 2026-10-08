@@ -971,7 +971,7 @@ body {
   <div class="header-right">
     <button class="btn btn-outline btn-sm" id="btnTodoBell" onclick="openReminderSettings()" title="今日待办与到期提醒设置">🔔</button>
     <button class="btn btn-outline btn-sm" id="btnTheme" onclick="toggleTheme()" title="切换深浅色主题">🌙</button>
-    <button class="btn btn-outline btn-sm" onclick="syncQiuzhiFangzhou({force:true})" id="btnSyncQiuzhiFangzhou" title="从招聘方舟同步最新校园招聘岗位（进页面会自动同步，这里是手动强制刷新）">🔄 同步招聘方舟</button>
+    <button class="btn btn-outline btn-sm" onclick="syncQiuzhiFangzhou({force:true})" id="btnSyncQiuzhiFangzhou" title="从招聘方舟同步最新校园招聘岗位（进页面会自动同步，这里是手动强制刷新）">🔄 同步</button>
     <span class="sync-caption" id="syncCaption" title="每次打开页面都会自动同步最新岗位，也可以点左边的按钮手动强刷"></span>
   </div>
 </header>
@@ -1065,7 +1065,7 @@ body {
   <div class="empty-state" id="exploreEmpty" style="display:none;">
     <div class="empty-icon">📭</div>
     <p>没有匹配的岗位</p>
-    <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">尝试调整筛选条件，或点击右上角同步招聘方舟获取最新岗位</p>
+    <p style="font-size:12px;color:var(--text-secondary);margin-top:4px;">尝试调整筛选条件，或点击右上角「同步」获取最新岗位</p>
   </div>
 </section>
 
@@ -2398,7 +2398,7 @@ function saveReviews() {
 
 // ==================== 岗位清单本地数据 ====================
 // 架构说明：本站没有任何后端存储。
-//   岗位清单 —— 由使用者点「🔄 同步招聘方舟」自行从公开招聘接口抓取，只存在本机浏览器。
+//   岗位清单 —— 由使用者点「🔄 同步」自行从公开招聘接口抓取，只存在本机浏览器。
 //   个人数据 —— 投递记录 / 复盘 / 简历 / 总结，同样只存本机 localStorage，永不上传。
 // 因此本文件里不存在任何把数据发送到云端的代码路径。
 function nowIso() { return new Date().toISOString(); }
@@ -4195,7 +4195,7 @@ async function syncQiuzhiFangzhou(opts) {
   const btn = document.getElementById('btnSyncQiuzhiFangzhou');
   const setBtn = (txt, disabled) => { if (btn && !silent) { btn.textContent = txt; btn.disabled = disabled; } };
   setBtn('⏳ 同步中...', true);
-  if (!silent) document.getElementById('syncResultTitle').textContent = '🔄 招聘方舟同步结果';
+  if (!silent) document.getElementById('syncResultTitle').textContent = '🔄 同步结果';
 
   try {
     // 生成最近 30 天的日期列表（与站点页面展示窗口一致）
@@ -4301,10 +4301,10 @@ async function syncQiuzhiFangzhou(opts) {
     // 静默模式（进页面自动同步）不弹结果弹窗，避免每次打开都被打断；
     // 但抓到新岗位要给出提示，否则使用者不知道数据已经更新了。
     if (silent) {
-      if (newCount > 0) toast(`已自动同步招聘方舟：新增 ${newCount} 个岗位`);
+      if (newCount > 0) toast(`已自动同步：新增 ${newCount} 个岗位`);
     } else {
       document.getElementById('syncResultModal').style.display = 'flex';
-      toast(`招聘方舟同步完成: 新增 ${newCount} 个岗位`);
+      toast(`同步完成：新增 ${newCount} 个岗位`);
     }
   } catch(e) {
     if (silent) {
@@ -4318,11 +4318,11 @@ async function syncQiuzhiFangzhou(opts) {
     }
     throw e;   // 交给调用方决定是否重试/记状态
   }
-  setBtn('🔄 同步招聘方舟', false);
+  setBtn('🔄 同步', false);
   if (typeof renderSyncCaption === 'function') renderSyncCaption();
 }
 
-/* 顶部「同步招聘方舟」旁边的状态文字。
+/* 顶部「同步」按钮旁边的状态文字。
  * 存在的意义：让使用者**看得见**自动同步真的跑了，
  * 而不是只能靠"怎么好像还是旧的"去猜。 */
 function renderSyncCaption(state) {
@@ -6067,7 +6067,7 @@ function initApp() {
   // 放到最后：首屏已经渲染完，同步在后台跑，不阻塞任何交互。
   // 6 小时内不重复拉，避免频繁刷新时反复请求接口。
   maybeAutoSyncQiuzhi();
-  // 没有任何后端存储：岗位清单靠进页面自动同步 / 手动点「🔄 同步招聘方舟」抓取到本机
+  // 没有任何后端存储：岗位清单靠进页面自动同步 / 手动点「🔄 同步」抓取到本机
 }
 
 initApp();
