@@ -3986,8 +3986,19 @@ function loadSummary() {
   document.getElementById('summaryText').value = typeof v === 'string' ? v : '';
 }
 
-function getQiuzhiSyncMeta() { try { return JSON.parse(localStorage.getItem(QIUZHI_META_KEY)||'{}'); } catch { return {}; } }
-function setQiuzhiSyncMeta(m) { try { localStorage.setItem(QIUZHI_META_KEY, JSON.stringify(m)); } catch(e){} }
+// 同步元数据走**压缩存储**。
+// 原来这里是明文 JSON：实测 syncedIds 攒到 3135 项时占 **18.4KB**，
+// 而它现在**每次打开页面都会重写一遍**（自动同步的 TTL 已改成 0）。
+// 改成和岗位清单同一套 LZString 压缩（18.4KB → 约 3KB），
+// 写入量和 localStorage 占用都明显下降。
+// 兼容性：lsGet 同时支持"老的明文 JSON"和"新的压缩串"，所以不需要迁移。
+function getQiuzhiSyncMeta() {
+  try {
+    const v = lsGet(QIUZHI_META_KEY);
+    return (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+  } catch (e) { return {}; }
+}
+function setQiuzhiSyncMeta(m) { lsSet(QIUZHI_META_KEY, m); }
 
 function qzSplitPositions(raw) {
   if (!raw) return [];
