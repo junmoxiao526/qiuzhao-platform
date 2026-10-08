@@ -969,6 +969,7 @@ body {
     </nav>
   </div>
   <div class="header-right">
+    <button class="btn btn-outline btn-sm" id="btnGuide" onclick="openGuide()" title="使用说明">📖</button>
     <button class="btn btn-outline btn-sm" id="btnTodoBell" onclick="openReminderSettings()" title="今日待办与到期提醒设置">🔔</button>
     <button class="btn btn-outline btn-sm" id="btnTheme" onclick="toggleTheme()" title="切换深浅色主题">🌙</button>
     <button class="btn btn-outline btn-sm" onclick="syncQiuzhiFangzhou({force:true})" id="btnSyncQiuzhiFangzhou" title="从招聘方舟同步最新校园招聘岗位（进页面会自动同步，这里是手动强制刷新）">🔄 同步</button>
@@ -1178,6 +1179,60 @@ body {
     <div class="modal-body" id="statsBody"></div>
     <div class="modal-footer">
       <button class="btn btn-sm" onclick="closeStats()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 使用说明（每次进入自动弹出，可关闭或不再弹出） ============ -->
+<div class="modal-overlay" id="guideModal" style="display:none;">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-header">
+      <h3>📖 使用说明</h3>
+      <button class="modal-close" onclick="closeGuide()">×</button>
+    </div>
+    <div class="modal-body" style="max-height:62vh;overflow-y:auto;line-height:1.8;font-size:13.5px;">
+      <p style="margin:0 0 4px;color:var(--text-secondary);">一个**纯本地**的校招岗位管理工具。岗位清单来自公开招聘接口；投递状态、简历、复盘只存在你自己的浏览器里，<b>不上传任何服务器</b>。</p>
+
+      <h4 style="margin:18px 0 6px;font-size:14px;">四个板块</h4>
+      <ul style="margin:0;padding-left:20px;">
+        <li><b>探索岗位</b> —— 全部校招岗位，按城市 / 行业 / 学历 / 截止时间筛选搜索</li>
+        <li><b>投递管理</b> —— 看板 / 列表 / 星图 三种视图，管理投递进度</li>
+        <li><b>我的简历</b> —— 保存简历信息，投递时直接复制</li>
+        <li><b>复盘总结</b> —— 记录每次投递与面试的复盘</li>
+      </ul>
+
+      <h4 style="margin:18px 0 6px;font-size:14px;">自动同步</h4>
+      <p style="margin:0;">每次打开页面都会<b>自动拉取最新岗位</b>，不用手动点。同步在后台跑，不阻塞页面。<br>
+      想立刻强制刷新时，点右上角 <b>🔄 同步</b>。</p>
+
+      <h4 style="margin:18px 0 6px;font-size:14px;">星图怎么用</h4>
+      <ul style="margin:0;padding-left:20px;">
+        <li>每一圈 = 一个投递阶段，从内到外按进度推进</li>
+        <li>圆点是岗位：<b>颜色</b> = 当前阶段，<b>越大</b> = 该阶段岗位越多</li>
+        <li>鼠标悬停看公司名，点击打开详情</li>
+        <li>右上角按钮或滚轮可缩放</li>
+      </ul>
+
+      <h4 style="margin:18px 0 6px;font-size:14px;">今日待办</h4>
+      <p style="margin:0;">打开页面自动算出：<b>快截止的</b>、<b>待测评的</b>、<b>面试要跟进的</b>。不需要手动录入。</p>
+
+      <h4 style="margin:18px 0 6px;font-size:14px;">⚠️ 数据存在哪（请务必知道）</h4>
+      <p style="margin:0 0 6px;">本平台<b>没有服务器</b>，所有数据只存在你这台设备的浏览器里。这意味着：</p>
+      <ul style="margin:0;padding-left:20px;">
+        <li>换电脑 / 换浏览器 / 清缓存 → 数据<b>不会</b>跟过去</li>
+        <li>换设备请用 <b>导出</b> → 在另一台 <b>导入</b></li>
+        <li>建议定期导出一份备份</li>
+      </ul>
+
+      <h4 style="margin:18px 0 6px;font-size:14px;">其他</h4>
+      <p style="margin:0;">右上角 <b>🌙</b> 切换深浅色主题，<b>🔔</b> 设置到期提醒。随时点右上角 <b>📖</b> 重新打开本说明。</p>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="font-size:12px;color:var(--text-muted);">选「关闭」下次进入还会弹出</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-sm" onclick="closeGuide()">关闭</button>
+        <button class="btn btn-sm btn-primary" onclick="closeGuide(true)">不再弹出</button>
+      </div>
     </div>
   </div>
 </div>
@@ -6030,6 +6085,48 @@ function deleteReview(id) {
 // ==================== Init ====================
 // 启动流程集中在此处，并在脚本末尾调用 —— 保证所有函数与常量都已定义、
 // 数据已从本机读入之后再开始渲染。
+// ==================== 使用说明 ====================
+// 用户要求：每次进入自动弹出，可「关闭」（下次还会弹）或「不再弹出」（永久记住）。
+// 存储键放在 localStorage，和其他个人数据一样只在本机。
+const GUIDE_DISMISS_KEY = 'qiuzhao_guide_dismissed';
+function guideIsDismissed() {
+  try { return localStorage.getItem(GUIDE_DISMISS_KEY) === '1'; } catch (e) { return false; }
+}
+function openGuide() {
+  const el = document.getElementById('guideModal');
+  if (el) el.style.display = 'flex';
+}
+// persist=true → 点的是「不再弹出」，记下标记，以后不再自动弹
+function closeGuide(persist) {
+  const el = document.getElementById('guideModal');
+  if (el) el.style.display = 'none';
+  if (persist) {
+    try { localStorage.setItem(GUIDE_DISMISS_KEY, '1'); } catch (e) {}
+    toast('已设置不再弹出，可随时点右上角 📖 重新查看');
+  }
+}
+// 进页面时调用：没选过「不再弹出」就弹一次
+function maybeShowGuide() {
+  if (guideIsDismissed()) return;
+  // 稍等片刻再弹，避免和首屏渲染 / 自动同步抢主线程
+  setTimeout(function () {
+    // 如果这时候已经有别的弹窗开着，就不叠上去
+    const busy = ['jobModal', 'detailModal', 'statsModal', 'syncResultModal', 'editModal']
+      .some(function (id) { const e = document.getElementById(id); return e && e.style.display === 'flex'; });
+    if (!busy) openGuide();
+  }, 1200);
+}
+// 按 Esc 也能关掉（和「关闭」等效，下次仍会弹）
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  const el = document.getElementById('guideModal');
+  if (el && el.style.display === 'flex') closeGuide();
+});
+// 点遮罩空白处关闭
+document.addEventListener('click', function (e) {
+  if (e.target && e.target.id === 'guideModal') closeGuide();
+});
+
 function initApp() {
   // 注意：这三行是"把数据读进内存"的关键步骤，缺一不可。
   // loadJobs 曾经在整理 Init 块时被漏掉，导致启动后 jobs 恒为空数组
@@ -6067,6 +6164,8 @@ function initApp() {
   // 放到最后：首屏已经渲染完，同步在后台跑，不阻塞任何交互。
   // 6 小时内不重复拉，避免频繁刷新时反复请求接口。
   maybeAutoSyncQiuzhi();
+  // 使用说明：每次进入自动弹一次（选过「不再弹出」就不再打扰）
+  maybeShowGuide();
   // 没有任何后端存储：岗位清单靠进页面自动同步 / 手动点「🔄 同步」抓取到本机
 }
 
