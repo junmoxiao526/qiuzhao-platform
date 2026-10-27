@@ -1214,7 +1214,7 @@ body {
       </ul>
 
       <h4 style="margin:18px 0 6px;font-size:14px;">今日待办</h4>
-      <p style="margin:0;">打开页面自动算出：<b>快截止的</b>、<b>待测评的</b>、<b>面试要跟进的</b>。不需要手动录入。</p>
+      <p style="margin:0;">打开页面自动算出：<b>快截止的</b>、<b>待测评/笔试的</b>、<b>面试要跟进的</b>。不需要手动录入。</p>
 
       <h4 style="margin:18px 0 6px;font-size:14px;">⚠️ 数据存在哪（请务必知道）</h4>
       <p style="margin:0 0 6px;">本平台<b>没有服务器</b>，所有数据只存在你这台设备的浏览器里。这意味着：</p>
@@ -1514,8 +1514,8 @@ function lsGet(key) {
 const STATUSES = [
   { key:'pending',    label:'待投递', dot:'#93A3B8', badge:'#64748B' },
   { key:'applied',    label:'已投递', dot:'#4B8DF8', badge:'#2563EB' },
-  { key:'assessment', label:'待测评', dot:'#2BB3D4', badge:'#0E7490' },
-  { key:'exam',       label:'已测评', dot:'#22B99A', badge:'#0F766E' },
+  { key:'assessment', label:'待测评/笔试', dot:'#2BB3D4', badge:'#0E7490' },
+  { key:'exam',       label:'已测评/笔试', dot:'#22B99A', badge:'#0F766E' },
   { key:'ai',         label:'AI面',   dot:'#6366F1', badge:'#4338CA' },
   { key:'interview1', label:'一面',   dot:'#8B5CF6', badge:'#6D28D9' },
   { key:'interview2', label:'二面',   dot:'#A855F7', badge:'#7E22CE' },
