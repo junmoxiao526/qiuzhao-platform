@@ -6171,6 +6171,23 @@ function initApp() {
 
 initApp();
 
+/* 注册 Service Worker —— 解决"打开很慢"。
+ * 托管在 GitHub Pages，实测国内下载本文件要 8~60 秒（5~38 KB/s 且会超时）。
+ * 带宽优化不了，但可以让**第一次之后每次打开几乎瞬间**：
+ * sw.js 会把应用外壳缓存到本地，访问时先返回缓存、后台静默拉新版。
+ * 只处理同源资源，招聘方舟接口不受影响（岗位数据永远走网络）。
+ * file:// 打开时 SW 不可用，用 try/catch 静默跳过，不影响任何功能。 */
+if ('serviceWorker' in navigator &&
+    (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').then(function () {
+      console.log('[SW] 离线缓存已启用，之后打开会明显更快');
+    }).catch(function (e) {
+      console.warn('[SW] 注册失败（不影响使用）', e && e.message);
+    });
+  });
+}
+
 </script>
 </body>
 </html>
